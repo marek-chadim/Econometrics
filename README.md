@@ -11,7 +11,7 @@
 ### Recordings
 - [Econometrics](https://www.youtube.com/playlist?list=PL_vQFUgojoerLH1AfiBylg_UvbAaRncKx), Christopher Conlon
 - [Applied Methods](https://www.youtube.com/playlist?list=PLWWcL1M3lLlojLTSVf2gGYQ_9TlPyPbiJ), Paul Goldsmith-Pinkham
-- [NBER Methods Lectures](https://www-nber-org.ez.hhs.se/research/lectures?facet=lectureType%3AMethods%20Lecture&page=1&perPage=50)
+- [NBER Methods Lectures](https://www-nber-org.ez.hhs.se/research/lectures?facet=lectureType%3AMethods%20Lecture&page=1&perPage=50), e.g. 2007, 2023, 2024
 - [AEA Continuing Education Webcasts](https://www.aeaweb.org/conference/cont-ed), e.g. 2014, 2017, 2020, 2021
 
 undergraduate
