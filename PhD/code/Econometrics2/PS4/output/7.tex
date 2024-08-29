@@ -1,0 +1,19 @@
+{
+\def\sym#1{\ifmmode^{#1}\else\(^{#1}\)\fi}
+\begin{tabular}{l*{4}{c}}
+\hline\hline
+            &\multicolumn{1}{c}{(1)}&\multicolumn{1}{c}{(2)}&\multicolumn{1}{c}{(3)}&\multicolumn{1}{c}{(4)}\\
+            &\multicolumn{1}{c}{outcome}&\multicolumn{1}{c}{outcome}&\multicolumn{1}{c}{outcome}&\multicolumn{1}{c}{outcome}\\
+\hline
+fiscal      &       1.013\sym{***}&                     &       1.516\sym{***}&                     \\
+            &      (8.70)         &                     &     (12.63)         &                     \\
+[1em]
+cash        &       2.107\sym{***}&       2.103\sym{***}&       2.618\sym{***}&       2.616\sym{***}\\
+            &     (15.70)         &     (15.18)         &     (18.40)         &     (18.27)         \\
+\hline
+\(N\)       &        1000         &        1000         &        1000         &        1000         \\
+\hline\hline
+\multicolumn{5}{l}{\footnotesize \textit{t} statistics in parentheses}\\
+\multicolumn{5}{l}{\footnotesize \sym{*} \(p<0.05\), \sym{**} \(p<0.01\), \sym{***} \(p<0.001\)}\\
+\end{tabular}
+}

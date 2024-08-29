@@ -1,0 +1,1417 @@
+{smcl}
+{com}{sf}{ul off}{txt}{.-}
+      name:  {res}<unnamed>
+       {txt}log:  {res}C:\Users\chadi\Dropbox\5314\5314_PS1\Script\log.txt
+  {txt}log type:  {res}smcl
+ {txt}opened on:  {res}24 Jan 2024, 14:41:01
+{txt}
+{com}. * Loading data
+.         import delimited "$data\US_spread.txt", clear
+{res}{txt}(encoding automatically selected: ISO-8859-1)
+{text}(3 vars, 256 obs)
+
+{com}. 
+. ********************************************************************************
+. ********************************** ANALYSIS ************************************
+. ********************************************************************************
+. 
+. 
+. // UNIVARIATE TIME SERIES ANALYSIS
+. //------------------------------------------------------------------------------
+.         
+. // String to date variable
+.         codebook, compact
+{res}
+{txt}Variable   Obs Unique      Mean        Min       Max  Label
+{txt}{hline 211}
+{txt}year     {res}  256     64    1991.5       1960      2023  {txt}
+{txt}quarter  {res}  256      4       2.5          1         4  {txt}
+{txt}spread   {res}  256    256  1.124382  -1.379841  3.786146  {txt}
+{txt}{hline 211}
+
+{com}.         tostring year, generate(str_year)
+{txt}str_year generated as {res:str4}
+
+{com}.         tostring quarter, generate(str_quarter)
+{txt}str_quarter generated as {res:str1}
+
+{com}.         generate date = str_year + "/" + str_quarter
+{txt}
+{com}.         generate t = quarterly(date,"YQ")
+{txt}
+{com}.         format t %tq
+{txt}
+{com}.         drop str_year str_quarter date 
+{txt}
+{com}.         
+. // Tell Stata our data are time series and restrict period for replication
+.         tsset t
+{res}
+{p 0 15 2}{txt:Time variable: }{res:t}{txt:, }{res:{bind:1960q1}}{txt: to }{res:{bind:2023q4}}{p_end}
+{txt}{col 9}Delta: {res}1 quarter
+{txt}
+{com}.         keep if tin(1960q1, 2012q4)
+{txt}(44 observations deleted)
+
+{com}.         gen dspread = D.spread
+{txt}(1 missing value generated)
+
+{com}.         codebook, compact
+{res}
+{txt}Variable   Obs Unique      Mean        Min       Max  Label
+{txt}{hline 211}
+{txt}year     {res}  212     53      1986       1960      2012  {txt}
+{txt}quarter  {res}  212      4       2.5          1         4  {txt}
+{txt}spread   {res}  212    212  1.209455  -1.200164  3.786146  {txt}
+{txt}t        {res}  212    212     105.5          0       211  {txt}
+{txt}dspread  {res}  211    211  .0009143   -2.47176  2.134082  {txt}
+{txt}{hline 211}
+
+{com}.         
+. // Plots
+.         tsline spread, ytitle("") saving(${c -(}output{c )-}/series) 
+{res}{txt}file {bf:C:\Users\chadi\Dropbox\5314\5314_PS1\Output/series.gph} saved
+
+{com}.         tsline dspread, ytitle("") saving(${c -(}output{c )-}/dseries)
+{res}{txt}file {bf:C:\Users\chadi\Dropbox\5314\5314_PS1\Output/dseries.gph} saved
+
+{com}.         graph combine ${c -(}output{c )-}/series.gph ${c -(}output{c )-}/dseries.gph, col(1)
+{res}{txt}
+{com}.         graph export "${c -(}output{c )-}/tsline.png", width(4000) replace
+{txt}{p 0 4 2}
+(file {bf}
+C:\Users\chadi\Dropbox\5314\5314_PS1\Output/tsline.png{rm}
+not found)
+{p_end}
+{p 0 4 2}
+file {bf}
+C:\Users\chadi\Dropbox\5314\5314_PS1\Output/tsline.png{rm}
+saved as
+PNG
+format
+{p_end}
+
+{com}. 
+. 
+.         ac spread, lags(12) saving(${c -(}output{c )-}/ac) //computing the ACF for the spread series using up to 12 lags (s = 12)
+{res}{txt}file {bf:C:\Users\chadi\Dropbox\5314\5314_PS1\Output/ac.gph} saved
+
+{com}.         pac spread, lags(12) saving(${c -(}output{c )-}/pac) //computing the PACF for the spread series using up to 12 lags (s = 12)
+{res}{txt}file {bf:C:\Users\chadi\Dropbox\5314\5314_PS1\Output/pac.gph} saved
+
+{com}.         graph combine ${c -(}output{c )-}/ac.gph ${c -(}output{c )-}/pac.gph, col(1)
+{res}{txt}
+{com}.         graph export "${c -(}output{c )-}/cor.png", width(4000) replace
+{txt}{p 0 4 2}
+(file {bf}
+C:\Users\chadi\Dropbox\5314\5314_PS1\Output/cor.png{rm}
+not found)
+{p_end}
+{p 0 4 2}
+file {bf}
+C:\Users\chadi\Dropbox\5314\5314_PS1\Output/cor.png{rm}
+saved as
+PNG
+format
+{p_end}
+
+{com}. 
+. * Model 1: ARIMA with p=1 to 7, q=0
+.         arima spread if tin(1961q4, ), ar(1/7)   
+
+{txt}(setting optimization to BHHH)
+{res}{txt}Iteration 0:  Log likelihood = {res} -134.1224{txt}  
+{res}{txt}Iteration 1:  Log likelihood = {res}-134.09141{txt}  
+{res}{txt}Iteration 2:  Log likelihood = {res}-134.07843{txt}  
+{res}{txt}Iteration 3:  Log likelihood = {res}-134.07191{txt}  
+{res}{txt}Iteration 4:  Log likelihood = {res} -134.0677{txt}  
+{res}{txt}(switching optimization to BFGS)
+{res}{txt}Iteration 5:  Log likelihood = {res}-134.06531{txt}  
+{res}{txt}Iteration 6:  Log likelihood = {res} -134.0628{txt}  
+{res}{txt}Iteration 7:  Log likelihood = {res}-134.06158{txt}  
+{res}{txt}Iteration 8:  Log likelihood = {res}-134.06153{txt}  
+{res}{txt}Iteration 9:  Log likelihood = {res}-134.06153{txt}  
+{res}
+{txt}ARIMA regression
+
+Sample: {res}1961q4 {txt}thru{res} 2012q4 {col 49}{txt}Number of obs{col 67}={res}{col 69}       205
+                                                {txt}Wald chi2({res}7{txt})      =  {res}   853.71
+{txt}Log likelihood = {res}-134.0615                      {txt}Prob > chi2       =     {res}0.0000
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}      OPG
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      z{col 46}   P>|z|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}spread       {txt}{c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} 1.208628{col 26}{space 2} .1961477{col 37}{space 1}    6.16{col 46}{space 3}0.000{col 54}{space 4} .8241856{col 67}{space 3} 1.593071
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}ARMA         {txt}{c |}
+{space 10}ar {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} 1.107214{col 26}{space 2} .0729447{col 37}{space 1}   15.18{col 46}{space 3}0.000{col 54}{space 4} .9642453{col 67}{space 3} 1.250183
+{txt}{space 9}L2. {c |}{col 14}{res}{space 2}-.4508168{col 26}{space 2} .1082989{col 37}{space 1}   -4.16{col 46}{space 3}0.000{col 54}{space 4}-.6630788{col 67}{space 3}-.2385549
+{txt}{space 9}L3. {c |}{col 14}{res}{space 2} .4036895{col 26}{space 2}  .086345{col 37}{space 1}    4.68{col 46}{space 3}0.000{col 54}{space 4} .2344564{col 67}{space 3} .5729227
+{txt}{space 9}L4. {c |}{col 14}{res}{space 2} -.305369{col 26}{space 2} .0765407{col 37}{space 1}   -3.99{col 46}{space 3}0.000{col 54}{space 4}-.4553861{col 67}{space 3} -.155352
+{txt}{space 9}L5. {c |}{col 14}{res}{space 2} .2266493{col 26}{space 2} .0971385{col 37}{space 1}    2.33{col 46}{space 3}0.020{col 54}{space 4} .0362613{col 67}{space 3} .4170372
+{txt}{space 9}L6. {c |}{col 14}{res}{space 2}-.2984785{col 26}{space 2} .1083858{col 37}{space 1}   -2.75{col 46}{space 3}0.006{col 54}{space 4}-.5109107{col 67}{space 3}-.0860463
+{txt}{space 9}L7. {c |}{col 14}{res}{space 2} .1345248{col 26}{space 2}  .072084{col 37}{space 1}    1.87{col 46}{space 3}0.062{col 54}{space 4}-.0067573{col 67}{space 3} .2758069
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+      /sigma {c |}{col 14}{res}{space 2} .4632192{col 26}{space 2} .0192965{col 37}{space 1}   24.01{col 46}{space 3}0.000{col 54}{space 4} .4253988{col 67}{space 3} .5010397
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{p 0 6 0 79}Note: The test of the variance against zero is one sided, and the two-sided confidence interval is truncated at zero.{p_end}
+
+{com}.         predict residuals1, resid
+{txt}
+{com}.         corrgram residuals1, lag(12)
+
+{txt}{col 43}-1       0       1 -1       0       1
+ LAG       AC       PAC      Q     Prob>Q  [Autocorrelation]  [Partial autocor]
+{hline 79}
+1     {res}{col 9}-0.0059{col 18}-0.0059{col 27} .00746{col 36}0.9312{col 44}        {c |}        {col 63}        {c |}        
+{txt}2     {res}{col 9} 0.0266{col 18} 0.0266{col 27} .15976{col 36}0.9232{col 44}        {c |}        {col 63}        {c |}        
+{txt}3     {res}{col 9}-0.0101{col 18}-0.0101{col 27}   .182{col 36}0.9804{col 44}        {c |}        {col 63}        {c |}        
+{txt}4     {res}{col 9}-0.0033{col 18}-0.0040{col 27} .18439{col 36}0.9960{col 44}        {c |}        {col 63}        {c |}        
+{txt}5     {res}{col 9}-0.0475{col 18}-0.0473{col 27} .67872{col 36}0.9841{col 44}        {c |}        {col 63}        {c |}        
+{txt}6     {res}{col 9} 0.0162{col 18} 0.0164{col 27} .73658{col 36}0.9937{col 44}        {c |}        {col 63}        {c |}        
+{txt}7     {res}{col 9}-0.0555{col 18}-0.0536{col 27} 1.4178{col 36}0.9850{col 44}        {c |}        {col 63}        {c |}        
+{txt}8     {res}{col 9} 0.1302{col 18} 0.1312{col 27}  5.185{col 36}0.7376{col 44}        {c LT}{hline 1}       {col 63}        {c LT}{hline 1}       
+{txt}9     {res}{col 9} 0.0629{col 18} 0.0678{col 27} 6.0684{col 36}0.7331{col 44}        {c |}        {col 63}        {c |}        
+{txt}10    {res}{col 9}-0.0028{col 18}-0.0141{col 27} 6.0701{col 36}0.8093{col 44}        {c |}        {col 63}        {c |}        
+{txt}11    {res}{col 9}-0.1692{col 18}-0.1807{col 27}  12.53{col 36}0.3251{col 44}       {hline 1}{c RT}        {col 63}       {hline 1}{c RT}        
+{txt}12    {res}{col 9} 0.0208{col 18} 0.0191{col 27} 12.628{col 36}0.3966{col 44}        {c |}        {col 63}        {c |}        
+{txt}
+{com}.         est store model1
+{txt}
+{com}.         estat ic
+
+{txt}Akaike's information criterion and Bayesian information criterion
+
+{hline 13}{c TT}{hline 63}
+       Model {c |}          N   ll(null)  ll(model)      df        AIC        BIC
+{hline 13}{c +}{hline 63}
+{ralign 12:{stata estimates replay model1:model1}}{col 14}{c |}{res}{col 16}       205{col 28}        .{col 39}-134.0615{col 50}     9{col 58} 286.1231{col 69} 316.0301
+{txt}{hline 13}{c BT}{hline 63}
+{p 0 6 0 77}Note: BIC uses N = number of observations. See {helpb bic_note:{bind:[R] IC note}}.{p_end}
+
+{com}. 
+. * Model 2: ARIMA with p=1 to 6, q=0
+.         arima spread if tin(1961q4, ), ar(1/6)
+
+{txt}(setting optimization to BHHH)
+{res}{txt}Iteration 0:  Log likelihood = {res}-136.01587{txt}  
+{res}{txt}Iteration 1:  Log likelihood = {res}-135.99041{txt}  
+{res}{txt}Iteration 2:  Log likelihood = {res}-135.98151{txt}  
+{res}{txt}Iteration 3:  Log likelihood = {res} -135.9772{txt}  
+{res}{txt}Iteration 4:  Log likelihood = {res}-135.97477{txt}  
+{res}{txt}(switching optimization to BFGS)
+{res}{txt}Iteration 5:  Log likelihood = {res} -135.9734{txt}  
+{res}{txt}Iteration 6:  Log likelihood = {res}-135.97143{txt}  
+{res}{txt}Iteration 7:  Log likelihood = {res} -135.9714{txt}  
+{res}{txt}Iteration 8:  Log likelihood = {res}-135.97139{txt}  
+{res}
+{txt}ARIMA regression
+
+Sample: {res}1961q4 {txt}thru{res} 2012q4 {col 49}{txt}Number of obs{col 67}={res}{col 69}       205
+                                                {txt}Wald chi2({res}6{txt})      =  {res}   860.90
+{txt}Log likelihood = {res}-135.9714                      {txt}Prob > chi2       =     {res}0.0000
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}      OPG
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      z{col 46}   P>|z|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}spread       {txt}{c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} 1.209897{col 26}{space 2} .1716847{col 37}{space 1}    7.05{col 46}{space 3}0.000{col 54}{space 4} .8734009{col 67}{space 3} 1.546393
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}ARMA         {txt}{c |}
+{space 10}ar {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} 1.085798{col 26}{space 2} .0622156{col 37}{space 1}   17.45{col 46}{space 3}0.000{col 54}{space 4} .9638572{col 67}{space 3} 1.207738
+{txt}{space 9}L2. {c |}{col 14}{res}{space 2}-.4268245{col 26}{space 2} .0967485{col 37}{space 1}   -4.41{col 46}{space 3}0.000{col 54}{space 4} -.616448{col 67}{space 3} -.237201
+{txt}{space 9}L3. {c |}{col 14}{res}{space 2}  .368372{col 26}{space 2} .0844926{col 37}{space 1}    4.36{col 46}{space 3}0.000{col 54}{space 4} .2027696{col 67}{space 3} .5339744
+{txt}{space 9}L4. {c |}{col 14}{res}{space 2}-.2546413{col 26}{space 2} .0693456{col 37}{space 1}   -3.67{col 46}{space 3}0.000{col 54}{space 4}-.3905563{col 67}{space 3}-.1187263
+{txt}{space 9}L5. {c |}{col 14}{res}{space 2} .1685072{col 26}{space 2} .0761999{col 37}{space 1}    2.21{col 46}{space 3}0.027{col 54}{space 4} .0191581{col 67}{space 3} .3178562
+{txt}{space 9}L6. {c |}{col 14}{res}{space 2}-.1516863{col 26}{space 2} .0557769{col 37}{space 1}   -2.72{col 46}{space 3}0.007{col 54}{space 4}-.2610071{col 67}{space 3}-.0423656
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+      /sigma {c |}{col 14}{res}{space 2} .4676984{col 26}{space 2} .0191985{col 37}{space 1}   24.36{col 46}{space 3}0.000{col 54}{space 4}   .43007{col 67}{space 3} .5053267
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{p 0 6 0 79}Note: The test of the variance against zero is one sided, and the two-sided confidence interval is truncated at zero.{p_end}
+
+{com}.         predict residuals2, resid
+{txt}
+{com}.         corrgram residuals2, lag(12)
+
+{txt}{col 43}-1       0       1 -1       0       1
+ LAG       AC       PAC      Q     Prob>Q  [Autocorrelation]  [Partial autocor]
+{hline 79}
+1     {res}{col 9} 0.0159{col 18} 0.0159{col 27} .05444{col 36}0.8155{col 44}        {c |}        {col 63}        {c |}        
+{txt}2     {res}{col 9} 0.0033{col 18} 0.0029{col 27} .05681{col 36}0.9720{col 44}        {c |}        {col 63}        {c |}        
+{txt}3     {res}{col 9}-0.0008{col 18}-0.0010{col 27} .05696{col 36}0.9964{col 44}        {c |}        {col 63}        {c |}        
+{txt}4     {res}{col 9}-0.0234{col 18}-0.0235{col 27} .17645{col 36}0.9963{col 44}        {c |}        {col 63}        {c |}        
+{txt}5     {res}{col 9}-0.0126{col 18}-0.0117{col 27} .21138{col 36}0.9990{col 44}        {c |}        {col 63}        {c |}        
+{txt}6     {res}{col 9}-0.0928{col 18}-0.0928{col 27} 2.1083{col 36}0.9095{col 44}        {c |}        {col 63}        {c |}        
+{txt}7     {res}{col 9}-0.0517{col 18}-0.0488{col 27} 2.7009{col 36}0.9112{col 44}        {c |}        {col 63}        {c |}        
+{txt}8     {res}{col 9} 0.1875{col 18} 0.1942{col 27} 10.517{col 36}0.2306{col 44}        {c LT}{hline 1}       {col 63}        {c LT}{hline 1}       
+{txt}9     {res}{col 9} 0.0810{col 18} 0.0791{col 27} 11.984{col 36}0.2142{col 44}        {c |}        {col 63}        {c |}        
+{txt}10    {res}{col 9} 0.0200{col 18} 0.0075{col 27} 12.074{col 36}0.2801{col 44}        {c |}        {col 63}        {c |}        
+{txt}11    {res}{col 9}-0.1245{col 18}-0.1449{col 27} 15.574{col 36}0.1577{col 44}        {c |}        {col 63}       {hline 1}{c RT}        
+{txt}12    {res}{col 9} 0.0436{col 18} 0.0500{col 27} 16.005{col 36}0.1910{col 44}        {c |}        {col 63}        {c |}        
+{txt}
+{com}.         est store model2
+{txt}
+{com}.         estat ic
+
+{txt}Akaike's information criterion and Bayesian information criterion
+
+{hline 13}{c TT}{hline 63}
+       Model {c |}          N   ll(null)  ll(model)      df        AIC        BIC
+{hline 13}{c +}{hline 63}
+{ralign 12:{stata estimates replay model2:model2}}{col 14}{c |}{res}{col 16}       205{col 28}        .{col 39}-135.9714{col 50}     8{col 58} 287.9428{col 69} 314.5269
+{txt}{hline 13}{c BT}{hline 63}
+{p 0 6 0 77}Note: BIC uses N = number of observations. See {helpb bic_note:{bind:[R] IC note}}.{p_end}
+
+{com}. 
+. * Model 3: ARIMA with p=1 and 2, q=0
+.         arima spread if tin(1961q4, ), ar(1/2)
+
+{txt}(setting optimization to BHHH)
+{res}{txt}Iteration 0:  Log likelihood = {res}-143.62588{txt}  
+{res}{txt}Iteration 1:  Log likelihood = {res}-143.61779{txt}  
+{res}{txt}Iteration 2:  Log likelihood = {res}-143.61664{txt}  
+{res}{txt}Iteration 3:  Log likelihood = {res}-143.61643{txt}  
+{res}{txt}Iteration 4:  Log likelihood = {res}-143.61639{txt}  
+{res}{txt}(switching optimization to BFGS)
+{res}{txt}Iteration 5:  Log likelihood = {res}-143.61638{txt}  
+{res}{txt}Iteration 6:  Log likelihood = {res}-143.61637{txt}  
+{res}
+{txt}ARIMA regression
+
+Sample: {res}1961q4 {txt}thru{res} 2012q4 {col 49}{txt}Number of obs{col 67}={res}{col 69}       205
+                                                {txt}Wald chi2({res}2{txt})      =  {res}   684.79
+{txt}Log likelihood = {res}-143.6164                      {txt}Prob > chi2       =     {res}0.0000
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}      OPG
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      z{col 46}   P>|z|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}spread       {txt}{c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} 1.204076{col 26}{space 2} .2109465{col 37}{space 1}    5.71{col 46}{space 3}0.000{col 54}{space 4} .7906281{col 67}{space 3} 1.617523
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}ARMA         {txt}{c |}
+{space 10}ar {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} 1.037962{col 26}{space 2} .0566642{col 37}{space 1}   18.32{col 46}{space 3}0.000{col 54}{space 4} .9269023{col 67}{space 3} 1.149022
+{txt}{space 9}L2. {c |}{col 14}{res}{space 2} -.212582{col 26}{space 2} .0555971{col 37}{space 1}   -3.82{col 46}{space 3}0.000{col 54}{space 4}-.3215503{col 67}{space 3}-.1036137
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+      /sigma {c |}{col 14}{res}{space 2} .4858788{col 26}{space 2}  .012986{col 37}{space 1}   37.42{col 46}{space 3}0.000{col 54}{space 4} .4604268{col 67}{space 3} .5113309
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{p 0 6 0 79}Note: The test of the variance against zero is one sided, and the two-sided confidence interval is truncated at zero.{p_end}
+
+{com}.         predict residuals3, resid
+{txt}
+{com}.         corrgram residuals3, lag(12)
+
+{txt}{col 43}-1       0       1 -1       0       1
+ LAG       AC       PAC      Q     Prob>Q  [Autocorrelation]  [Partial autocor]
+{hline 79}
+1     {res}{col 9} 0.0205{col 18} 0.0205{col 27}  .0904{col 36}0.7637{col 44}        {c |}        {col 63}        {c |}        
+{txt}2     {res}{col 9}-0.1290{col 18}-0.1298{col 27} 3.6874{col 36}0.1582{col 44}       {hline 1}{c RT}        {col 63}       {hline 1}{c RT}        
+{txt}3     {res}{col 9} 0.1569{col 18} 0.1669{col 27} 9.0282{col 36}0.0289{col 44}        {c LT}{hline 1}       {col 63}        {c LT}{hline 1}       
+{txt}4     {res}{col 9} 0.0143{col 18}-0.0164{col 27} 9.0727{col 36}0.0593{col 44}        {c |}        {col 63}        {c |}        
+{txt}5     {res}{col 9} 0.0793{col 18} 0.1297{col 27} 10.451{col 36}0.0634{col 44}        {c |}        {col 63}        {c LT}{hline 1}       
+{txt}6     {res}{col 9}-0.1053{col 18}-0.1555{col 27} 12.895{col 36}0.0447{col 44}        {c |}        {col 63}       {hline 1}{c RT}        
+{txt}7     {res}{col 9}-0.1348{col 18}-0.0943{col 27} 16.917{col 36}0.0179{col 44}       {hline 1}{c RT}        {col 63}        {c |}        
+{txt}8     {res}{col 9} 0.1490{col 18} 0.0999{col 27} 21.852{col 36}0.0052{col 44}        {c LT}{hline 1}       {col 63}        {c |}        
+{txt}9     {res}{col 9} 0.0618{col 18} 0.0682{col 27} 22.706{col 36}0.0069{col 44}        {c |}        {col 63}        {c |}        
+{txt}10    {res}{col 9}-0.0711{col 18}-0.0154{col 27}  23.84{col 36}0.0080{col 44}        {c |}        {col 63}        {c |}        
+{txt}11    {res}{col 9}-0.1524{col 18}-0.1820{col 27} 29.085{col 36}0.0022{col 44}       {hline 1}{c RT}        {col 63}       {hline 1}{c RT}        
+{txt}12    {res}{col 9} 0.0039{col 18} 0.0028{col 27} 29.089{col 36}0.0038{col 44}        {c |}        {col 63}        {c |}        
+{txt}
+{com}.         est store model3
+{txt}
+{com}.         estat ic
+
+{txt}Akaike's information criterion and Bayesian information criterion
+
+{hline 13}{c TT}{hline 63}
+       Model {c |}          N   ll(null)  ll(model)      df        AIC        BIC
+{hline 13}{c +}{hline 63}
+{ralign 12:{stata estimates replay model3:model3}}{col 14}{c |}{res}{col 16}       205{col 28}        .{col 39}-143.6164{col 50}     4{col 58} 295.2327{col 69} 308.5248
+{txt}{hline 13}{c BT}{hline 63}
+{p 0 6 0 77}Note: BIC uses N = number of observations. See {helpb bic_note:{bind:[R] IC note}}.{p_end}
+
+{com}. 
+. * Model 4: ARIMA with p=1,2 and 7, q=0
+.         arima spread if tin(1961q4, ), ar(1/2,7)
+
+{txt}(setting optimization to BHHH)
+{res}{txt}Iteration 0:  Log likelihood = {res}-143.34423{txt}  
+{res}{txt}Iteration 1:  Log likelihood = {res}-143.30754{txt}  
+{res}{txt}Iteration 2:  Log likelihood = {res}-143.29332{txt}  
+{res}{txt}Iteration 3:  Log likelihood = {res}-143.28969{txt}  
+{res}{txt}Iteration 4:  Log likelihood = {res}-143.28816{txt}  
+{res}{txt}(switching optimization to BFGS)
+{res}{txt}Iteration 5:  Log likelihood = {res}-143.28763{txt}  
+{res}{txt}Iteration 6:  Log likelihood = {res}-143.28725{txt}  
+{res}{txt}Iteration 7:  Log likelihood = {res}-143.28724{txt}  
+{res}
+{txt}ARIMA regression
+
+Sample: {res}1961q4 {txt}thru{res} 2012q4 {col 49}{txt}Number of obs{col 67}={res}{col 69}       205
+                                                {txt}Wald chi2({res}3{txt})      =  {res}   709.86
+{txt}Log likelihood = {res}-143.2872                      {txt}Prob > chi2       =     {res}0.0000
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}      OPG
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      z{col 46}   P>|z|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}spread       {txt}{c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} 1.206852{col 26}{space 2} .1902272{col 37}{space 1}    6.34{col 46}{space 3}0.000{col 54}{space 4}  .834014{col 67}{space 3} 1.579691
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}ARMA         {txt}{c |}
+{space 10}ar {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} 1.027754{col 26}{space 2} .0650986{col 37}{space 1}   15.79{col 46}{space 3}0.000{col 54}{space 4} .9001632{col 67}{space 3} 1.155345
+{txt}{space 9}L2. {c |}{col 14}{res}{space 2}-.1951677{col 26}{space 2} .0678008{col 37}{space 1}   -2.88{col 46}{space 3}0.004{col 54}{space 4}-.3280548{col 67}{space 3}-.0622806
+{txt}{space 9}L7. {c |}{col 14}{res}{space 2}-.0296848{col 26}{space 2} .0321578{col 37}{space 1}   -0.92{col 46}{space 3}0.356{col 54}{space 4}-.0927129{col 67}{space 3} .0333433
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+      /sigma {c |}{col 14}{res}{space 2} .4850732{col 26}{space 2}  .013144{col 37}{space 1}   36.90{col 46}{space 3}0.000{col 54}{space 4} .4593114{col 67}{space 3}  .510835
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{p 0 6 0 79}Note: The test of the variance against zero is one sided, and the two-sided confidence interval is truncated at zero.{p_end}
+
+{com}.         predict residuals4, resid
+{txt}
+{com}.         corrgram residuals4, lag(12)
+
+{txt}{col 43}-1       0       1 -1       0       1
+ LAG       AC       PAC      Q     Prob>Q  [Autocorrelation]  [Partial autocor]
+{hline 79}
+1     {res}{col 9} 0.0244{col 18} 0.0244{col 27} .12806{col 36}0.7205{col 44}        {c |}        {col 63}        {c |}        
+{txt}2     {res}{col 9}-0.1420{col 18}-0.1430{col 27} 4.4823{col 36}0.1063{col 44}       {hline 1}{c RT}        {col 63}       {hline 1}{c RT}        
+{txt}3     {res}{col 9} 0.1376{col 18} 0.1498{col 27} 8.5932{col 36}0.0352{col 44}        {c LT}{hline 1}       {col 63}        {c LT}{hline 1}       
+{txt}4     {res}{col 9} 0.0065{col 18}-0.0282{col 27} 8.6025{col 36}0.0718{col 44}        {c |}        {col 63}        {c |}        
+{txt}5     {res}{col 9} 0.0680{col 18} 0.1179{col 27} 9.6172{col 36}0.0868{col 44}        {c |}        {col 63}        {c |}        
+{txt}6     {res}{col 9}-0.1170{col 18}-0.1646{col 27} 12.634{col 36}0.0492{col 44}        {c |}        {col 63}       {hline 1}{c RT}        
+{txt}7     {res}{col 9}-0.1146{col 18}-0.0664{col 27}  15.54{col 36}0.0297{col 44}        {c |}        {col 63}        {c |}        
+{txt}8     {res}{col 9} 0.1757{col 18} 0.1280{col 27} 22.409{col 36}0.0042{col 44}        {c LT}{hline 1}       {col 63}        {c LT}{hline 1}       
+{txt}9     {res}{col 9} 0.0844{col 18} 0.0923{col 27} 24.003{col 36}0.0043{col 44}        {c |}        {col 63}        {c |}        
+{txt}10    {res}{col 9}-0.0523{col 18}-0.0015{col 27} 24.618{col 36}0.0061{col 44}        {c |}        {col 63}        {c |}        
+{txt}11    {res}{col 9}-0.1340{col 18}-0.1631{col 27} 28.671{col 36}0.0026{col 44}       {hline 1}{c RT}        {col 63}       {hline 1}{c RT}        
+{txt}12    {res}{col 9} 0.0229{col 18} 0.0177{col 27}  28.79{col 36}0.0042{col 44}        {c |}        {col 63}        {c |}        
+{txt}
+{com}.         est store model4
+{txt}
+{com}.         estat ic
+
+{txt}Akaike's information criterion and Bayesian information criterion
+
+{hline 13}{c TT}{hline 63}
+       Model {c |}          N   ll(null)  ll(model)      df        AIC        BIC
+{hline 13}{c +}{hline 63}
+{ralign 12:{stata estimates replay model4:model4}}{col 14}{c |}{res}{col 16}       205{col 28}        .{col 39}-143.2872{col 50}     5{col 58} 296.5745{col 69} 313.1895
+{txt}{hline 13}{c BT}{hline 63}
+{p 0 6 0 77}Note: BIC uses N = number of observations. See {helpb bic_note:{bind:[R] IC note}}.{p_end}
+
+{com}. 
+. * Model 5: ARIMA with p=1, q=1
+.         arima spread if tin(1961q4, ), ar(1) ma(1)
+
+{txt}(setting optimization to BHHH)
+{res}{txt}Iteration 0:  Log likelihood = {res}-142.74334{txt}  
+{res}{txt}Iteration 1:  Log likelihood = {res}-141.62929{txt}  
+{res}{txt}Iteration 2:  Log likelihood = {res}-141.40587{txt}  
+{res}{txt}Iteration 3:  Log likelihood = {res}-141.36684{txt}  
+{res}{txt}Iteration 4:  Log likelihood = {res}-141.35314{txt}  
+{res}{txt}(switching optimization to BFGS)
+{res}{txt}Iteration 5:  Log likelihood = {res}-141.34811{txt}  
+{res}{txt}Iteration 6:  Log likelihood = {res}-141.34452{txt}  
+{res}{txt}Iteration 7:  Log likelihood = {res}-141.34434{txt}  
+{res}{txt}Iteration 8:  Log likelihood = {res}-141.34434{txt}  
+{res}
+{txt}ARIMA regression
+
+Sample: {res}1961q4 {txt}thru{res} 2012q4 {col 49}{txt}Number of obs{col 67}={res}{col 69}       205
+                                                {txt}Wald chi2({res}2{txt})      =  {res}   560.72
+{txt}Log likelihood = {res}-141.3443                      {txt}Prob > chi2       =     {res}0.0000
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}      OPG
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      z{col 46}   P>|z|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}spread       {txt}{c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}  1.20411{col 26}{space 2} .1945888{col 37}{space 1}    6.19{col 46}{space 3}0.000{col 54}{space 4} .8227233{col 67}{space 3} 1.585497
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}ARMA         {txt}{c |}
+{space 10}ar {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} .7556312{col 26}{space 2} .0510498{col 37}{space 1}   14.80{col 46}{space 3}0.000{col 54}{space 4} .6555755{col 67}{space 3} .8556869
+{txt}{space 12} {c |}
+{space 10}ma {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} .3810266{col 26}{space 2} .0653459{col 37}{space 1}    5.83{col 46}{space 3}0.000{col 54}{space 4} .2529509{col 67}{space 3} .5091023
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+      /sigma {c |}{col 14}{res}{space 2} .4803956{col 26}{space 2} .0155441{col 37}{space 1}   30.91{col 46}{space 3}0.000{col 54}{space 4} .4499297{col 67}{space 3} .5108614
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{p 0 6 0 79}Note: The test of the variance against zero is one sided, and the two-sided confidence interval is truncated at zero.{p_end}
+
+{com}.         predict residuals5, resid
+{txt}
+{com}.         corrgram residuals5, lag(12)
+
+{txt}{col 43}-1       0       1 -1       0       1
+ LAG       AC       PAC      Q     Prob>Q  [Autocorrelation]  [Partial autocor]
+{hline 79}
+1     {res}{col 9}-0.0476{col 18}-0.0476{col 27} .48668{col 36}0.4854{col 44}        {c |}        {col 63}        {c |}        
+{txt}2     {res}{col 9}-0.0376{col 18}-0.0396{col 27} .79131{col 36}0.6732{col 44}        {c |}        {col 63}        {c |}        
+{txt}3     {res}{col 9} 0.1679{col 18} 0.1653{col 27} 6.9131{col 36}0.0747{col 44}        {c LT}{hline 1}       {col 63}        {c LT}{hline 1}       
+{txt}4     {res}{col 9}-0.0210{col 18}-0.0086{col 27} 7.0096{col 36}0.1354{col 44}        {c |}        {col 63}        {c |}        
+{txt}5     {res}{col 9} 0.0931{col 18} 0.1078{col 27} 8.9077{col 36}0.1128{col 44}        {c |}        {col 63}        {c |}        
+{txt}6     {res}{col 9}-0.0893{col 18}-0.1177{col 27} 10.664{col 36}0.0993{col 44}        {c |}        {col 63}        {c |}        
+{txt}7     {res}{col 9}-0.1272{col 18}-0.1260{col 27} 14.247{col 36}0.0470{col 44}       {hline 1}{c RT}        {col 63}       {hline 1}{c RT}        
+{txt}8     {res}{col 9} 0.1443{col 18} 0.1004{col 27} 18.879{col 36}0.0155{col 44}        {c LT}{hline 1}       {col 63}        {c |}        
+{txt}9     {res}{col 9} 0.0241{col 18} 0.0670{col 27} 19.008{col 36}0.0251{col 44}        {c |}        {col 63}        {c |}        
+{txt}10    {res}{col 9}-0.0452{col 18}-0.0017{col 27} 19.468{col 36}0.0347{col 44}        {c |}        {col 63}        {c |}        
+{txt}11    {res}{col 9}-0.1479{col 18}-0.1958{col 27} 24.402{col 36}0.0111{col 44}       {hline 1}{c RT}        {col 63}       {hline 1}{c RT}        
+{txt}12    {res}{col 9} 0.0012{col 18}-0.0138{col 27} 24.403{col 36}0.0179{col 44}        {c |}        {col 63}        {c |}        
+{txt}
+{com}.         est store model5
+{txt}
+{com}.         estat ic
+
+{txt}Akaike's information criterion and Bayesian information criterion
+
+{hline 13}{c TT}{hline 63}
+       Model {c |}          N   ll(null)  ll(model)      df        AIC        BIC
+{hline 13}{c +}{hline 63}
+{ralign 12:{stata estimates replay model5:model5}}{col 14}{c |}{res}{col 16}       205{col 28}        .{col 39}-141.3443{col 50}     4{col 58} 290.6887{col 69} 303.9807
+{txt}{hline 13}{c BT}{hline 63}
+{p 0 6 0 77}Note: BIC uses N = number of observations. See {helpb bic_note:{bind:[R] IC note}}.{p_end}
+
+{com}. 
+. * Model 6: ARIMA with p=1 and 2, q=1
+.         arima spread if tin(1961q4, ), ar(1/2) ma(1)
+
+{txt}(setting optimization to BHHH)
+{res}{txt}Iteration 0:  Log likelihood = {res}-143.49733{txt}  
+{res}{txt}Iteration 1:  Log likelihood = {res}-139.67902{txt}  
+{res}{txt}Iteration 2:  Log likelihood = {res}-138.61598{txt}  
+{res}{txt}Iteration 3:  Log likelihood = {res}-138.49835{txt}  
+{res}{txt}Iteration 4:  Log likelihood = {res}-138.49604{txt}  
+{res}{txt}(switching optimization to BFGS)
+{res}{txt}Iteration 5:  Log likelihood = {res}-138.49531{txt}  
+{res}{txt}Iteration 6:  Log likelihood = {res}-138.49459{txt}  
+{res}{txt}Iteration 7:  Log likelihood = {res}-138.49444{txt}  
+{res}{txt}Iteration 8:  Log likelihood = {res}-138.49444{txt}  
+{res}
+{txt}ARIMA regression
+
+Sample: {res}1961q4 {txt}thru{res} 2012q4 {col 49}{txt}Number of obs{col 67}={res}{col 69}       205
+                                                {txt}Wald chi2({res}3{txt})      =  {res}   528.93
+{txt}Log likelihood = {res}-138.4944                      {txt}Prob > chi2       =     {res}0.0000
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}      OPG
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      z{col 46}   P>|z|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}spread       {txt}{c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} 1.201684{col 26}{space 2} .2154218{col 37}{space 1}    5.58{col 46}{space 3}0.000{col 54}{space 4} .7794652{col 67}{space 3} 1.623903
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}ARMA         {txt}{c |}
+{space 10}ar {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} .4066234{col 26}{space 2} .1340632{col 37}{space 1}    3.03{col 46}{space 3}0.002{col 54}{space 4} .1438644{col 67}{space 3} .6693825
+{txt}{space 9}L2. {c |}{col 14}{res}{space 2} .3243155{col 26}{space 2} .1253813{col 37}{space 1}    2.59{col 46}{space 3}0.010{col 54}{space 4} .0785727{col 67}{space 3} .5700582
+{txt}{space 12} {c |}
+{space 10}ma {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} .7063406{col 26}{space 2} .1109774{col 37}{space 1}    6.36{col 46}{space 3}0.000{col 54}{space 4} .4888289{col 67}{space 3} .9238524
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+      /sigma {c |}{col 14}{res}{space 2} .4736604{col 26}{space 2} .0168124{col 37}{space 1}   28.17{col 46}{space 3}0.000{col 54}{space 4} .4407086{col 67}{space 3} .5066122
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{p 0 6 0 79}Note: The test of the variance against zero is one sided, and the two-sided confidence interval is truncated at zero.{p_end}
+
+{com}.         predict residuals6, resid
+{txt}
+{com}.         corrgram residuals6, lag(12)
+
+{txt}{col 43}-1       0       1 -1       0       1
+ LAG       AC       PAC      Q     Prob>Q  [Autocorrelation]  [Partial autocor]
+{hline 79}
+1     {res}{col 9}-0.0092{col 18}-0.0092{col 27} .01838{col 36}0.8922{col 44}        {c |}        {col 63}        {c |}        
+{txt}2     {res}{col 9} 0.0150{col 18} 0.0151{col 27} .06725{col 36}0.9669{col 44}        {c |}        {col 63}        {c |}        
+{txt}3     {res}{col 9} 0.0684{col 18} 0.0687{col 27} 1.0822{col 36}0.7814{col 44}        {c |}        {col 63}        {c |}        
+{txt}4     {res}{col 9} 0.0266{col 18} 0.0275{col 27} 1.2364{col 36}0.8721{col 44}        {c |}        {col 63}        {c |}        
+{txt}5     {res}{col 9} 0.0309{col 18} 0.0295{col 27} 1.4456{col 36}0.9193{col 44}        {c |}        {col 63}        {c |}        
+{txt}6     {res}{col 9}-0.0868{col 18}-0.0931{col 27} 3.1063{col 36}0.7954{col 44}        {c |}        {col 63}        {c |}        
+{txt}7     {res}{col 9}-0.1424{col 18}-0.1514{col 27} 7.5939{col 36}0.3698{col 44}       {hline 1}{c RT}        {col 63}       {hline 1}{c RT}        
+{txt}8     {res}{col 9} 0.1451{col 18} 0.1462{col 27} 12.277{col 36}0.1393{col 44}        {c LT}{hline 1}       {col 63}        {c LT}{hline 1}       
+{txt}9     {res}{col 9} 0.0149{col 18} 0.0375{col 27} 12.327{col 36}0.1955{col 44}        {c |}        {col 63}        {c |}        
+{txt}10    {res}{col 9}-0.0318{col 18}-0.0157{col 27} 12.555{col 36}0.2497{col 44}        {c |}        {col 63}        {c |}        
+{txt}11    {res}{col 9}-0.1652{col 18}-0.1919{col 27} 18.715{col 36}0.0664{col 44}       {hline 1}{c RT}        {col 63}       {hline 1}{c RT}        
+{txt}12    {res}{col 9} 0.0041{col 18}-0.0081{col 27} 18.718{col 36}0.0956{col 44}        {c |}        {col 63}        {c |}        
+{txt}
+{com}.         est store model6
+{txt}
+{com}.         estat ic
+
+{txt}Akaike's information criterion and Bayesian information criterion
+
+{hline 13}{c TT}{hline 63}
+       Model {c |}          N   ll(null)  ll(model)      df        AIC        BIC
+{hline 13}{c +}{hline 63}
+{ralign 12:{stata estimates replay model6:model6}}{col 14}{c |}{res}{col 16}       205{col 28}        .{col 39}-138.4944{col 50}     5{col 58} 286.9889{col 69} 303.6039
+{txt}{hline 13}{c BT}{hline 63}
+{p 0 6 0 77}Note: BIC uses N = number of observations. See {helpb bic_note:{bind:[R] IC note}}.{p_end}
+
+{com}. 
+. * Model 7: ARIMA with p=1 and 2, q=1 and 7
+.         arima spread if tin(1961q4, ), ar(1/2) ma(1,7)
+
+{txt}(setting optimization to BHHH)
+{res}{txt}Iteration 0:  Log likelihood = {res}-139.81776{txt}  
+{res}{txt}Iteration 1:  Log likelihood = {res}-134.82421{txt}  
+{res}{txt}Iteration 2:  Log likelihood = {res}-134.06688{txt}  
+{res}{txt}Iteration 3:  Log likelihood = {res}-133.95012{txt}  
+{res}{txt}Iteration 4:  Log likelihood = {res}-133.93577{txt}  
+{res}{txt}(switching optimization to BFGS)
+{res}{txt}Iteration 5:  Log likelihood = {res}-133.93338{txt}  
+{res}{txt}Iteration 6:  Log likelihood = {res}-133.93294{txt}  
+{res}{txt}Iteration 7:  Log likelihood = {res}-133.93293{txt}  
+{res}
+{txt}ARIMA regression
+
+Sample: {res}1961q4 {txt}thru{res} 2012q4 {col 49}{txt}Number of obs{col 67}={res}{col 69}       205
+                                                {txt}Wald chi2({res}4{txt})      =  {res}   634.55
+{txt}Log likelihood = {res}-133.9329                      {txt}Prob > chi2       =     {res}0.0000
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}      OPG
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      z{col 46}   P>|z|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}spread       {txt}{c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} 1.204028{col 26}{space 2} .2151647{col 37}{space 1}    5.60{col 46}{space 3}0.000{col 54}{space 4} .7823131{col 67}{space 3} 1.625743
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}ARMA         {txt}{c |}
+{space 10}ar {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} .3390669{col 26}{space 2} .1056578{col 37}{space 1}    3.21{col 46}{space 3}0.001{col 54}{space 4} .1319816{col 67}{space 3} .5461523
+{txt}{space 9}L2. {c |}{col 14}{res}{space 2}  .399442{col 26}{space 2} .0967907{col 37}{space 1}    4.13{col 46}{space 3}0.000{col 54}{space 4} .2097358{col 67}{space 3} .5891483
+{txt}{space 12} {c |}
+{space 10}ma {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} .7861274{col 26}{space 2} .0736678{col 37}{space 1}   10.67{col 46}{space 3}0.000{col 54}{space 4} .6417413{col 67}{space 3} .9305136
+{txt}{space 9}L7. {c |}{col 14}{res}{space 2}-.1362063{col 26}{space 2} .0389874{col 37}{space 1}   -3.49{col 46}{space 3}0.000{col 54}{space 4}-.2126203{col 67}{space 3}-.0597923
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+      /sigma {c |}{col 14}{res}{space 2}  .462794{col 26}{space 2} .0164378{col 37}{space 1}   28.15{col 46}{space 3}0.000{col 54}{space 4} .4305764{col 67}{space 3} .4950116
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{p 0 6 0 79}Note: The test of the variance against zero is one sided, and the two-sided confidence interval is truncated at zero.{p_end}
+
+{com}.         predict residuals7, resid
+{txt}
+{com}.         corrgram residuals7, lag(12)
+
+{txt}{col 43}-1       0       1 -1       0       1
+ LAG       AC       PAC      Q     Prob>Q  [Autocorrelation]  [Partial autocor]
+{hline 79}
+1     {res}{col 9}-0.0026{col 18}-0.0026{col 27} .00151{col 36}0.9690{col 44}        {c |}        {col 63}        {c |}        
+{txt}2     {res}{col 9} 0.0238{col 18} 0.0238{col 27} .12346{col 36}0.9401{col 44}        {c |}        {col 63}        {c |}        
+{txt}3     {res}{col 9} 0.0456{col 18} 0.0456{col 27} .57399{col 36}0.9024{col 44}        {c |}        {col 63}        {c |}        
+{txt}4     {res}{col 9} 0.0336{col 18} 0.0332{col 27} .82063{col 36}0.9357{col 44}        {c |}        {col 63}        {c |}        
+{txt}5     {res}{col 9}-0.0016{col 18}-0.0038{col 27} .82118{col 36}0.9757{col 44}        {c |}        {col 63}        {c |}        
+{txt}6     {res}{col 9}-0.0744{col 18}-0.0786{col 27} 2.0388{col 36}0.9161{col 44}        {c |}        {col 63}        {c |}        
+{txt}7     {res}{col 9}-0.0394{col 18}-0.0433{col 27} 2.3818{col 36}0.9357{col 44}        {c |}        {col 63}        {c |}        
+{txt}8     {res}{col 9} 0.0477{col 18} 0.0519{col 27} 2.8876{col 36}0.9412{col 44}        {c |}        {col 63}        {c |}        
+{txt}9     {res}{col 9} 0.0935{col 18} 0.1071{col 27} 4.8425{col 36}0.8478{col 44}        {c |}        {col 63}        {c |}        
+{txt}10    {res}{col 9}-0.0889{col 18}-0.0864{col 27} 6.6181{col 36}0.7609{col 44}        {c |}        {col 63}        {c |}        
+{txt}11    {res}{col 9}-0.1366{col 18}-0.1562{col 27} 10.829{col 36}0.4577{col 44}       {hline 1}{c RT}        {col 63}       {hline 1}{c RT}        
+{txt}12    {res}{col 9}-0.0255{col 18}-0.0437{col 27} 10.977{col 36}0.5309{col 44}        {c |}        {col 63}        {c |}        
+{txt}
+{com}.         est store model7
+{txt}
+{com}.         estat ic
+
+{txt}Akaike's information criterion and Bayesian information criterion
+
+{hline 13}{c TT}{hline 63}
+       Model {c |}          N   ll(null)  ll(model)      df        AIC        BIC
+{hline 13}{c +}{hline 63}
+{ralign 12:{stata estimates replay model7:model7}}{col 14}{c |}{res}{col 16}       205{col 28}        .{col 39}-133.9329{col 50}     6{col 58} 279.8659{col 69} 299.8039
+{txt}{hline 13}{c BT}{hline 63}
+{p 0 6 0 77}Note: BIC uses N = number of observations. See {helpb bic_note:{bind:[R] IC note}}.{p_end}
+
+{com}.         
+. * Table
+.         esttab model1 model2 model3 model4 model5 model6 model7 using "${c -(}output{c )-}/table.tex",  stat(aic bic) replace
+{res}{txt}{p 0 4 2}
+(file {bf}
+C:\Users\chadi\Dropbox\5314\5314_PS1\Output/table.tex{rm}
+not found)
+{p_end}
+(output written to {browse  `"C:\Users\chadi\Dropbox\5314\5314_PS1\Output/table.tex"'})
+
+{com}. 
+. 
+. // Lag-order selection with arimamsoc
+.         arimasoc spread  if tin(1961q4, )
+{txt}Fitting models ({res:9}): ......... done
+{res}
+{txt}Lag-order selection criteria
+
+{col 1}Sample: {res}1961q4 {txt}thru{res} 2012q4 {txt}{col 50}Number of obs = {res}205
+{txt}{space 0}{hline 13}{c  TT}{hline 11}{hline 11}{hline 11}{hline 11}{hline 10}
+{space 0}{space 0}{ralign 12:Model}{space 1}{c |}{space 1}{ralign 9:LL}{space 1}{space 1}{ralign 9:df}{space 1}{space 1}{ralign 9:AIC}{space 1}{space 1}{ralign 9:BIC}{space 1}{space 1}{ralign 9:HQIC}{space 1}
+{space 0}{hline 13}{c   +}{hline 11}{hline 11}{hline 11}{hline 11}{hline 10}
+{space 0}{space 0}{ralign 12:ARMA(0,0)}{space 1}{c |}{space 1}{ralign 9:{res:{sf:-284.4076}}}{space 1}{space 1}{ralign 9:{res:{sf:        2}}}{space 1}{space 1}{ralign 9:{res:{sf: 572.8152}}}{space 1}{space 1}{ralign 9:{res:{sf: 579.4612}}}{space 1}{space 1}{ralign 9:{res:{sf: 575.5033}}}{space 1}
+{space 0}{space 0}{ralign 12:ARMA(0,1)}{space 1}{c |}{space 1}{ralign 9:{res:{sf:-192.3319}}}{space 1}{space 1}{ralign 9:{res:{sf:        3}}}{space 1}{space 1}{ralign 9:{res:{sf: 390.6638}}}{space 1}{space 1}{ralign 9:{res:{sf: 400.6328}}}{space 1}{space 1}{ralign 9:{res:{sf:  394.696}}}{space 1}
+{space 0}{space 0}{ralign 12:ARMA(0,2)}{space 1}{c |}{space 1}{ralign 9:{res:{sf:-167.1536}}}{space 1}{space 1}{ralign 9:{res:{sf:        4}}}{space 1}{space 1}{ralign 9:{res:{sf: 342.3072}}}{space 1}{space 1}{ralign 9:{res:{sf: 355.5992}}}{space 1}{space 1}{ralign 9:{res:{sf: 347.6835}}}{space 1}
+{space 0}{space 0}{ralign 12:ARMA(1,0)}{space 1}{c |}{space 1}{ralign 9:{res:{sf:-148.3865}}}{space 1}{space 1}{ralign 9:{res:{sf:        3}}}{space 1}{space 1}{ralign 9:{res:{sf: 302.7729}}}{space 1}{space 1}{ralign 9:{res:{sf:  312.742}}}{space 1}{space 1}{ralign 9:{res:{sf: 306.8052}}}{space 1}
+{space 0}{space 0}{ralign 12:ARMA(1,1)}{space 1}{c |}{space 1}{ralign 9:{res:{sf:-141.3443}}}{space 1}{space 1}{ralign 9:{res:{sf:        4}}}{space 1}{space 1}{ralign 9:{res:{sf: 290.6887}}}{space 1}{space 1}{ralign 9:{res:{sf: 303.9807}}}{space 1}{space 1}{ralign 9:{res:{sf:  296.065}}}{space 1}
+{space 0}{space 0}{ralign 12:ARMA(1,2)}{space 1}{c |}{space 1}{ralign 9:{res:{sf:-139.3109}}}{space 1}{space 1}{ralign 9:{res:{sf:        5}}}{space 1}{space 1}{ralign 9:{res:{sf: 288.6217}}}{space 1}{space 1}{ralign 9:{res:{sf: 305.2368}}}{space 1}{space 1}{ralign 9:{res:{sf: 295.3421}}}{space 1}
+{space 0}{space 0}{ralign 12:ARMA(2,0)}{space 1}{c |}{space 1}{ralign 9:{res:{sf:-143.6164}}}{space 1}{space 1}{ralign 9:{res:{sf:        4}}}{space 1}{space 1}{ralign 9:{res:{sf: 295.2327}}}{space 1}{space 1}{ralign 9:{res:{sf: 308.5248}}}{space 1}{space 1}{ralign 9:{res:{sf:  300.609}}}{space 1}
+{space 0}{space 0}{ralign 12:ARMA(2,1)}{space 1}{c |}{space 1}{ralign 9:{res:{sf:-138.4944}}}{space 1}{space 1}{ralign 9:{res:{sf:        5}}}{space 1}{space 1}{ralign 9:{res:{sf: 286.9889}}}{space 1}{space 1}{ralign 9:{res:{sf: 303.6039}}}{space 1}{space 1}{ralign 9:{res:{sf: 293.7093}}}{space 1}
+{space 0}{space 0}{ralign 12:ARMA(2,2)}{space 1}{c |}{space 1}{ralign 9:{res:{sf:  -138.47}}}{space 1}{space 1}{ralign 9:{res:{sf:        6}}}{space 1}{space 1}{ralign 9:{res:{sf: 288.9399}}}{space 1}{space 1}{ralign 9:{res:{sf:  308.878}}}{space 1}{space 1}{ralign 9:{res:{sf: 297.0044}}}{space 1}
+{space 0}{hline 13}{c  BT}{hline 11}{hline 11}{hline 11}{hline 11}{hline 10}
+Selected (max) LL:  {res: ARMA(2,2)}
+Selected (min) AIC: {res: ARMA(2,1)}
+Selected (min) BIC: {res: ARMA(2,1)}
+Selected (min) HQIC:{res: ARMA(2,1)}
+
+{com}. 
+. 
+. // Forecast
+. 
+.    arima spread if tin(, 2000q2), ar(1/7) //estimating an AR(7) process with a constant using observations from 1961q4 to 2000q2
+
+{txt}(setting optimization to BHHH)
+{res}{txt}Iteration 0:  Log likelihood = {res}-108.16984{txt}  
+{res}{txt}Iteration 1:  Log likelihood = {res}-108.12764{txt}  
+{res}{txt}Iteration 2:  Log likelihood = {res}-108.11862{txt}  
+{res}{txt}Iteration 3:  Log likelihood = {res}-108.11432{txt}  
+{res}{txt}Iteration 4:  Log likelihood = {res}-108.11171{txt}  
+{res}{txt}(switching optimization to BFGS)
+{res}{txt}Iteration 5:  Log likelihood = {res}-108.11014{txt}  
+{res}{txt}Iteration 6:  Log likelihood = {res}-108.10788{txt}  
+{res}{txt}Iteration 7:  Log likelihood = {res}-108.10747{txt}  
+{res}{txt}Iteration 8:  Log likelihood = {res}-108.10746{txt}  
+{res}{txt}Iteration 9:  Log likelihood = {res}-108.10746{txt}  
+{res}
+{txt}ARIMA regression
+
+Sample: {res}1960q1 {txt}thru{res} 2000q2 {col 49}{txt}Number of obs{col 67}={res}{col 69}       162
+                                                {txt}Wald chi2({res}7{txt})      =  {res}   699.62
+{txt}Log likelihood = {res}-108.1075                      {txt}Prob > chi2       =     {res}0.0000
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}      OPG
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      z{col 46}   P>|z|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}spread       {txt}{c |}
+{space 7}_cons {c |}{col 14}{res}{space 2}   1.1596{col 26}{space 2} .2321513{col 37}{space 1}    5.00{col 46}{space 3}0.000{col 54}{space 4} .7045914{col 67}{space 3} 1.614608
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}ARMA         {txt}{c |}
+{space 10}ar {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2}  1.10817{col 26}{space 2} .0860988{col 37}{space 1}   12.87{col 46}{space 3}0.000{col 54}{space 4} .9394195{col 67}{space 3} 1.276921
+{txt}{space 9}L2. {c |}{col 14}{res}{space 2}-.4829228{col 26}{space 2} .1279065{col 37}{space 1}   -3.78{col 46}{space 3}0.000{col 54}{space 4}-.7336149{col 67}{space 3}-.2322306
+{txt}{space 9}L3. {c |}{col 14}{res}{space 2} .4537421{col 26}{space 2} .0937955{col 37}{space 1}    4.84{col 46}{space 3}0.000{col 54}{space 4} .2699063{col 67}{space 3}  .637578
+{txt}{space 9}L4. {c |}{col 14}{res}{space 2} -.338132{col 26}{space 2} .0824743{col 37}{space 1}   -4.10{col 46}{space 3}0.000{col 54}{space 4}-.4997786{col 67}{space 3}-.1764853
+{txt}{space 9}L5. {c |}{col 14}{res}{space 2} .3035297{col 26}{space 2} .1090713{col 37}{space 1}    2.78{col 46}{space 3}0.005{col 54}{space 4} .0897539{col 67}{space 3} .5173056
+{txt}{space 9}L6. {c |}{col 14}{res}{space 2}-.3938792{col 26}{space 2} .1182876{col 37}{space 1}   -3.33{col 46}{space 3}0.001{col 54}{space 4}-.6257187{col 67}{space 3}-.1620398
+{txt}{space 9}L7. {c |}{col 14}{res}{space 2} .1751066{col 26}{space 2} .0797098{col 37}{space 1}    2.20{col 46}{space 3}0.028{col 54}{space 4} .0188783{col 67}{space 3}  .331335
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+      /sigma {c |}{col 14}{res}{space 2} .4686211{col 26}{space 2} .0219708{col 37}{space 1}   21.33{col 46}{space 3}0.000{col 54}{space 4}  .425559{col 67}{space 3} .5116831
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{p 0 6 0 79}Note: The test of the variance against zero is one sided, and the two-sided confidence interval is truncated at zero.{p_end}
+
+{com}.    predict ISFspreadAR, dynamic(tq(2000q3)) //forecasting the spread series from 2000q3 to 2012q4 using an AR(1) process
+{txt}(option {bf:xb} assumed; predicted values)
+
+{com}.    generate etAR=spread-ISFspreadAR //calculating forecast errors
+{txt}
+{com}.    generate sqetAR=(etA^2) //the squared forecast errors
+{txt}
+{com}.    generate MSPEAR=sum(sqetAR)/24 if quarter>tq(2000q2) //calculating accumulated MSPEs for the relevant period; in the data editor window and the last value in the corresponding column gives the desirable MSPE
+{txt}(212 missing values generated)
+
+{com}.    
+.  
+.    arima spread if tin(, 2000q2), ar(1/2) ma(1,7) //estimating an ARMA[2,(1,7)] process with a constant using observations from 1987q1 to 2005q4
+
+{txt}(setting optimization to BHHH)
+{res}{txt}Iteration 0:  Log likelihood = {res}-114.45974{txt}  
+{res}{txt}Iteration 1:  Log likelihood = {res}-110.80076{txt}  
+{res}{txt}Iteration 2:  Log likelihood = {res} -109.8374{txt}  
+{res}{txt}Iteration 3:  Log likelihood = {res}-109.77724{txt}  
+{res}{txt}Iteration 4:  Log likelihood = {res}-109.76303{txt}  
+{res}{txt}(switching optimization to BFGS)
+{res}{txt}Iteration 5:  Log likelihood = {res}-109.75869{txt}  
+{res}{txt}Iteration 6:  Log likelihood = {res}-109.75659{txt}  
+{res}{txt}Iteration 7:  Log likelihood = {res}-109.75638{txt}  
+{res}{txt}Iteration 8:  Log likelihood = {res}-109.75635{txt}  
+{res}{txt}Iteration 9:  Log likelihood = {res}-109.75635{txt}  
+{res}
+{txt}ARIMA regression
+
+Sample: {res}1960q1 {txt}thru{res} 2000q2 {col 49}{txt}Number of obs{col 67}={res}{col 69}       162
+                                                {txt}Wald chi2({res}4{txt})      =  {res}   512.27
+{txt}Log likelihood = {res}-109.7563                      {txt}Prob > chi2       =     {res}0.0000
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}      OPG
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      z{col 46}   P>|z|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}spread       {txt}{c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} 1.155613{col 26}{space 2} .2492583{col 37}{space 1}    4.64{col 46}{space 3}0.000{col 54}{space 4}  .667076{col 67}{space 3} 1.644151
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}ARMA         {txt}{c |}
+{space 10}ar {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} .3293032{col 26}{space 2} .1187365{col 37}{space 1}    2.77{col 46}{space 3}0.006{col 54}{space 4} .0965838{col 67}{space 3} .5620225
+{txt}{space 9}L2. {c |}{col 14}{res}{space 2} .4032645{col 26}{space 2}  .109221{col 37}{space 1}    3.69{col 46}{space 3}0.000{col 54}{space 4} .1891953{col 67}{space 3} .6173337
+{txt}{space 12} {c |}
+{space 10}ma {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} .7959903{col 26}{space 2} .0831434{col 37}{space 1}    9.57{col 46}{space 3}0.000{col 54}{space 4} .6330322{col 67}{space 3} .9589483
+{txt}{space 9}L7. {c |}{col 14}{res}{space 2}-.1310982{col 26}{space 2} .0445778{col 37}{space 1}   -2.94{col 46}{space 3}0.003{col 54}{space 4}-.2184692{col 67}{space 3}-.0437272
+{txt}{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+      /sigma {c |}{col 14}{res}{space 2} .4735737{col 26}{space 2} .0185118{col 37}{space 1}   25.58{col 46}{space 3}0.000{col 54}{space 4} .4372911{col 67}{space 3} .5098562
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{p 0 6 0 79}Note: The test of the variance against zero is one sided, and the two-sided confidence interval is truncated at zero.{p_end}
+
+{com}.    predict ISFspreadMA, dynamic(tq(2000q3)) //forecasting the spread series from 2000q3 to 2012q4 using an MA(1) process
+{txt}(option {bf:xb} assumed; predicted values)
+
+{com}.    generate etMA=spread-ISFspreadMA //calculating forecast errors
+{txt}
+{com}.    generate sqetMA=(etMA^2) //the squared forecast errors
+{txt}
+{com}.    generate MSPEMA=sum(sqetMA)/24 if quarter>tq(2000q2) //calculating accumulated MSPEs for the relevant period; in the data editor window and the last value in the corresponding column gives the desirable MSPE
+{txt}(212 missing values generated)
+
+{com}. 
+.         tsline spread ISFspreadAR ISFspreadMA //plotting the actual series and the forecasts
+{res}{txt}
+{com}.         graph export "${c -(}output{c )-}/forecast.png", width(4000) replace
+{txt}{p 0 4 2}
+(file {bf}
+C:\Users\chadi\Dropbox\5314\5314_PS1\Output/forecast.png{rm}
+not found)
+{p_end}
+{p 0 4 2}
+file {bf}
+C:\Users\chadi\Dropbox\5314\5314_PS1\Output/forecast.png{rm}
+saved as
+PNG
+format
+{p_end}
+
+{com}.         
+.         
+. // Structural break
+. 
+. *1981q4
+. 
+. * Full model regression
+.         reg spread l1.spread l2.spread l3.spread l4.spread l5.spread l6.spread l7.spread
+
+{txt}      Source {c |}       SS           df       MS      Number of obs   ={res}       205
+{txt}{hline 13}{c +}{hline 34}   F(7, 197)       = {res}    95.02
+{txt}       Model {c |} {res}  148.47414         7  21.2105914   {txt}Prob > F        ={res}    0.0000
+{txt}    Residual {c |} {res} 43.9767557       197  .223232262   {txt}R-squared       ={res}    0.7715
+{txt}{hline 13}{c +}{hline 34}   Adj R-squared   ={res}    0.7634
+{txt}       Total {c |} {res} 192.450896       204  .943386744   {txt}Root MSE        =   {res} .47247
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  Std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}spread {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2}  1.11251{col 26}{space 2} .0705403{col 37}{space 1}   15.77{col 46}{space 3}0.000{col 54}{space 4} .9733988{col 67}{space 3} 1.251621
+{txt}{space 9}L2. {c |}{col 14}{res}{space 2}-.4549556{col 26}{space 2} .1038155{col 37}{space 1}   -4.38{col 46}{space 3}0.000{col 54}{space 4} -.659688{col 67}{space 3}-.2502233
+{txt}{space 9}L3. {c |}{col 14}{res}{space 2} .4088288{col 26}{space 2} .1074413{col 37}{space 1}    3.81{col 46}{space 3}0.000{col 54}{space 4} .1969459{col 67}{space 3} .6207116
+{txt}{space 9}L4. {c |}{col 14}{res}{space 2}-.3105467{col 26}{space 2} .1090726{col 37}{space 1}   -2.85{col 46}{space 3}0.005{col 54}{space 4}-.5256465{col 67}{space 3}-.0954469
+{txt}{space 9}L5. {c |}{col 14}{res}{space 2} .2316119{col 26}{space 2} .1074376{col 37}{space 1}    2.16{col 46}{space 3}0.032{col 54}{space 4} .0197363{col 67}{space 3} .4434874
+{txt}{space 9}L6. {c |}{col 14}{res}{space 2}-.3080701{col 26}{space 2} .1037609{col 37}{space 1}   -2.97{col 46}{space 3}0.003{col 54}{space 4}-.5126949{col 67}{space 3}-.1034454
+{txt}{space 9}L7. {c |}{col 14}{res}{space 2} .1405717{col 26}{space 2} .0705246{col 37}{space 1}    1.99{col 46}{space 3}0.048{col 54}{space 4} .0014915{col 67}{space 3} .2796518
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} .2164841{col 26}{space 2} .0641239{col 37}{space 1}    3.38{col 46}{space 3}0.001{col 54}{space 4} .0900266{col 67}{space 3} .3429415
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. 
+. * Store information for full model
+.         scalar rss_full = e(rss)
+{txt}
+{com}.         scalar df_full = e(N)
+{txt}
+{com}.         dis df_full
+{res}205
+{txt}
+{com}.         dis rss_full
+{res}43.976756
+{txt}
+{com}. 
+. * Pre-breakpoint model
+.         reg spread l1.spread l2.spread l3.spread l4.spread l5.spread l6.spread l7.spread if tin(, 1981q4)
+
+{txt}      Source {c |}       SS           df       MS      Number of obs   ={res}        81
+{txt}{hline 13}{c +}{hline 34}   F(7, 73)        = {res}    32.44
+{txt}       Model {c |} {res} 51.3092384         7  7.32989121   {txt}Prob > F        ={res}    0.0000
+{txt}    Residual {c |} {res} 16.4936622        73  .225940578   {txt}R-squared       ={res}    0.7567
+{txt}{hline 13}{c +}{hline 34}   Adj R-squared   ={res}    0.7334
+{txt}       Total {c |} {res} 67.8029006        80  .847536258   {txt}Root MSE        =   {res} .47533
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  Std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}spread {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} 1.213874{col 26}{space 2} .1217942{col 37}{space 1}    9.97{col 46}{space 3}0.000{col 54}{space 4} .9711381{col 67}{space 3} 1.456609
+{txt}{space 9}L2. {c |}{col 14}{res}{space 2}-.8192681{col 26}{space 2} .1823532{col 37}{space 1}   -4.49{col 46}{space 3}0.000{col 54}{space 4}-1.182698{col 67}{space 3}-.4558387
+{txt}{space 9}L3. {c |}{col 14}{res}{space 2} .7502977{col 26}{space 2} .2072948{col 37}{space 1}    3.62{col 46}{space 3}0.001{col 54}{space 4} .3371597{col 67}{space 3} 1.163436
+{txt}{space 9}L4. {c |}{col 14}{res}{space 2}-.6354125{col 26}{space 2} .2241898{col 37}{space 1}   -2.83{col 46}{space 3}0.006{col 54}{space 4}-1.082222{col 67}{space 3}-.1886028
+{txt}{space 9}L5. {c |}{col 14}{res}{space 2} .7743986{col 26}{space 2} .2522239{col 37}{space 1}    3.07{col 46}{space 3}0.003{col 54}{space 4}  .271717{col 67}{space 3}  1.27708
+{txt}{space 9}L6. {c |}{col 14}{res}{space 2}-.7324569{col 26}{space 2} .2703282{col 37}{space 1}   -2.71{col 46}{space 3}0.008{col 54}{space 4} -1.27122{col 67}{space 3}-.1936935
+{txt}{space 9}L7. {c |}{col 14}{res}{space 2} .1597881{col 26}{space 2}  .166869{col 37}{space 1}    0.96{col 46}{space 3}0.341{col 54}{space 4}-.1727814{col 67}{space 3} .4923576
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} .2331278{col 26}{space 2} .0881509{col 37}{space 1}    2.64{col 46}{space 3}0.010{col 54}{space 4} .0574434{col 67}{space 3} .4088121
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. * Store RSS of the pre-breakpoint model
+.         scalar rss_pre = e(rss)
+{txt}
+{com}.         dis rss_pre
+{res}16.493662
+{txt}
+{com}. 
+. * Post-breakpoint model
+.         reg spread l1.spread l2.spread l3.spread l4.spread l5.spread l6.spread l7.spread if tin(1982q1, ) 
+
+{txt}      Source {c |}       SS           df       MS      Number of obs   ={res}       124
+{txt}{hline 13}{c +}{hline 34}   F(7, 116)       = {res}    55.04
+{txt}       Model {c |} {res} 75.4448996         7  10.7778428   {txt}Prob > F        ={res}    0.0000
+{txt}    Residual {c |} {res} 22.7160431       116  .195827958   {txt}R-squared       ={res}    0.7686
+{txt}{hline 13}{c +}{hline 34}   Adj R-squared   ={res}    0.7546
+{txt}       Total {c |} {res} 98.1609426       123  .798056444   {txt}Root MSE        =   {res} .44252
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  Std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}spread {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2}  .962507{col 26}{space 2} .0868117{col 37}{space 1}   11.09{col 46}{space 3}0.000{col 54}{space 4} .7905655{col 67}{space 3} 1.134448
+{txt}{space 9}L2. {c |}{col 14}{res}{space 2}-.2128935{col 26}{space 2} .1215752{col 37}{space 1}   -1.75{col 46}{space 3}0.083{col 54}{space 4}-.4536884{col 67}{space 3} .0279014
+{txt}{space 9}L3. {c |}{col 14}{res}{space 2} .3345344{col 26}{space 2} .1210771{col 37}{space 1}    2.76{col 46}{space 3}0.007{col 54}{space 4}  .094726{col 67}{space 3} .5743428
+{txt}{space 9}L4. {c |}{col 14}{res}{space 2} -.260698{col 26}{space 2} .1216722{col 37}{space 1}   -2.14{col 46}{space 3}0.034{col 54}{space 4}-.5016852{col 67}{space 3}-.0197109
+{txt}{space 9}L5. {c |}{col 14}{res}{space 2} .0340162{col 26}{space 2} .1178509{col 37}{space 1}    0.29{col 46}{space 3}0.773{col 54}{space 4}-.1994024{col 67}{space 3} .2674347
+{txt}{space 9}L6. {c |}{col 14}{res}{space 2}-.1846841{col 26}{space 2} .1071471{col 37}{space 1}   -1.72{col 46}{space 3}0.087{col 54}{space 4}-.3969024{col 67}{space 3} .0275343
+{txt}{space 9}L7. {c |}{col 14}{res}{space 2} .1602341{col 26}{space 2} .0762596{col 37}{space 1}    2.10{col 46}{space 3}0.038{col 54}{space 4} .0091924{col 67}{space 3} .3112759
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} .2367928{col 26}{space 2} .0976396{col 37}{space 1}    2.43{col 46}{space 3}0.017{col 54}{space 4} .0434052{col 67}{space 3} .4301803
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. * Store RSS of the post-breakpoint model
+.         scalar rss_post = e(rss)
+{txt}
+{com}.         dis rss_post
+{res}22.716043
+{txt}
+{com}. 
+. * Calculate the Chow Test statistic
+.         scalar num = (rss_full - (rss_pre + rss_post)) / (8)
+{txt}
+{com}.         scalar denom = (rss_pre + rss_post) / (df_full - 16)
+{txt}
+{com}.         scalar chow = num / denom
+{txt}
+{com}. 
+. * Display the Chow Test statistic
+.         di "Chow Test Statistic = " chow
+{res}Chow Test Statistic = 2.872288
+{txt}
+{com}. * Calculate and display p-value
+.         scalar p_value = Ftail(8, df_full - 16, chow)
+{txt}
+{com}.         di "P-value = " p_value
+{res}P-value = .00487031
+{txt}
+{com}. * Interpretation
+.         if p_value < 0.05 {c -(}
+.                 di "Reject the null hypothesis: Evidence of a structural break at the breakpoint."
+{res}Reject the null hypothesis: Evidence of a structural break at the breakpoint.
+{com}.         {c )-} 
+{txt}
+{com}.         else {c -(}
+.     di "Fail to reject the null hypothesis: No evidence of a structural break at the breakpoint."
+. {c )-}               
+{txt}
+{com}. 
+. *1991q4
+. 
+. * Full model regression
+.         reg spread l1.spread l2.spread l3.spread l4.spread l5.spread l6.spread l7.spread
+
+{txt}      Source {c |}       SS           df       MS      Number of obs   ={res}       205
+{txt}{hline 13}{c +}{hline 34}   F(7, 197)       = {res}    95.02
+{txt}       Model {c |} {res}  148.47414         7  21.2105914   {txt}Prob > F        ={res}    0.0000
+{txt}    Residual {c |} {res} 43.9767557       197  .223232262   {txt}R-squared       ={res}    0.7715
+{txt}{hline 13}{c +}{hline 34}   Adj R-squared   ={res}    0.7634
+{txt}       Total {c |} {res} 192.450896       204  .943386744   {txt}Root MSE        =   {res} .47247
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  Std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}spread {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2}  1.11251{col 26}{space 2} .0705403{col 37}{space 1}   15.77{col 46}{space 3}0.000{col 54}{space 4} .9733988{col 67}{space 3} 1.251621
+{txt}{space 9}L2. {c |}{col 14}{res}{space 2}-.4549556{col 26}{space 2} .1038155{col 37}{space 1}   -4.38{col 46}{space 3}0.000{col 54}{space 4} -.659688{col 67}{space 3}-.2502233
+{txt}{space 9}L3. {c |}{col 14}{res}{space 2} .4088288{col 26}{space 2} .1074413{col 37}{space 1}    3.81{col 46}{space 3}0.000{col 54}{space 4} .1969459{col 67}{space 3} .6207116
+{txt}{space 9}L4. {c |}{col 14}{res}{space 2}-.3105467{col 26}{space 2} .1090726{col 37}{space 1}   -2.85{col 46}{space 3}0.005{col 54}{space 4}-.5256465{col 67}{space 3}-.0954469
+{txt}{space 9}L5. {c |}{col 14}{res}{space 2} .2316119{col 26}{space 2} .1074376{col 37}{space 1}    2.16{col 46}{space 3}0.032{col 54}{space 4} .0197363{col 67}{space 3} .4434874
+{txt}{space 9}L6. {c |}{col 14}{res}{space 2}-.3080701{col 26}{space 2} .1037609{col 37}{space 1}   -2.97{col 46}{space 3}0.003{col 54}{space 4}-.5126949{col 67}{space 3}-.1034454
+{txt}{space 9}L7. {c |}{col 14}{res}{space 2} .1405717{col 26}{space 2} .0705246{col 37}{space 1}    1.99{col 46}{space 3}0.048{col 54}{space 4} .0014915{col 67}{space 3} .2796518
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} .2164841{col 26}{space 2} .0641239{col 37}{space 1}    3.38{col 46}{space 3}0.001{col 54}{space 4} .0900266{col 67}{space 3} .3429415
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. 
+. * Store information for full model
+.         scalar rss_full = e(rss)
+{txt}
+{com}.         scalar df_full = e(N)
+{txt}
+{com}.         dis rss_full
+{res}43.976756
+{txt}
+{com}. 
+. * Pre-breakpoint model
+.         reg spread l1.spread l2.spread l3.spread l4.spread l5.spread l6.spread l7.spread if tin(, 1991q4)       
+
+{txt}      Source {c |}       SS           df       MS      Number of obs   ={res}       121
+{txt}{hline 13}{c +}{hline 34}   F(7, 113)       = {res}    51.14
+{txt}       Model {c |} {res} 97.0911784         7  13.8701683   {txt}Prob > F        ={res}    0.0000
+{txt}    Residual {c |} {res} 30.6460844       113  .271204286   {txt}R-squared       ={res}    0.7601
+{txt}{hline 13}{c +}{hline 34}   Adj R-squared   ={res}    0.7452
+{txt}       Total {c |} {res} 127.737263       120  1.06447719   {txt}Root MSE        =   {res} .52077
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  Std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}spread {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} 1.087946{col 26}{space 2}  .092677{col 37}{space 1}   11.74{col 46}{space 3}0.000{col 54}{space 4}  .904336{col 67}{space 3} 1.271556
+{txt}{space 9}L2. {c |}{col 14}{res}{space 2}-.4691323{col 26}{space 2} .1316252{col 37}{space 1}   -3.56{col 46}{space 3}0.001{col 54}{space 4}-.7299055{col 67}{space 3}-.2083592
+{txt}{space 9}L3. {c |}{col 14}{res}{space 2} .4573076{col 26}{space 2}  .135532{col 37}{space 1}    3.37{col 46}{space 3}0.001{col 54}{space 4} .1887942{col 67}{space 3}  .725821
+{txt}{space 9}L4. {c |}{col 14}{res}{space 2}-.3294733{col 26}{space 2}  .138713{col 37}{space 1}   -2.38{col 46}{space 3}0.019{col 54}{space 4}-.6042888{col 67}{space 3}-.0546578
+{txt}{space 9}L5. {c |}{col 14}{res}{space 2} .3274855{col 26}{space 2} .1355867{col 37}{space 1}    2.42{col 46}{space 3}0.017{col 54}{space 4} .0588638{col 67}{space 3} .5961072
+{txt}{space 9}L6. {c |}{col 14}{res}{space 2}-.4428608{col 26}{space 2} .1317201{col 37}{space 1}   -3.36{col 46}{space 3}0.001{col 54}{space 4} -.703822{col 67}{space 3}-.1818996
+{txt}{space 9}L7. {c |}{col 14}{res}{space 2} .1723659{col 26}{space 2} .0928549{col 37}{space 1}    1.86{col 46}{space 3}0.066{col 54}{space 4}-.0115963{col 67}{space 3} .3563281
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} .2242907{col 26}{space 2}  .083738{col 37}{space 1}    2.68{col 46}{space 3}0.008{col 54}{space 4} .0583907{col 67}{space 3} .3901907
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. * Store RSS of the pre-breakpoint model
+.         scalar rss_pre = e(rss)
+{txt}
+{com}.         dis rss_pre
+{res}30.646084
+{txt}
+{com}. 
+. * Post-breakpoint model
+.         reg spread l1.spread l2.spread l3.spread l4.spread l5.spread l6.spread l7.spread if tin(1992q1, ) 
+
+{txt}      Source {c |}       SS           df       MS      Number of obs   ={res}        84
+{txt}{hline 13}{c +}{hline 34}   F(7, 76)        = {res}    48.79
+{txt}       Model {c |} {res} 51.1711726         7  7.31016752   {txt}Prob > F        ={res}    0.0000
+{txt}    Residual {c |} {res} 11.3875507        76  .149836194   {txt}R-squared       ={res}    0.8180
+{txt}{hline 13}{c +}{hline 34}   Adj R-squared   ={res}    0.8012
+{txt}       Total {c |} {res} 62.5587234        83  .753719559   {txt}Root MSE        =   {res} .38709
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  Std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}spread {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} 1.191695{col 26}{space 2} .1146311{col 37}{space 1}   10.40{col 46}{space 3}0.000{col 54}{space 4} .9633875{col 67}{space 3} 1.420003
+{txt}{space 9}L2. {c |}{col 14}{res}{space 2}-.4043087{col 26}{space 2} .1770936{col 37}{space 1}   -2.28{col 46}{space 3}0.025{col 54}{space 4}-.7570213{col 67}{space 3}-.0515962
+{txt}{space 9}L3. {c |}{col 14}{res}{space 2}  .249878{col 26}{space 2} .1819266{col 37}{space 1}    1.37{col 46}{space 3}0.174{col 54}{space 4}-.1124602{col 67}{space 3} .6122161
+{txt}{space 9}L4. {c |}{col 14}{res}{space 2}-.2284083{col 26}{space 2} .1821704{col 37}{space 1}   -1.25{col 46}{space 3}0.214{col 54}{space 4}-.5912322{col 67}{space 3} .1344156
+{txt}{space 9}L5. {c |}{col 14}{res}{space 2}-.0931869{col 26}{space 2} .1814023{col 37}{space 1}   -0.51{col 46}{space 3}0.609{col 54}{space 4}-.4544809{col 67}{space 3}  .268107
+{txt}{space 9}L6. {c |}{col 14}{res}{space 2} .1818843{col 26}{space 2} .1765048{col 37}{space 1}    1.03{col 46}{space 3}0.306{col 54}{space 4}-.1696554{col 67}{space 3} .5334241
+{txt}{space 9}L7. {c |}{col 14}{res}{space 2}-.0480662{col 26}{space 2} .1144696{col 37}{space 1}   -0.42{col 46}{space 3}0.676{col 54}{space 4}-.2760522{col 67}{space 3} .1799197
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} .1930847{col 26}{space 2} .0983017{col 37}{space 1}    1.96{col 46}{space 3}0.053{col 54}{space 4}-.0027002{col 67}{space 3} .3888696
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. * Store RSS of the post-breakpoint model
+.         scalar rss_post = e(rss)
+{txt}
+{com}.         dis rss_post
+{res}11.387551
+{txt}
+{com}. 
+. * Calculate the Chow Test statistic
+.         scalar num = (rss_full - (rss_pre + rss_post)) / (8)
+{txt}
+{com}.         scalar denom = (rss_pre + rss_post) / (df_full - 16)
+{txt}
+{com}.         scalar chow = num / denom
+{txt}
+{com}. 
+. * Display the Chow Test statistic
+.         di "Chow Test Statistic = " chow
+{res}Chow Test Statistic = 1.0921307
+{txt}
+{com}. 
+. * Calculate and display p-value
+.         scalar p_value = Ftail(8, df_full - 16, chow)
+{txt}
+{com}.         di "P-value = " p_value
+{res}P-value = .37039748
+{txt}
+{com}. 
+. * Interpretation
+.         if p_value < 0.05 {c -(}
+.                 di "Reject the null hypothesis: Evidence of a structural break at the breakpoint."
+.         {c )-} 
+{txt}
+{com}.         else {c -(}
+.                 di "Fail to reject the null hypothesis: No evidence of a structural break at the breakpoint."
+{res}Fail to reject the null hypothesis: No evidence of a structural break at the breakpoint.
+{com}.         {c )-}               
+{txt}
+{com}. 
+. 
+. // Stability
+.         reg spread L.spread  
+
+{txt}      Source {c |}       SS           df       MS      Number of obs   ={res}       211
+{txt}{hline 13}{c +}{hline 34}   F(1, 209)       = {res}   578.08
+{txt}       Model {c |} {res}   141.4643         1    141.4643   {txt}Prob > F        ={res}    0.0000
+{txt}    Residual {c |} {res} 51.1452281       209   .24471401   {txt}R-squared       ={res}    0.7345
+{txt}{hline 13}{c +}{hline 34}   Adj R-squared   ={res}    0.7332
+{txt}       Total {c |} {res} 192.609528       210  .917188229   {txt}Root MSE        =   {res} .49469
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 1}      spread{col 14}{c |} Coefficient{col 26}  Std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}spread {c |}
+{space 9}L1. {c |}{col 14}{res}{space 2} .8564022{col 26}{space 2} .0356192{col 37}{space 1}   24.04{col 46}{space 3}0.000{col 54}{space 4} .7861833{col 67}{space 3} .9266211
+{txt}{space 12} {c |}
+{space 7}_cons {c |}{col 14}{res}{space 2} .1750017{col 26}{space 2} .0549952{col 37}{space 1}    3.18{col 46}{space 3}0.002{col 54}{space 4} .0665853{col 67}{space 3} .2834181
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}.         estat sbcusum
+{res}
+{txt}Cumulative sum test for parameter stability
+
+{txt:Sample}: {res:1960q2} {txt}thru {res:2012q4}{col 44}Number of obs = {res}{ralign 3:211}
+{txt}H0: No structural break
+
+{col 20}Test{col 30}{hline 8} Critical value {hline 9}
+{col 7}Type{col 15}statistic           1%           5%          10%
+{hline 62}
+ Recursive{col 13}{res}     0.4008       1.1430       0.9479       0.8499
+{txt}{hline 62}
+
+{com}.         graph export "${c -(}output{c )-}/cusum.png", width(4000) replace
+{txt}{p 0 4 2}
+(file {bf}
+C:\Users\chadi\Dropbox\5314\5314_PS1\Output/cusum.png{rm}
+not found)
+{p_end}
+{p 0 4 2}
+file {bf}
+C:\Users\chadi\Dropbox\5314\5314_PS1\Output/cusum.png{rm}
+saved as
+PNG
+format
+{p_end}
+
+{com}.         
+.         gen Lspread = L.spread
+{txt}(1 missing value generated)
+
+{com}.         rolling _b _se, window(10) recursive saving(${c -(}output{c )-}/betas, replace) keep(t): reg spread Lspread
+{res}{txt}(running {bf:regress} on estimation sample)
+{p 0 4 2}
+(file {bf}
+C:\Users\chadi\Dropbox\5314\5314_PS1\Output/betas.dta{rm}
+not found)
+{p_end}
+{res}
+{text}Rolling replications ({result:203}){text}: {res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}10{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}20{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}30{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}40{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}50{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}60{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}70{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}80{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}90{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}100{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}110{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}120{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}130{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}140{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}150{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}160{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}170{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}180{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}190{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}.{res}{text}200{res}{text}.{res}{text}.{res}{text}.{text} done
+{res}{txt}{p 0 4 2}
+file {bf}
+C:\Users\chadi\Dropbox\5314\5314_PS1\Output/betas.dta{rm}
+saved
+{p_end}
+
+{com}.         use ${c -(}output{c )-}/betas, clear
+{txt}(rolling: regress)
+
+{com}.         list , table
+{txt}
+     {c TLC}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c TRC}
+     {c |} {res} start      end     date   _b_Lsp~d    _b_cons   _se_Ls~d   _se_cons {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+  1. {c |} {res}1960q1   1962q2   1962q2   .2672777   .9281726   .1876263   .2304105 {txt}{c |}
+  2. {c |} {res}1960q1   1962q3   1962q3   .3434562   .8122666   .1927627   .2313898 {txt}{c |}
+  3. {c |} {res}1960q1   1962q4   1962q4    .427601   .6860047   .2047966   .2408836 {txt}{c |}
+  4. {c |} {res}1960q1   1963q1   1963q1   .5154636   .5643562     .20044   .2302623 {txt}{c |}
+  5. {c |} {res}1960q1   1963q2   1963q2   .5524749   .5145746   .1831117   .2054957 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+  6. {c |} {res}1960q1   1963q3   1963q3   .6202787   .4178263   .1900671   .2096646 {txt}{c |}
+  7. {c |} {res}1960q1   1963q4   1963q4   .7035127   .3125531   .1810379   .1950807 {txt}{c |}
+  8. {c |} {res}1960q1   1964q1   1964q1   .7376305   .2710397   .1623063   .1706025 {txt}{c |}
+  9. {c |} {res}1960q1   1964q2   1964q2   .7554931   .2489347   .1494613   .1537211 {txt}{c |}
+ 10. {c |} {res}1960q1   1964q3   1964q3   .7809586   .2165989   .1419456   .1432833 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 11. {c |} {res}1960q1   1964q4   1964q4   .8270376   .1596737   .1391238   .1378339 {txt}{c |}
+ 12. {c |} {res}1960q1   1965q1   1965q1   .8765587   .1032115   .1311627   .1271561 {txt}{c |}
+ 13. {c |} {res}1960q1   1965q2   1965q2   .8854145   .0935603   .1181699   .1119752 {txt}{c |}
+ 14. {c |} {res}1960q1   1965q3   1965q3   .8859304   .0929919   .1089203    .101041 {txt}{c |}
+ 15. {c |} {res}1960q1   1965q4   1965q4   .8918168   .0863319    .102503   .0932731 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 16. {c |} {res}1960q1   1966q1   1966q1   .9025589   .0740872   .0975875   .0872067 {txt}{c |}
+ 17. {c |} {res}1960q1   1966q2   1966q2   .9076425   .0684247   .0926428   .0813184 {txt}{c |}
+ 18. {c |} {res}1960q1   1966q3   1966q3   .9074548    .068634   .0883089   .0762007 {txt}{c |}
+ 19. {c |} {res}1960q1   1966q4   1966q4   .9438822   .0267319   .0924048   .0784963 {txt}{c |}
+ 20. {c |} {res}1960q1   1967q1   1967q1   .9261889   .0437297   .0858633    .071625 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 21. {c |} {res}1960q1   1967q2   1967q2   .8248522   .1470514   .1107027   .0907852 {txt}{c |}
+ 22. {c |} {res}1960q1   1967q3   1967q3   .8215455   .1479057   .1071733   .0890707 {txt}{c |}
+ 23. {c |} {res}1960q1   1967q4   1967q4   .8196496   .1481259   .1045207   .0875395 {txt}{c |}
+ 24. {c |} {res}1960q1   1968q1   1968q1   .8063244    .147112   .1056913   .0888909 {txt}{c |}
+ 25. {c |} {res}1960q1   1968q2   1968q2   .8137086   .1336571    .105678   .0881628 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 26. {c |} {res}1960q1   1968q3   1968q3   .8194386   .1270018   .1028808   .0847768 {txt}{c |}
+ 27. {c |} {res}1960q1   1968q4   1968q4   .8330342   .1114797   .1010764   .0822825 {txt}{c |}
+ 28. {c |} {res}1960q1   1969q1   1969q1   .8355857   .1088671   .0974257   .0782611 {txt}{c |}
+ 29. {c |} {res}1960q1   1969q2   1969q2   .8340411   .1105047   .0944782   .0749519 {txt}{c |}
+ 30. {c |} {res}1960q1   1969q3   1969q3   .8451345   .0976357   .0932412   .0731605 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 31. {c |} {res}1960q1   1969q4   1969q4   .8397838   .1030378   .0904288    .070086 {txt}{c |}
+ 32. {c |} {res}1960q1   1970q1   1970q1   .8326819   .1112793   .0889462   .0682203 {txt}{c |}
+ 33. {c |} {res}1960q1   1970q2   1970q2   .8222387   .1314795   .0939289   .0715638 {txt}{c |}
+ 34. {c |} {res}1960q1   1970q3   1970q3   .8304161   .1291751   .0917241    .070765 {txt}{c |}
+ 35. {c |} {res}1960q1   1970q4   1970q4   .8344246   .1278504   .0890733   .0697216 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 36. {c |} {res}1960q1   1971q1   1971q1   .8683428    .116865   .0914605   .0725298 {txt}{c |}
+ 37. {c |} {res}1960q1   1971q2   1971q2   .9114004   .0953084   .0876558   .0719161 {txt}{c |}
+ 38. {c |} {res}1960q1   1971q3   1971q3   .8708083   .1175728   .0813339   .0698559 {txt}{c |}
+ 39. {c |} {res}1960q1   1971q4   1971q4   .8809486   .1129529   .0783169   .0687241 {txt}{c |}
+ 40. {c |} {res}1960q1   1972q1   1972q1   .9394081    .085085   .0824309   .0739534 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 41. {c |} {res}1960q1   1972q2   1972q2   .9359405   .0872027   .0741875   .0701839 {txt}{c |}
+ 42. {c |} {res}1960q1   1972q3   1972q3   .9095396   .1030423   .0692423    .068334 {txt}{c |}
+ 43. {c |} {res}1960q1   1972q4   1972q4   .8779035   .1197305   .0684317    .069197 {txt}{c |}
+ 44. {c |} {res}1960q1   1973q1   1973q1   .8679426   .1210535   .0685278   .0697092 {txt}{c |}
+ 45. {c |} {res}1960q1   1973q2   1973q2   .8664503   .1078879   .0727325   .0738116 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 46. {c |} {res}1960q1   1973q3   1973q3   .9162298   .0444826   .0808102   .0812571 {txt}{c |}
+ 47. {c |} {res}1960q1   1973q4   1973q4   .9013815   .0594685   .0735791   .0739342 {txt}{c |}
+ 48. {c |} {res}1960q1   1974q1   1974q1   .9036914    .057042   .0693141   .0693039 {txt}{c |}
+ 49. {c |} {res}1960q1   1974q2   1974q2   .8825201   .0796684   .0667974   .0663988 {txt}{c |}
+ 50. {c |} {res}1960q1   1974q3   1974q3   .8735278   .0909554   .0656491   .0646966 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 51. {c |} {res}1960q1   1974q4   1974q4   .8741452   .0899337   .0647988    .063357 {txt}{c |}
+ 52. {c |} {res}1960q1   1975q1   1975q1   .8540015   .1242502   .0709683   .0688619 {txt}{c |}
+ 53. {c |} {res}1960q1   1975q2   1975q2    .882328   .1184138   .0731829   .0718775 {txt}{c |}
+ 54. {c |} {res}1960q1   1975q3   1975q3   .8643736   .1269271   .0696028   .0709181 {txt}{c |}
+ 55. {c |} {res}1960q1   1975q4   1975q4    .881991   .1207635   .0684774   .0710733 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 56. {c |} {res}1960q1   1976q1   1976q1   .9030791   .1111831   .0664716   .0708955 {txt}{c |}
+ 57. {c |} {res}1960q1   1976q2   1976q2   .8987616   .1134268   .0630376   .0696289 {txt}{c |}
+ 58. {c |} {res}1960q1   1976q3   1976q3   .8968844   .1143159    .060645   .0687087 {txt}{c |}
+ 59. {c |} {res}1960q1   1976q4   1976q4   .8876275   .1182471   .0590938   .0682517 {txt}{c |}
+ 60. {c |} {res}1960q1   1977q1   1977q1   .8980639   .1158073   .0587239   .0684973 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 61. {c |} {res}1960q1   1977q2   1977q2   .8961924   .1166105   .0571531   .0678188 {txt}{c |}
+ 62. {c |} {res}1960q1   1977q3   1977q3   .8855361   .1204164   .0564649   .0678624 {txt}{c |}
+ 63. {c |} {res}1960q1   1977q4   1977q4   .8834494    .120101   .0559245    .067457 {txt}{c |}
+ 64. {c |} {res}1960q1   1978q1   1978q1   .8849068   .1212709   .0555454   .0670515 {txt}{c |}
+ 65. {c |} {res}1960q1   1978q2   1978q2   .8885314   .1222236   .0552931   .0669269 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 66. {c |} {res}1960q1   1978q3   1978q3   .8795272   .1237568    .055307   .0673826 {txt}{c |}
+ 67. {c |} {res}1960q1   1978q4   1978q4   .8763711   .1156466   .0568466    .069183 {txt}{c |}
+ 68. {c |} {res}1960q1   1979q1   1979q1   .8848548   .1003726   .0569833   .0689144 {txt}{c |}
+ 69. {c |} {res}1960q1   1979q2   1979q2   .8896012     .09351    .055879   .0671507 {txt}{c |}
+ 70. {c |} {res}1960q1   1979q3   1979q3   .9002056   .0784831   .0550955   .0658044 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 71. {c |} {res}1960q1   1979q4   1979q4   .9230959   .0483653   .0548767   .0652194 {txt}{c |}
+ 72. {c |} {res}1960q1   1980q1   1980q1   .9256729   .0453041   .0522738   .0621286 {txt}{c |}
+ 73. {c |} {res}1960q1   1980q2   1980q2   .8667432   .1160107   .0557722   .0662398 {txt}{c |}
+ 74. {c |} {res}1960q1   1980q3   1980q3   .8651032   .1265776   .0565167   .0668634 {txt}{c |}
+ 75. {c |} {res}1960q1   1980q4   1980q4   .8381996   .1205232    .065934   .0782807 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 76. {c |} {res}1960q1   1981q1   1981q1   .8530828   .1022841    .064082   .0759379 {txt}{c |}
+ 77. {c |} {res}1960q1   1981q2   1981q2     .84707   .1093933   .0617136   .0731425 {txt}{c |}
+ 78. {c |} {res}1960q1   1981q3   1981q3   .8273684   .1349954    .061335   .0724299 {txt}{c |}
+ 79. {c |} {res}1960q1   1981q4   1981q4   .8151704   .1671475   .0661697   .0777318 {txt}{c |}
+ 80. {c |} {res}1960q1   1982q1   1982q1   .8018193   .1712309   .0649503   .0776719 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 81. {c |} {res}1960q1   1982q2   1982q2   .8043392   .1718777   .0643905   .0772953 {txt}{c |}
+ 82. {c |} {res}1960q1   1982q3   1982q3    .831245   .1753018   .0698359   .0842474 {txt}{c |}
+ 83. {c |} {res}1960q1   1982q4   1982q4   .8029401   .1908976    .066089   .0835143 {txt}{c |}
+ 84. {c |} {res}1960q1   1983q1   1983q1   .7982008   .1924883   .0646195   .0830157 {txt}{c |}
+ 85. {c |} {res}1960q1   1983q2   1983q2   .7987948   .1924396   .0637689   .0825582 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 86. {c |} {res}1960q1   1983q3   1983q3   .8058426   .1928509   .0634703   .0826171 {txt}{c |}
+ 87. {c |} {res}1960q1   1983q4   1983q4   .8150113     .19059   .0627322   .0825535 {txt}{c |}
+ 88. {c |} {res}1960q1   1984q1   1984q1   .8180704   .1894567   .0614087   .0820408 {txt}{c |}
+ 89. {c |} {res}1960q1   1984q2   1984q2   .8348935   .1840017   .0611934     .08278 {txt}{c |}
+ 90. {c |} {res}1960q1   1984q3   1984q3   .8265297   .1883806   .0593437   .0821709 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 91. {c |} {res}1960q1   1984q4   1984q4   .8332624   .1862009   .0584874   .0819206 {txt}{c |}
+ 92. {c |} {res}1960q1   1985q1   1985q1   .8428557   .1824113   .0576214      .0818 {txt}{c |}
+ 93. {c |} {res}1960q1   1985q2   1985q2   .8455271   .1811091   .0562491   .0812273 {txt}{c |}
+ 94. {c |} {res}1960q1   1985q3   1985q3   .8465396   .1806586   .0551003    .080706 {txt}{c |}
+ 95. {c |} {res}1960q1   1985q4   1985q4   .8412812   .1826179   .0542864   .0804005 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+ 96. {c |} {res}1960q1   1986q1   1986q1   .8354481   .1824932   .0541107   .0805069 {txt}{c |}
+ 97. {c |} {res}1960q1   1986q2   1986q2   .8354797   .1826245   .0538373    .079996 {txt}{c |}
+ 98. {c |} {res}1960q1   1986q3   1986q3   .8357773   .1839274   .0535916   .0795253 {txt}{c |}
+ 99. {c |} {res}1960q1   1986q4   1986q4   .8358938   .1841666   .0533095   .0790692 {txt}{c |}
+100. {c |} {res}1960q1   1987q1   1987q1   .8354629   .1832482    .053049   .0786425 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+101. {c |} {res}1960q1   1987q2   1987q2   .8367569    .191956   .0537197   .0795124 {txt}{c |}
+102. {c |} {res}1960q1   1987q3   1987q3   .8395527   .1913606   .0531807   .0792114 {txt}{c |}
+103. {c |} {res}1960q1   1987q4   1987q4   .8459466   .1896328   .0528078   .0792005 {txt}{c |}
+104. {c |} {res}1960q1   1988q1   1988q1   .8410221   .1919167   .0520422   .0788871 {txt}{c |}
+105. {c |} {res}1960q1   1988q2   1988q2   .8427124   .1917361   .0515907   .0785694 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+106. {c |} {res}1960q1   1988q3   1988q3   .8400362   .1921178   .0511712   .0783113 {txt}{c |}
+107. {c |} {res}1960q1   1988q4   1988q4   .8370028   .1903887   .0511088   .0783248 {txt}{c |}
+108. {c |} {res}1960q1   1989q1   1989q1   .8371471   .1875341   .0509514   .0779125 {txt}{c |}
+109. {c |} {res}1960q1   1989q2   1989q2   .8383799   .1824556   .0508324    .077484 {txt}{c |}
+110. {c |} {res}1960q1   1989q3   1989q3   .8403223   .1774382   .0505833   .0768004 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+111. {c |} {res}1960q1   1989q4   1989q4   .8414218   .1749732   .0502057   .0759112 {txt}{c |}
+112. {c |} {res}1960q1   1990q1   1990q1   .8392956   .1797392   .0498783   .0751063 {txt}{c |}
+113. {c |} {res}1960q1   1990q2   1990q2   .8385505   .1821679   .0496476   .0745024 {txt}{c |}
+114. {c |} {res}1960q1   1990q3   1990q3   .8385292   .1822985   .0494321   .0739836 {txt}{c |}
+115. {c |} {res}1960q1   1990q4   1990q4   .8384462   .1829439   .0492259   .0734954 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+116. {c |} {res}1960q1   1991q1   1991q1   .8381976   .1878083   .0492373   .0733611 {txt}{c |}
+117. {c |} {res}1960q1   1991q2   1991q2   .8409632   .1900495   .0492684   .0734647 {txt}{c |}
+118. {c |} {res}1960q1   1991q3   1991q3    .841594   .1899232   .0488352   .0731665 {txt}{c |}
+119. {c |} {res}1960q1   1991q4   1991q4    .841933   .1898828   .0484468   .0728732 {txt}{c |}
+120. {c |} {res}1960q1   1992q1   1992q1   .8475602   .1898597   .0485158   .0732065 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+121. {c |} {res}1960q1   1992q2   1992q2   .8534031    .186998   .0480159   .0730689 {txt}{c |}
+122. {c |} {res}1960q1   1992q3   1992q3   .8507428   .1885547   .0472561   .0726853 {txt}{c |}
+123. {c |} {res}1960q1   1992q4   1992q4   .8557037   .1865691   .0468963   .0725968 {txt}{c |}
+124. {c |} {res}1960q1   1993q1   1993q1   .8544615   .1872419   .0462552   .0722388 {txt}{c |}
+125. {c |} {res}1960q1   1993q2   1993q2   .8534025   .1876502   .0457976   .0719469 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+126. {c |} {res}1960q1   1993q3   1993q3   .8524598   .1878001   .0454644   .0716868 {txt}{c |}
+127. {c |} {res}1960q1   1993q4   1993q4   .8528244   .1878767   .0452063   .0714187 {txt}{c |}
+128. {c |} {res}1960q1   1994q1   1994q1   .8549755   .1884558   .0450637   .0713172 {txt}{c |}
+129. {c |} {res}1960q1   1994q2   1994q2   .8590889   .1876131   .0449085   .0713384 {txt}{c |}
+130. {c |} {res}1960q1   1994q3   1994q3   .8589316   .1876917   .0444129   .0710241 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+131. {c |} {res}1960q1   1994q4   1994q4   .8592525   .1875696   .0440166   .0707446 {txt}{c |}
+132. {c |} {res}1960q1   1995q1   1995q1   .8549614   .1887971   .0438529   .0707694 {txt}{c |}
+133. {c |} {res}1960q1   1995q2   1995q2    .852838   .1857244   .0440265   .0710568 {txt}{c |}
+134. {c |} {res}1960q1   1995q3   1995q3   .8532297   .1843402   .0438467   .0705758 {txt}{c |}
+135. {c |} {res}1960q1   1995q4   1995q4   .8544972   .1801822   .0437262   .0701854 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+136. {c |} {res}1960q1   1996q1   1996q1   .8540069   .1814262   .0434832   .0695703 {txt}{c |}
+137. {c |} {res}1960q1   1996q2   1996q2   .8511493   .1900029   .0435676   .0695034 {txt}{c |}
+138. {c |} {res}1960q1   1996q3   1996q3   .8511575    .190029    .043408   .0692116 {txt}{c |}
+139. {c |} {res}1960q1   1996q4   1996q4   .8507594   .1885907   .0432938   .0689868 {txt}{c |}
+140. {c |} {res}1960q1   1997q1   1997q1   .8506669   .1896855    .043155   .0686509 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+141. {c |} {res}1960q1   1997q2   1997q2   .8507707   .1910963   .0430347   .0683829 {txt}{c |}
+142. {c |} {res}1960q1   1997q3   1997q3   .8499879   .1893602    .042962    .068249 {txt}{c |}
+143. {c |} {res}1960q1   1997q4   1997q4   .8503464   .1865203   .0428821   .0680011 {txt}{c |}
+144. {c |} {res}1960q1   1998q1   1998q1   .8515087   .1826936    .042774    .067656 {txt}{c |}
+145. {c |} {res}1960q1   1998q2   1998q2   .8513181   .1831733   .0425497   .0670993 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+146. {c |} {res}1960q1   1998q3   1998q3   .8529239   .1786165   .0424384   .0667386 {txt}{c |}
+147. {c |} {res}1960q1   1998q4   1998q4     .85473    .174472   .0422295   .0662034 {txt}{c |}
+148. {c |} {res}1960q1   1999q1   1999q1   .8532886   .1775364   .0419546   .0655629 {txt}{c |}
+149. {c |} {res}1960q1   1999q2   1999q2   .8515108   .1821477   .0418257    .065174 {txt}{c |}
+150. {c |} {res}1960q1   1999q3   1999q3   .8513724   .1829529   .0416904   .0648402 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+151. {c |} {res}1960q1   1999q4   1999q4   .8514293   .1821479   .0415634   .0645457 {txt}{c |}
+152. {c |} {res}1960q1   2000q1   2000q1   .8514185   .1822202   .0414275   .0642209 {txt}{c |}
+153. {c |} {res}1960q1   2000q2   2000q2   .8517471   .1794891   .0413639   .0640167 {txt}{c |}
+154. {c |} {res}1960q1   2000q3   2000q3   .8540726   .1721199    .041471   .0640261 {txt}{c |}
+155. {c |} {res}1960q1   2000q4   2000q4   .8589841   .1621827   .0413789   .0636878 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+156. {c |} {res}1960q1   2001q1   2001q1   .8568407   .1659737   .0409185    .062804 {txt}{c |}
+157. {c |} {res}1960q1   2001q2   2001q2   .8491328   .1812508   .0411003   .0628918 {txt}{c |}
+158. {c |} {res}1960q1   2001q3   2001q3   .8491375   .1822181   .0409869   .0626406 {txt}{c |}
+159. {c |} {res}1960q1   2001q4   2001q4   .8500423   .1862922   .0411956   .0629162 {txt}{c |}
+160. {c |} {res}1960q1   2002q1   2002q1   .8543956   .1853419   .0411641   .0630613 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+161. {c |} {res}1960q1   2002q2   2002q2   .8563986    .184214   .0407552   .0628395 {txt}{c |}
+162. {c |} {res}1960q1   2002q3   2002q3   .8488613   .1884512   .0406266   .0630363 {txt}{c |}
+163. {c |} {res}1960q1   2002q4   2002q4   .8489548    .188515   .0404738   .0628403 {txt}{c |}
+164. {c |} {res}1960q1   2003q1   2003q1   .8493652   .1888614   .0403364   .0626568 {txt}{c |}
+165. {c |} {res}1960q1   2003q2   2003q2   .8488721   .1885909   .0401913   .0624813 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+166. {c |} {res}1960q1   2003q3   2003q3   .8502666   .1910502   .0402854   .0626219 {txt}{c |}
+167. {c |} {res}1960q1   2003q4   2003q4   .8518043   .1906681    .040078   .0624805 {txt}{c |}
+168. {c |} {res}1960q1   2004q1   2004q1   .8510874   .1909205   .0398214   .0622969 {txt}{c |}
+169. {c |} {res}1960q1   2004q2   2004q2   .8545326   .1906393   .0398276    .062437 {txt}{c |}
+170. {c |} {res}1960q1   2004q3   2004q3   .8509889   .1925811   .0395583   .0623355 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+171. {c |} {res}1960q1   2004q4   2004q4   .8490669   .1925903   .0394498   .0622757 {txt}{c |}
+172. {c |} {res}1960q1   2005q1   2005q1   .8489208   .1922098   .0393359   .0620765 {txt}{c |}
+173. {c |} {res}1960q1   2005q2   2005q2   .8486977    .190651   .0392696   .0619267 {txt}{c |}
+174. {c |} {res}1960q1   2005q3   2005q3   .8491823   .1880287   .0392098    .061732 {txt}{c |}
+175. {c |} {res}1960q1   2005q4   2005q4   .8498249   .1861404   .0390826   .0613949 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+176. {c |} {res}1960q1   2006q1   2006q1   .8517703   .1809929   .0390285   .0611647 {txt}{c |}
+177. {c |} {res}1960q1   2006q2   2006q2    .851933   .1806496   .0387946   .0606352 {txt}{c |}
+178. {c |} {res}1960q1   2006q3   2006q3   .8545401   .1748251   .0386892   .0603133 {txt}{c |}
+179. {c |} {res}1960q1   2006q4   2006q4   .8575785   .1688878   .0384749   .0598189 {txt}{c |}
+180. {c |} {res}1960q1   2007q1   2007q1   .8596797   .1650259   .0381508   .0591629 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+181. {c |} {res}1960q1   2007q2   2007q2   .8584003   .1673572   .0378082   .0584838 {txt}{c |}
+182. {c |} {res}1960q1   2007q3   2007q3   .8582646   .1676309   .0375666   .0579571 {txt}{c |}
+183. {c |} {res}1960q1   2007q4   2007q4   .8579452   .1683249    .037371   .0575069 {txt}{c |}
+184. {c |} {res}1960q1   2008q1   2008q1   .8571488   .1702557   .0372255   .0571442 {txt}{c |}
+185. {c |} {res}1960q1   2008q2   2008q2   .8552377   .1763997   .0373189   .0571705 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+186. {c |} {res}1960q1   2008q3   2008q3   .8554935   .1767987   .0372163   .0570127 {txt}{c |}
+187. {c |} {res}1960q1   2008q4   2008q4   .8562339   .1775325   .0371374    .056909 {txt}{c |}
+188. {c |} {res}1960q1   2009q1   2009q1   .8553572   .1773687   .0370145   .0567928 {txt}{c |}
+189. {c |} {res}1960q1   2009q2   2009q2   .8564558   .1789417   .0370258   .0568128 {txt}{c |}
+190. {c |} {res}1960q1   2009q3   2009q3   .8581479   .1787441   .0369026   .0567404 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+191. {c |} {res}1960q1   2009q4   2009q4    .858656   .1785663   .0366893   .0565906 {txt}{c |}
+192. {c |} {res}1960q1   2010q1   2010q1   .8598295   .1782157   .0365065   .0564666 {txt}{c |}
+193. {c |} {res}1960q1   2010q2   2010q2   .8594468   .1783527   .0362971   .0563171 {txt}{c |}
+194. {c |} {res}1960q1   2010q3   2010q3   .8566262   .1787954   .0362597   .0563768 {txt}{c |}
+195. {c |} {res}1960q1   2010q4   2010q4   .8566249   .1787902   .0361665   .0562038 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+196. {c |} {res}1960q1   2011q1   2011q1   .8571361   .1813218   .0362222   .0562591 {txt}{c |}
+197. {c |} {res}1960q1   2011q2   2011q2   .8568066   .1813254   .0360784    .056124 {txt}{c |}
+198. {c |} {res}1960q1   2011q3   2011q3   .8549452   .1806404   .0360883   .0561871 {txt}{c |}
+199. {c |} {res}1960q1   2011q4   2011q4   .8550496   .1795492   .0360132   .0560049 {txt}{c |}
+200. {c |} {res}1960q1   2012q1   2012q1     .85527   .1785545   .0359263   .0557843 {txt}{c |}
+     {c LT}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c RT}
+201. {c |} {res}1960q1   2012q2   2012q2    .855647   .1771975   .0358377   .0555518 {txt}{c |}
+202. {c |} {res}1960q1   2012q3   2012q3   .8562136   .1754968   .0357426   .0552994 {txt}{c |}
+203. {c |} {res}1960q1   2012q4   2012q4   .8564022   .1750017   .0356192   .0549952 {txt}{c |}
+     {c BLC}{hline 8}{c -}{hline 8}{c -}{hline 8}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c -}{hline 10}{c BRC}
+
+{com}.         generate lower = _b_Lspread - 1.96*_se_Lspread
+{txt}
+{com}.         generate upper = _b_Lspread + 1.96*_se_Lspread
+{txt}
+{com}.         generate lowerc = _b_cons - 1.96*_se_cons
+{txt}
+{com}.         generate upperc = _b_cons + 1.96*_b_cons
+{txt}
+{com}. 
+.         twoway (line _b_Lspread date) (rline lower upper date), ytitle("Beta") xtitle("Date") saving(${c -(}output{c )-}/ar)
+{res}{txt}file {bf:C:\Users\chadi\Dropbox\5314\5314_PS1\Output/ar.gph} saved
+
+{com}.         twoway (line _b_cons date) (rline lowerc upperc date), ytitle("Beta") xtitle("Date") saving(${c -(}output{c )-}/con)
+{res}{txt}file {bf:C:\Users\chadi\Dropbox\5314\5314_PS1\Output/con.gph} saved
+
+{com}.         graph combine ${c -(}output{c )-}/ar.gph ${c -(}output{c )-}/con.gph, col(1) 
+{res}{txt}
+{com}.         graph export "${c -(}output{c )-}/stability.png", width(4000) replace
+{txt}{p 0 4 2}
+(file {bf}
+C:\Users\chadi\Dropbox\5314\5314_PS1\Output/stability.png{rm}
+not found)
+{p_end}
+{p 0 4 2}
+file {bf}
+C:\Users\chadi\Dropbox\5314\5314_PS1\Output/stability.png{rm}
+saved as
+PNG
+format
+{p_end}
+
+{com}. 
+. 
+.         capture log close
+{smcl}
+{com}{sf}{ul off}

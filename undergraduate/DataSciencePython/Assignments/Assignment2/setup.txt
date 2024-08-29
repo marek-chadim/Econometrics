@@ -1,0 +1,22 @@
+Assignment 2
+Due Monday by 23:59
+
+When given the collection of solutions submitted by students in the current course and by the students of the previous year for the very same programming assignment, the MOSS Software Similarity SystemLinks to an external site. returns this result saved as a CSV file Download this result saved as a CSV file. Each row represents a pair of submissions from two (anonymised) student IDs marked as ID1 and ID2, and shows the percentage of code in ID1’s submission that appear identically in ID2’s submission (with column header "% in ID1"), the percentage of the same code in ID2’s submission ("% in ID2"), and the number of identical lines of code ("number identical lines").
+
+Your task is to use network analysis tools (available in the networkxLinks to an external site. Python module) in addition to other necessary Python data processing tools to explore this dataset. Your overall objective is to build network-based evidence that can help identify cheating nodes or groups. (Note that the original code made available as a jupyter notebook is not included in the reporting of shared lines of code.)
+
+The following questions are requested to earn 60% of your grade. You are asked to model the dataset as an undirected weighted network, where nodes are student IDs, edges connect student IDs whose submissions had at least 10% overlap in at least one of the end nodes’ submissions,  and the edge weight is given by the number of shared lines of code between two nodes.
+
+Required questions (each worth 10 points, from which 4 points are for readability—comments, notebook formatting, explanations, etc.—and 6 points for implementation):
+
+Network size in number of nodes, number of edges, and number of connected components.
+Plot the distribution of edge weights and state your observations.
+Plot the node degree distribution.
+If you consider this dataset as a weighted network, which node IDs are most central? Choose your centrality metric and justify it in the context of this dataset (that is, based on the network definition). Interpret the results – what is the role of this most central node in the network?
+Consider the median edge weight in the original data as the expected number of shared lines of code in two independently produced solutions to a simple programming task. If you consider the original dataset and only edges with weights larger than the median, how many connected components do you get? Report the list of nodes in each connected component, but disregard the singletons. Interpret the results.
+Report the diameters of the component(s) from the original network as analysed in 1—4 and of the network extracted for 5.
+The remaining 40% is earned by your meaningful exploration of network metrics and explanations (intuition, hypothesis testing, conclusions based on data analysis, etc.) that can support your inquiry. For maximum credit, you have to come up with 4 meaningful network evaluation questions, justify them, provide a python implementation, and interpret the results. Each such question is worth 10 points (4 points for the question, 3 points for implementation, 3 points for interpretation). You are free to explore the networkx library and experiment. You might consider identifying bridges, measuring different centrality metrics, overall characteristics of differently defined networks, visualisation (in which case you might want to consider GephiLinks to an external site.), or simply start with a question informed by the context (e.g., "Can you differentiates between this year's students and last year's by using network measurements on this dataset?")
+
+You can work alone or in teams of 2 for this assignment. 
+
+What to submit: a jupyter notebook that processes the data file provided here and that is retrievable in your code as "datasets/a2.csv". There is a penalty of 20% if this instruction is not followed, as your code will not run for grading. 

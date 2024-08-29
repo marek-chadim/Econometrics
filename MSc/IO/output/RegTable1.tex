@@ -1,0 +1,29 @@
+\begin{table}[htbp]\centering
+\def\sym#1{\ifmmode^{#1}\else\(^{#1}\)\fi}
+\caption{Hedonic Price Regression \label{tab2}}
+\begin{tabular}{l*{1}{c}}
+\hline\hline
+                    &\multicolumn{1}{c}{(1)}\\
+                    &\multicolumn{1}{c}{logprice}\\
+\hline
+Horsepower (kW)     &       0.006\sym{***}\\
+                    &     (0.000)         \\
+[1em]
+Fuel efficiency     &       0.049\sym{***}\\
+                    &     (0.001)         \\
+[1em]
+Width (cm)          &       0.001\sym{***}\\
+                    &     (0.000)         \\
+[1em]
+Height (cm)         &      -0.002\sym{***}\\
+                    &     (0.000)         \\
+[1em]
+Weight (kg)         &       0.000\sym{***}\\
+                    &     (0.000)         \\
+\hline
+Observations        &       11483         \\
+\hline\hline
+\multicolumn{2}{l}{\footnotesize Standard errors in parentheses}\\
+\multicolumn{2}{l}{\footnotesize \sym{*} \(p<0.05\), \sym{**} \(p<0.01\), \sym{***} \(p<0.001\)}\\
+\end{tabular}
+\end{table}

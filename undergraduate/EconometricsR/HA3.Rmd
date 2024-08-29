@@ -1,0 +1,175 @@
+---
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(tinytex.verbose = TRUE)
+
+  library(systemfit)
+  library(sem)
+  library(lmtest)
+  library(sandwich)
+  library(stargazer)
+  library(Hmisc)
+  library(tidyverse)
+  library(readxl)
+  library(dplyr)
+  library(broom)
+  library(knitr)
+  library(ggplot2)
+```
+
+## Introduction
+
+In this report, we are going to investigate how seminar attendance (and various other factors) affects test performance. The dataset we are going to use is in Excel format. This data is cross-sectional, with each observation corresponding to one student, and contains information on the total number of seminars attended, the total grade obtained for the subject, as well as a host of other potential explanatory factors for a sample of 100 students in Uzbekistan studying Fundamentals of Statistics course in 2018. Please, see the attached document titled “Description of the variables” for the full information on the all available variables.
+
+First, we viewed, cleaned, examined, graphed the data and started with an ordinary least squares model of the form
+$$ tmark_{i}=\beta_0+\beta_1 nlesson_{i}+u_{i} $$, where $tmark$ is the final exam score and $nlesson$ is the total number of seminars attended during the
+semester. The resuslt are displayed below
+
+```{r, include=FALSE}
+setwd("~/HA3")
+data <- read_excel("data.xlsx")
+glimpse(data)
+data<-na.omit(data)
+summary(data[,c('mark_t_FoS','nlesson')])
+ptwork <- ifelse(data$working == 'Part time', 1, 0)
+ftwork <- ifelse(data$working == 'Full time', 1, 0)
+attach(data)
+```
+```{r, echo=FALSE, scale = 0.8}
+ggplot(data, aes(x = nlesson, y = mark_t_FoS, color = gender)) + ylab("tmark")+
+  geom_point()
+```
+
+
+The interpretation of the constant here is the total mark that would be achieved without any seminars attended. The R-squared is about 28%. This means that a linear model with seminar attendance explains a substantial part of variation in total mark away from its mean. The results of a Breusch-Pagan are also shown. It appears that there is heteroscedasticity across the nlesson variable as we reject the null of no heteroscedasticity at any reasonable significance level. Logging the dependent variable has had some effect of reducing the dispersion, however not sufficiently so as to remove the heteroscedasticity at the 5% significance. Eventough the adjusted R-squares  is slightly lower in the logged model, the substantial reduction in the standard errors lead us to conclude this may be a better specification. The coefficient on $nlesson$ suggests that an additional seminar causes on average a $2.4\%$ increase in total mark.
+
+```{r, include=FALSE}
+model1 <- lm(mark_t_FoS ~ nlesson)
+summary(model1)
+bptest(model1)
+model2 <- coeftest(model1)
+model3 <- lm(log(mark_t_FoS) ~ nlesson)
+summary(model3)
+bptest(model3)
+model4 <- coeftest(model3)
+```
+
+```{r, echo=FALSE, results='asis'}
+
+stargazer(model1, model3, header=FALSE, 
+          single.row=TRUE, type='latex')
+```
+
+
+## Instrumental variables estimation
+
+There are likely a number of omitted factors which are correlated with nlesson. This means that nlesson is likely endogenous, causing the OLS estimates of parameters be both biased and inconsistent.  
+
+An example of an ommited factor might be an individuals interest in the class, where we would expect a positive correlation between interest and seminar attendance. Some measures of ability, effort or preparation are also likely correlated with seminar attendance and with the total mark. These characteristics encourage students to attend seminars and to increase their marks on exams at the same time. Hence they are positively linked to both independent and dependent variables, which means that the the estimate of seminar
+attendance effect over-estimated.
+
+For simplicity, let us consider the structural equation of the form
+
+$$tmark_{i}=\beta_0+\beta_1 nlesson_{i}+u_{i}$$
+where we expect $\beta_1$ to be positive as attending Statistics seminars should benefit the students.
+
+Endogeneity from an omitted variables bias can be eliminated (or at least mitigated) when a suitable proxy variable is given for an unobserved explanatory variable. Thus, we considered entrance test scores as proxies for ability and the number of files which a student downloaded together with the the number of prescribed chapters read as proxies for interest.
+
+$$tmark_{i}=\beta_0+\beta_1 nlesson_{i}+\beta_2 entmath_{i} + \beta_3 entIELTS_{i} + \beta_4 nfile +  \beta_5 chapters + u_{i}$$
+with $\beta_i, i=2,\dots 5$ also expected to be positive. 
+
+Another way to get around the issue of endogenous regressors is to use an appropriate instrument. A good IV for $nlesson$ has no direct effect on score and is not correlated with student ability and motivation. Let us evaluate whether $working$ (whether a student of the Statistics course was working part time in 2018) is likely to be a reasonable instrument to use for seminar attendance).
+
+Part- time work should affect $nlesson$, because having having a job will make an individual less likely to attend seminars. It also is likely uncorrelated with the omitted factors (important in determining $tmark$) in our regression. One could argue that it influences ability and interest, but in our view this is likely a quite weak effect. Hovewer, full-time work is more likely to be correlated with interest and ability. It has been fairly well established that socioeconomic status affects student performance. The error term $u$ contains, among other things, family income, which has positive effect on test scores. In that sense, $working$ is certainly not exogenous as it is also very likely correlated with family income.
+
+The requirements for an instrument $z$ to be consistent are that it satisfies $Cov(z,u) = 0;$  (instrument exogeneity) and that $z$ must also be related, either positively or negatively, to the endogenous explanatory variable $x$, i.e. relevant. We are going to try using the $working$ variable, expecting negative  correlation with $nlesson$ and verifing it by regressing $nlesson$ on $ptwork$ and similarly defined $ftwork$, in turn performing a 2SLS first stage estimation. The estimated sign and even magnitude of the parameters corresponds to the predictions outlined above. We would argue our instruments are sufficiently strong since they explain about 7% of the variance in $nlesson$, likely outweighing the correlation with omitted variables.
+
+```{r, echo=F, results='asis'}
+
+model5 <- lm(nlesson ~ ptwork + ftwork)
+stargazer(model5,header=FALSE, 
+          single.row=TRUE, type='latex')
+```
+
+
+## Results
+```{r, echo=F}
+IV  <- tsls(log(mark_t_FoS) ~ nlesson, ~ ptwork + ftwork)
+summary(IV)
+IVwControls  <- tsls(log(mark_t_FoS) ~ nlesson+ent_math+ ent_ielts+ nfile + chapters, ~ ptwork + ftwork+ent_math+ ent_ielts+ nfile + chapters)
+OLSwControls <- lm(log(mark_t_FoS) ~nlesson +ent_math+ ent_ielts+ nfile + chapters)
+```
+
+We find that our instrument does not work as expected. The return to 1 incremental seminar from OLS estimates, about a $2.4\%$ 
+increase in total mark, is smaller than that suggested by instrumental variables estimators, at around $4\%$! 
+
+At this point we decide to control for the unobserved factors. Considering the proxy model as our new structural equation, we arrive to a model which should
+be consistent as long as the 2SLS assumptions of ĺinearity in parameters, random sampling, rank condition and exogenous instrumental variables:
+
+```{r, echo=F}
+summary(IVwControls)
+coeftest(IVwControls)
+```
+```{r, echo=F, results='asis'}
+stargazer(OLSwControls,header=FALSE, 
+          single.row=TRUE, type='latex',
+          title='Structural model')
+```
+The null hypothesis under the Hausman test is that both models produce consistent estimates. With a p value close to 1, we cannot reject the null hypothesis. This result corresponds to the fact that that the  return to 1 incremental seminar from OLS estimates, at about a $1.9\%$ increase in total mark, is now closer to the IV estimation at around $2.3\%$ In the regression-based test for endogeneity, the coefficient of “res” is insignificant. Therefore, neither of these tests proves endogeneity in the structural model. We can test whether the IVs are exogenous as we have more instruments. With a very small p-value, we reject that all the instruments are exogenous. The errors on the estimated slope coefficient from instrumental variables estimates are roughly five times those of OLS! This is typical of instrumental variables estimators.As the BP test still indicates the presence of heteroscedasticity, fGLS is needed in order to achieve robust inference. Please view the attached .Rmd and consult Wooldridge (Introductory econometrics: a modern approach, 7th ed., 531-533) if necessary. The paper from Card (1995), http://davidcard.berkeley.edu/papers/geo_var_schooling.pdf inspired our methodology.
+
+
+```{r, include=F}
+summary(OLSwControls)
+
+
+#Homoskedasticity
+bptest(OLSwControls)
+
+coeftest(OLSwControls)
+
+#Regression-based test for endogeneity
+RF = lm(nlesson ~ ptwork + ftwork +ent_math+ ent_ielts+ nfile + chapters)
+res <- RF$residuals
+SEt = lm(log(mark_t_FoS) ~ nlesson + ptwork + ftwork +ent_math+ ent_ielts+ nfile + chapters + res)
+
+test       <- coeftest(SEt , vcov = vcovHC)
+stargazer(test, header=FALSE, single.row=T, type='text')
+
+
+#Hausman test for endogeneity
+hausman.systemfit(IVwControls, OLSwControls)
+
+#Test for overidentifying restrictions
+structural_model = IVwControls
+resids = structural_model$residuals
+
+test_model = lm(resids ~ +ent_math+ ent_ielts+ nfile + chapters)
+
+rsq = summary(test_model)$r.squared
+q = 2
+n = 74
+pchisq(n*rsq, q)
+
+
+cor(nlesson,ftwork)
+cor(nlesson,ptwork)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

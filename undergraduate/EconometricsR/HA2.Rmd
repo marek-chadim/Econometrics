@@ -1,0 +1,80 @@
+---
+title: "HA2"
+author: "Marek Chadim, Jakub Strašlipka"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r warning=FALSE}
+library(dplyr)
+library(reshape2)
+library(plm)
+library(MASS)
+library(Hmisc)
+library(stargazer)
+library(lmtest)
+
+
+#load data
+govnt_raw<-read.csv("gov_change.csv",check.names = T)
+house_raw<-read.csv("cons_change.csv", check.names = T)
+gdp_raw<-read.csv("gdp.csv", check.names = T)
+pop_raw<-read.csv("pop.csv", check.names = T)
+ir_raw<-read.csv("int_rate.csv", sep = ";", check.names = T)
+
+# select columns with a country code and years 2012-19
+govnt<-dplyr::select(govnt_raw, 2, 57:64)
+house<-dplyr::select(house_raw, 2, 57:64)
+gdp<-dplyr::select(gdp_raw, 2, 57:64)
+pop<-dplyr::select(pop_raw, 2, 57:64)
+ir<-dplyr::select(ir_raw, 2, 57:64)
+
+#melt the data into individual observations
+govnt_melt<-melt(govnt)
+house_melt<-melt(house)
+gdp_melt<-melt(gdp)
+pop_melt<-melt(pop)
+ir_melt<-melt(ir)
+
+#merge into one dataset
+data<-govnt_melt
+data$house_cons<-house_melt$value
+data$gdp<-gdp_melt$value
+data$pop<-pop_melt$value
+data$ir<-ir_melt$value
+
+#rename the columns
+data<-rename(data,country=Country.Code, gov_spend=value, year=variable)
+
+#create appropriate data format for plm
+pdata<-pdata.frame(data,c("country", "year"))
+
+#we have absolute population number, need to transform to year-to-year changes
+pdata<-pdata %>%
+  group_by(country) %>%
+  dplyr::mutate(pop_change=(100*((pop-dplyr::lag(pop,1))/dplyr::lag(pop,1))))
+
+#identically with real GDP (we want y-y percentage changes)
+pdata<-pdata %>%
+  group_by(country) %>%
+  dplyr::mutate(gdp_change=(100*((gdp-dplyr::lag(gdp,1))/dplyr::lag(gdp,1))))
+
+#let's model
+#fixed effects
+fe_model<-plm(house_cons ~ gov_spend + lag(gov_spend,1) + gdp_change + ir, data = pdata, model = "within")
+summary(fe_model)
+
+#random effects
+re_model<-plm(house_cons ~ gov_spend + lag(gov_spend,1) + gdp_change + ir, data = pdata, model = "random")
+summary(re_model)
+
+#Hausman test
+phtest(fe_model, re_model)
+
+#Lagrange multiplier test for heteroscedasticity
+plmtest(re_model)
+
+#heteroskedastic robust errors
+coeftest(re_model, vcov = vcovHC(re_model, cluster = "group"))
+```
+

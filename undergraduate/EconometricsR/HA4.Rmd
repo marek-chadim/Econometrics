@@ -1,0 +1,212 @@
+---
+title: "HA4"
+author: "Marek Chadim, Jakub Strašlipka"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup}
+library(dplyr)
+library(tidyr)
+library(corrplot)
+library(ggplot2)
+library(pscl)
+library(mfx)
+
+
+#load data
+raw_data <- read.csv("bank_churn.csv",row.names = 1)
+
+#exclude rows with an empty cell
+data1 <- raw_data[complete.cases(raw_data), ]
+#no. of rows excluded
+nrow(raw_data[!complete.cases(raw_data), ])
+
+#search for outliers
+#first, look at the data summary
+summary(data1)
+
+#sketch a histogram for each variable (done aside)
+hist(data1$Total_Amt_Chng_Q4_Q1,
+     breaks = sqrt(nrow(data1)))
+
+#based on previous two steps, suspicious observations will be checked
+#variable Total_Amt_Chng_Q4_Q1
+data1 <- data1 %>%
+  mutate(Total_Amt_Chng_Q4_Q1_z_score=(Total_Amt_Chng_Q4_Q1-mean(Total_Amt_Chng_Q4_Q1))/sd(Total_Amt_Chng_Q4_Q1))
+#varible Total_Ct_Chng_Q4_Q1
+data1 <- data1 %>%
+  mutate(Total_Ct_Chng_Q4_Q1_z_score=(Total_Ct_Chng_Q4_Q1-mean(Total_Ct_Chng_Q4_Q1))/sd(Total_Ct_Chng_Q4_Q1))
+
+#remove rows with any of the above-mentioned variables with z-score over 3 (i.e. outliers)
+data <- data1 %>%
+  filter(abs(Total_Amt_Chng_Q4_Q1_z_score)<3, abs(Total_Ct_Chng_Q4_Q1_z_score)<3)
+
+#number of lines with outliers
+nrow(data1 %>%
+       filter(abs(Total_Amt_Chng_Q4_Q1_z_score)>3 | abs(Total_Ct_Chng_Q4_Q1_z_score)>3)
+)
+
+#turn gender into 0-1 variable
+data <- data %>%
+  mutate(female = case_when(Gender == "F" ~ 1,
+                          Gender == "M" ~ 0)
+  )
+
+
+#get data on attrited clients
+attrited <- data %>%
+  filter(Loyalty == 0)
+
+#compute averages of variables over attrited clients
+mean_att <- c(1:ncol(attrited))
+
+for (i in 1:ncol(attrited)) {
+    mean_att[i] = mean(attrited[,i])
+}
+
+#compute averages of variables over all clients
+mean_all <- c(1:ncol(data))
+
+for (i in 1:ncol(data)) {
+  mean_all[i] = mean(data[,i])
+}
+
+#compute differences in means
+mean_diff <- mean_att - mean_all
+
+#compute relative differences in means between the attrited clients and the entire sample
+mean_diff_rel <- mean_diff/mean_all
+mean_diff_rel
+
+#select only numerical variables
+num_data <- data %>%
+  dplyr::select(where(is.numeric))
+
+#drop customer id and z-scores from correlation matrix
+num_data <- num_data %>%
+  dplyr::select(-1,-15,-16)
+
+#corr matrix
+corr <- cor(num_data)
+head(round(corr,2))
+
+#visualise
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(corr, method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", # Add coefficient of correlation
+         tl.col="black", #Text label color and rotation
+         # hide correlation coefficient on the principal diagonal
+         diag=FALSE 
+)
+
+#plot the qualitative variables for all customers and only for attrited c.
+edu_all<-ggplot(data, aes(x=factor(Education_Level)))+
+  geom_bar(width=0.7)+
+  theme_minimal()
+edu_all
+
+edu_att<-ggplot(attrited, aes(x=factor(Education_Level)))+
+  geom_bar(width=0.7)+
+  theme_minimal()
+edu_att
+
+status_all<-ggplot(data, aes(x=factor(Marital_Status)))+
+  geom_bar(width=0.7)+
+  theme_minimal()
+status_all
+
+status_att<-ggplot(attrited, aes(x=factor(Marital_Status)))+
+  geom_bar(width=0.7)+
+  theme_minimal()
+status_att
+
+income_all<-ggplot(data, aes(x=factor(Income_Category)))+
+  geom_bar(width=0.7)+
+  theme_minimal()
+income_all
+
+income_att<-ggplot(attrited, aes(x=factor(Income_Category)))+
+  geom_bar(width=0.7)+
+  theme_minimal()
+income_att
+
+card_all<-ggplot(data, aes(x=factor(Card_Category)))+
+  geom_bar(width=0.7)+
+  theme_minimal()
+card_all
+
+card_att<-ggplot(attrited, aes(x=factor(Card_Category)))+
+  geom_bar(width=0.7)+
+  theme_minimal()
+card_att
+
+#logit regression
+model_logit <- glm(Loyalty ~ Total_Revolving_Bal + Total_Trans_Amt + Total_Trans_Ct
+                            + Avg_Utilization_Ratio + Total_Ct_Chng_Q4_Q1,
+                            family = binomial (link = "logit"), data = data)
+summary(model_logit)
+
+#probit
+model_probit <- glm(Loyalty ~ Total_Revolving_Bal + Total_Trans_Amt + Total_Trans_Ct
+                            + Avg_Utilization_Ratio + Total_Ct_Chng_Q4_Q1,
+                            family = binomial (link = "probit"), data = data)
+summary(model_probit)
+
+#pseudo r squared
+pR2(model_logit)
+pR2(model_probit)
+
+#logit average partial effect
+log_ape <- logitmfx(Loyalty ~ Total_Revolving_Bal + Total_Trans_Amt + Total_Trans_Ct
+                    + Avg_Utilization_Ratio + Total_Ct_Chng_Q4_Q1, data=data, atmean = F)
+log_ape
+
+#logit partial effect at the average
+log_pea <- logitmfx(Loyalty ~ Total_Revolving_Bal + Total_Trans_Amt + Total_Trans_Ct
+                    + Avg_Utilization_Ratio + Total_Ct_Chng_Q4_Q1, data=data, atmean = T)
+log_pea
+
+#probit average partial effect
+prob_ape <- probitmfx(Loyalty ~ Total_Revolving_Bal + Total_Trans_Amt + Total_Trans_Ct
+                 + Avg_Utilization_Ratio + Total_Ct_Chng_Q4_Q1, data=data, atmean = F)
+prob_ape
+
+#probit partial effect at the average
+prob_pea <- probitmfx(Loyalty ~ Total_Revolving_Bal + Total_Trans_Amt + Total_Trans_Ct
+                 + Avg_Utilization_Ratio + Total_Ct_Chng_Q4_Q1, data=data, atmean = T)
+prob_pea
+
+library(caret)
+library(InformationValue)
+
+#split dataset into training and testing set
+set.seed(1)
+sample <- sample(c(TRUE, FALSE), nrow(data), replace=TRUE, prob=c(0.7,0.3))
+train <- data[sample, ]
+test <- data[!sample, ]
+
+#use model to predict probability of default
+predicted <- predict(model_logit, test, type="response")
+
+#find optimal cutoff probability to use to maximize accuracy
+optimal <- optimalCutoff(test$Loyalty, predicted)[1]
+
+#create confusion matrix
+confusionMatrix(test$Loyalty, predicted)
+
+#calculate sensitivity
+sensitivity(test$Loyalty, predicted)
+
+#calculate specificity
+specificity(test$Loyalty, predicted)
+
+#calculate total misclassification error rate
+misClassError(test$Loyalty, predicted, threshold=optimal)
+
+#ROC curve
+plotROC(test$Loyalty, predicted)
+
+```
+

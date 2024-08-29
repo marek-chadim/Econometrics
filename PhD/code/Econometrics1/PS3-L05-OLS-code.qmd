@@ -1,0 +1,826 @@
+---
+title: "Metrics 1 PS4"
+author: "Marek Chadim"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+```{=latex}
+\ifdefined\HCode
+% Commands for HTML output (ignored in PDF)
+\else
+% Define LaTeX commands for PDF here
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\cee}[2]{\mathbb{E}\left[ \left. #1 \right| #2 \right]}
+\newcommand{\ee}[1]{\mathbb{E}\left[ #1 \right]}
+\newcommand{\pd}[2]{\frac{\partial #1}{\partial #2}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Prob}[1]{\text{Prob}\left[ #1 \right]}
+\fi
+```
+```{r setup, include=FALSE}
+# Housekeeping
+#| label: setup
+#| message: false
+#| warning: false
+#| results: hide
+
+rm(list=ls())
+suppressMessages(library(ggplot2))
+suppressMessages(library(tidyverse))
+suppressMessages(library(stargazer))
+
+```
+
+# 1. Law of iterated expectations.
+
+## (b) OLS as conditional expectation
+
+```{r}
+# Let's generate the data according to the given DGPs
+n <- 500
+set.seed(8)
+
+## Setting parameters
+sigma_sq <- 1
+beta2 <- 5
+
+## Creating base random variables
+u0      <- rnorm(n, mean = 0, sd = sqrt(sigma_sq))
+u1      <- rnorm(n, mean = 0, sd = 1) ## note that sqrt(1) = 1, so sd = var
+u2      <- rnorm(n, mean = 0, sd = 1)
+epsilon <- rnorm(n, mean = 0, sd = 1)
+
+## Creating constructed random variables
+x1  <- u0 + u1
+x2  <- u0 + u2
+y   <- x1 + beta2*x2 + epsilon
+
+## Creating a tidy dataset with all the rvs
+df <- tibble(u0, u1, u2, epsilon, x1, x2, y)
+
+## Plotting all base rvs
+ggplot() + 
+  geom_density(aes(x = u0), fill = "red", alpha = 0.5) +
+  geom_density(aes(x = u1), fill = "blue", alpha = 0.5) +
+  geom_density(aes(x = u2), fill = "green", alpha = 0.5) +
+  geom_density(aes(x = epsilon), fill = "yellow", alpha = 0.5) +
+  labs(title = "Density of base random variables", x = "Value", y = "Density") +
+  theme_minimal()
+
+## Plotting all constructed rvs
+ggplot() + 
+  geom_density(aes(x = x1), fill = "red", alpha = 0.5) +
+  geom_density(aes(x = x2), fill = "blue", alpha = 0.5) +
+  geom_density(aes(x = y), fill = "green", alpha = 0.5) +
+  labs(title = "Density of constructed random variables",
+       x = "Value", y = "Density") +
+  theme_minimal()
+```
+
+The plots are of course not necessary but help to build some visual understanding.
+
+### (i)
+
+Start with $\sigma^2=1$ and $\beta_2=5$. What is the correlation between $x_1$ and $x_2$?
+
+```{r}
+## Using base R
+cor(df$x1, df$x2)
+
+## Using dplyr
+df %>% summarise(cor(x1, x2))
+```
+
+We can also derive the population (as in, not the sample) correlation algebraically: $$\rho_{x_1,x_2} = \frac{Cov(x_1,x_2)}{\sqrt{Var(x_1)Var(x_2)}} = \frac{Var(u_0)}{\sqrt{Var(u_0)+Var(u_1)}\sqrt{Var(u_0)+Var(u_2)}} = \frac{1}{2}$$
+
+### (ii)
+
+Let's pretend to be Björn. We ask Ana to provide us with an estimate of the short equation: $$y = \beta_0 + x_1\beta_1 + \varepsilon$$
+
+```{r}
+## Let's not use the in-built functions but actually write this in terms of the
+## projection matrix
+Xs <- cbind(1, x1)
+P_Xs <- Xs %*% solve(t(Xs) %*% Xs) %*% t(Xs)
+
+## So our fitted values are:
+y_hat1 <- P_Xs %*% y
+MSE1 <- sum((y - y_hat1)^2)/n
+
+## Let's get min, mean, max and so on for y_hat1
+summary(y_hat1)
+
+## Let's plot the fitted values against the true values
+ggplot() + 
+  geom_point(aes(x = y, y = y_hat1), alpha = 0.5) +
+  labs(title = "Fitted values vs true values",
+       x = "True values", y = "Fitted values") +
+  theme_minimal()
+
+## The MSE is
+MSE1
+```
+
+### (iii)
+
+Now we ask Ana to provide us with an estimate of the long equation: $$y = \beta_0 + x_1\beta_1 + x_2\beta_2 + \varepsilon$$
+
+```{r}
+## Let's now use the formula of the OLS estimator
+Xl <- cbind(1, x1, x2)
+beta_hatl <- solve(t(Xl) %*% Xl) %*% t(Xl) %*% y
+
+## For Björn's fitted values we need to get the average of x_2
+x2_bar <- mean(x2)
+Xl_björn <- cbind(1, x1, x2_bar)
+
+## So Björn's fitted values are:
+y_hat2 <- Xl_björn %*% beta_hatl
+MSE2 <- sum((y - y_hat2)^2)/n
+
+## Let's get min, mean, max and so on for y_hat2
+summary(y_hat2)
+
+## Let's plot the fitted values against the true values
+ggplot() + 
+  geom_point(aes(x = y, y = y_hat2), alpha = 0.5) +
+  labs(title = "Fitted values vs true values",
+       x = "True values", y = "Fitted values") +
+  theme_minimal()
+
+## The MSE is
+MSE2
+```
+
+### (iv)
+
+Lastly, we ask Ana to provide an estimate of a different equation namely: $$x_2 = \gamma_0 + \gamma_1x_1 + \nu$$
+
+```{r}
+## Let's first get fitted values for x_2 (they only contain information 
+## from x_1, which Björn has access to).
+x2_hat <- P_Xs %*% x2
+
+## So Björn's variables are
+Xl_björn2 <- cbind(1, x1, x2_hat)
+
+## OLS coefficients
+y_hat3 <- Xl_björn2 %*% beta_hatl
+MSE3 <- sum((y - y_hat3)^2)/n
+
+## Let's get min, mean, max and so on for y_hat3
+summary(y_hat3)
+
+## Let's plot the fitted values against the true values
+ggplot() + 
+  geom_point(aes(x = y, y = y_hat3), alpha = 0.5) +
+  labs(title = "Fitted values vs true values",
+       x = "True values", y = "Fitted values") +
+  theme_minimal()
+
+## The MSE is
+MSE3
+
+```
+
+### (v)
+
+```{r}
+#| warning: false
+
+## Let's get the correlation coefficients for all three fitted vectors and
+## print them
+cor(y_hat1, y_hat2)
+cor(y_hat1, y_hat3)
+cor(y_hat2, y_hat3)
+
+## To see this let's plot all three fitted values against the true y
+ggplot() + 
+  geom_abline(intercept = 0, slope = 1, color = "black", size = 2, alpha = .4) +
+  geom_point(aes(x = y, y = y_hat1), alpha = 0.5, color = "red", shape = 4, size = 2) +
+  geom_point(aes(x = y, y = y_hat2), alpha = 0.5, color = "blue") +
+  geom_point(aes(x = y, y = y_hat3), alpha = 0.5, color = "green") +
+  labs(title = "Fitted values vs true values",
+       x = "True values", y = "Fitted values") +
+  theme_minimal()
+```
+
+The point to understand here is that in the short regression, we are already using all information we have. No matter what transformation we "squeeze" $x_1$ through, we will not be able to get a better fit. Or in the projection interpretation, we only have the space spanned by $x_1$ to "place" a fitted value. But the linear projection already get's us as close to the true $y$ as possible (in OLS we define close with the Euclidian distance, in principal nothing would stop us from defining it using the $\mathcal{l}_1$ or $\mathcal{l}_3$ or any other norm).
+
+For $\hat y^{(2)}$, note that the coefficient for $x_1$ in the short equation is around $3.5$ while it is around $1$ in the long equation, that is why $\hat y^{(2)}$ has much less variance than $\hat y^{(1)}$ and $\hat y^{(3)}$. Since $\hat \beta_0 + \hat \beta_2 \bar x_2$ is a constant and by using a different $\hat \beta_1$ we are just scaling the values of $x_1$ (by roughly $3.5$ in this example). The pearson correlation coefficient does not care about such transformations - i.e. denoting $\rho(.,.)$ as a correlation coefficient, $\rho(Y+1,X) = \rho(Y,X)$ and $\rho(aY,X) = \rho(Y,X)$. That's why the correlations are all $1$ while the MSEs differ. This point is quite crucial for the rest of the problem set. So if you don't understand why these two equations hold, it might make sense to derive it yourself now.
+
+In terms of the conditional expectation function (CEF), in each case we are just conditioning on $x_1$. So even if we take some $\mathbb{E} \left[y | x_1, x_2 \right]$ we got from Ana, once we condition on Björn's information we just end up with $\mathbb{E} \left[y | x_1 \right]$.
+
+## (c)
+
+```{r}
+rm(list=ls())
+set.seed(8)
+
+## Since we will use the whole procedure a few times we will write a function 
+## with default values for it
+run_simulation <- function(m, n_m, sig_sq1 = 1, sig_sq2 = 1, sig_sqe = 1,
+                           beta0 = 1, betag = 1, beta1 = 1, beta2 = 1, power = 1){
+
+  n <- m*n_m
+  
+  ## Setting municipality level variables
+  mu_1m <- rnorm(m, mean = 0, sd = sqrt(sig_sq1))
+  mu_2m <- rnorm(m, mean = 0, sd = sqrt(sig_sq2))
+  
+  p_m <- (mu_1m^power - min(mu_1m^power))/(max(mu_1m^power) - min(mu_1m^power))
+  g_m <- rbinom(m, prob = p_m, size = 1)
+  cluster <- seq(1:m)
+  
+  ## Setting individual level variables dependent on municipality
+  cluster_i <- rep(cluster, each = n_m)
+  
+  g <- rep(g_m, each = n_m)
+  
+  
+  test <- rnorm(n, mean = mu_1m[cluster_i], sd = 0)
+  test
+  
+  x_1 <- rnorm(n, mean = mu_1m[cluster_i], sd = 1)
+  x_2 <- rnorm(n, mean = mu_2m[cluster_i], sd = 1)
+  e <- rnorm(n, mean = 0, sd = sqrt(sig_sqe))
+  
+  y <- beta0 + betag*g + beta1*x_1 + beta2*x_2 + e
+  
+  ## Let's have a tibble as the output of the function
+  return(tibble(cluster_i, x_1, x_2, e, y, g))
+}
+
+```
+
+### (i)
+
+```{r}
+#| warning=FALSE
+## Setting parameters
+m <- 50
+n_m <- 100
+
+sig_sq1 <- 1
+sig_sq2 <- 1
+sig_sqe <- 1
+
+beta0 <- 1
+betag <- 1
+beta1 <- 1
+beta2 <- 1
+
+power <- 1
+
+df <- run_simulation(m, n_m, sig_sq1, sig_sq2, sig_sqe,
+                     beta0, betag, beta1, beta2, power)
+
+## Let's do use the inbuilt R functions this time
+model_l <- lm(y ~ x_1 + x_2 + g, data = df)
+
+stargazer(model_l, type = "text")
+```
+
+### (ii), (iii)
+
+```{r}
+#| warning=FALSE
+## Let's see how different the two models do, by running the simulation several
+## times for each.
+n_sims <- 100
+
+coefs <- tibble(betag_s = numeric(), betag_sl = numeric())
+
+for (i in 1:n_sims) {
+  df <- run_simulation(m, n_m, sig_sq1, sig_sq2, sig_sqe,
+                     beta0, betag, beta1, beta2, power)
+  
+  model_s  <- lm(y ~ g, data = df)
+  model_sl <- lm(y ~ x_1 + g, data = df)
+  
+  coefs <- coefs |> 
+    add_row(
+      betag_s = coef(model_s)[2],
+      betag_sl = coef(model_sl)[3]
+    )
+}
+
+## Let's plot the distributions
+coefs |> 
+  pivot_longer(cols = everything()) |> 
+  ggplot() + 
+  geom_density(aes(x = value, fill = name), alpha = 0.5) +
+  labs(title = "Density of coefficients", x = "Value", y = "Density") +
+  theme_minimal()
+
+## Or against each other, including the origin in the plot
+coefs |> 
+  ggplot(aes(x = betag_s, y = betag_sl)) +
+  geom_point() + 
+  geom_abline(intercept = 0, slope = 1, color = "black", size = 1.5, alpha = .4) +
+  geom_vline(xintercept = 0, color = "black", size = 1) +  # For the y-axis
+  geom_hline(yintercept = 0, color = "black", size = 1) +  # For the x-axis
+  labs(title = "betag_s vs betag_sl",
+       x = "betag_s", y = "betag_sl") +
+  theme_minimal() +
+  scale_x_continuous(expand = c(.1, .1), limits = c(0, NA)) +
+  scale_y_continuous(expand = c(.1, .1), limits = c(0, NA))
+
+```
+
+While the slightly longer regression gives us estimates very close to the true values, the short regression spits out a quite inflated $\hat \beta_g$. This can be seen in both graphs.
+
+### (iii)
+
+#### extra
+
+```{r}
+## Let's run the simulation 50 times with and without the squares and store the
+## coefficients so that we can compare the coefficients properly
+n_sims <- 100
+power_e <- 2
+
+coefs <- tibble(betag_with_squares = numeric(), 
+                betag = numeric())
+
+for (i in 1:n_sims) {
+  ## Run simulation with squares
+  df_extra <- run_simulation(m, n_m, sig_sq1, sig_sq2, sig_sqe,
+                             beta0, betag, beta1, beta2, power_e)
+  model_l <- lm(y ~ g + x_1, data = df_extra)
+  
+  betag_with_squares <- coef(model_l)[2]
+
+  
+  ## Run it without squares
+  df_extra <- run_simulation(m, n_m, sig_sq1, sig_sq2, sig_sqe,
+                             beta0, betag, beta1, beta2, power)
+  model_l <- lm(y ~ g + x_1, data = df_extra)
+
+  betag_without_squares <- coef(model_l)[2]
+  
+  coefs <- coefs |> 
+    add_row(
+      betag_with_squares = betag_with_squares,
+      betag = betag_without_squares
+    )
+}
+
+## Now let's plot both densities for both estimates
+coefs |> 
+  pivot_longer(cols = everything()) |> 
+  ggplot() + 
+  geom_density(aes(x = value, fill = name), alpha = 0.5) +
+  labs(title = "Density of coefficients", x = "Value", y = "Density") +
+  theme_minimal()
+```
+
+Note that the results are quite variable, every time one repeats the simulation coefficients turn out quite differently. So in case your estimates are not like mine, this might just be by chance.
+
+### (iv)
+
+```{r}
+#| warning=FALSE
+## Let's run the reg a few times again
+n_sims <- 100
+
+coefs_R2 <- tibble(R2_1 = numeric(),
+                   R2_2 = numeric(),
+                beta_g1 = numeric(),
+                beta_g2 = numeric())
+
+for (i in 1:n_sims) {
+  df_simuliv <- run_simulation(m, n_m, sig_sq1, sig_sq2, sig_sqe,
+                              beta0, betag, beta1, beta2, power)
+  
+  ## Let's calculate the average x_1 per municipality m
+  df_simuliv <- df_simuliv |> 
+    group_by(cluster_i) |>
+    mutate(x1_bar = mean(x_1)) |> 
+    ungroup()
+  
+  model_iv1 <- lm(y ~ x1_bar + g, data = df_simuliv)
+  model_iv2 <- lm(y ~ x_1 + g, data = df_simuliv)
+
+  
+  ## Let's store R^2 and coeff estimate
+  coefs_R2 <- coefs_R2 |> 
+    add_row(
+      R2_1 = summary(model_iv1)$r.squared,
+      beta_g1 = coef(model_iv1)[3],
+      R2_2 = summary(model_iv2)$r.squared,
+      beta_g2 = coef(model_iv2)[3]
+    )
+}
+
+## Let's plot the coefficients
+coefs_R2 |> 
+  pivot_longer(cols = c(beta_g1, beta_g2)) |> 
+  ggplot() + 
+  geom_density(aes(x = value, fill = name), alpha = 0.5) +
+  labs(title = "Density of coefficients", x = "Value", y = "Density") +
+  theme_minimal()
+
+## Now boxplots for the R^2s
+coefs_R2 |> 
+  pivot_longer(cols = c(R2_1, R2_2)) |> 
+  ggplot() + 
+  geom_boxplot(aes(x = name, y = value, fill = name)) +
+  labs(title = "Boxplots of R^2s", x = "R^2", y = "Value") +
+  theme_minimal()
+
+```
+
+Again the results are quite variable. The R\^2 is persistenly lower when using $\bar x_1$, while the coefficient estimate is neither always better nor always worse. This makes sense because treatment $g$ varies on the municipality, not on the individual level.
+
+### (v)
+
+```{r}
+## Let's run the simulation 50 times twice, and store the coefficients. The
+## first time everything is as before. The second time variances have increased.
+n_sims <- 50
+coefs <- tibble(beta0 = numeric(), beta0_hv = numeric(),
+                beta1 = numeric(), beta1_hv = numeric(),
+                beta2 = numeric(), beta2_hv = numeric(),
+                betag = numeric(), betag_hv = numeric())
+
+for (i in 1:n_sims){
+  df_simulv <- run_simulation(m, n_m)
+  model_l <- lm(y ~ x_1 + x_2 + g, data = df_simulv)
+  
+  df_simulv2 <- run_simulation(m, n_m, sig_sqe  = 100)
+  model_l2 <- lm(y ~ x_1 + x_2 + g, data = df_simulv2)
+  
+  coefs <- coefs |> 
+    add_row(
+      beta0 = coef(model_l)[1],
+      beta1 = coef(model_l)[2],
+      beta2 = coef(model_l)[3],
+      betag = coef(model_l)[4],
+      
+      beta0_hv = coef(model_l2)[1],
+      beta1_hv = coef(model_l2)[2],
+      beta2_hv = coef(model_l2)[3],
+      betag_hv = coef(model_l2)[4]
+    )
+  
+}
+
+## Let's plot the coefficients
+coefs |> 
+  pivot_longer(cols = everything()) |> 
+  ggplot() + 
+  geom_boxplot(aes(x = name, y = value, fill = name)) +
+  labs(title = "Boxplots of coefficients", x = "Coefficient", y = "Value") +
+  theme_minimal()
+```
+
+By just adding a ton of noise to the error term, we end up with much more variant coefficients. Their means however, are all very close to the value we would expect.
+
+### (vi), (vii)
+
+```{r}
+n_sims <- 100
+
+## Let's create an empty table to store the coefficients
+coefs <- tibble(betag = numeric(), betag_pval = numeric(),
+                betag_bar = numeric(), betag_pval_bar = numeric()
+                )
+
+## Let's run the simulation many times and store the coefficients
+for (i in 1:n_sims){
+  
+  df_simulvi <- run_simulation(m, n_m, betag = 0, sig_sq1 = 10)
+  model_l <- lm(y ~ g + x_1, data = df_simulvi)
+  
+  ## Let's collapse on y, x1 and g
+  df_simulvii <- df_simulvi |> 
+  group_by(cluster_i) |> 
+  summarise(y_mbar = mean(y), x_1bar = mean(x_1), x_2bar = mean(x_2) , g = mean(g))
+  
+  model_l_bar <- lm(y_mbar ~ g + x_1bar, data = df_simulvii)
+  
+  coefs <- coefs |> 
+    add_row(
+      betag = coef(model_l)[2],
+      betag_pval = summary(model_l)$coefficients[2,4],
+      
+      betag_bar = coef(model_l_bar)[2],
+      betag_pval_bar = summary(model_l_bar)$coefficients[2,4]
+      )
+}
+
+## How often is betag significant, in each case?
+coefs |> 
+  filter(betag_pval < 0.05) |> 
+  nrow()
+
+coefs |> 
+  filter(betag_pval_bar < 0.05) |> 
+  nrow()
+
+## Let's plot the distribution of both coefficients with extended x-axis
+coefs |> 
+  ggplot() + 
+  geom_density(aes(x = betag), fill = "blue", alpha = 0.5) +
+  geom_density(aes(x = betag_bar), fill = "red", alpha = 0.5) +
+  labs(title = "Density of betag", x = "Value", y = "Density") +
+  theme_minimal()
+
+## Let's plot both coefficients against each other
+coefs |> 
+  ggplot(aes(x = betag, y = betag_bar)) +
+  geom_point() + 
+  geom_vline(xintercept = 0, color = "black", size = 1) +  # For the y-axis
+  geom_hline(yintercept = 0, color = "black", size = 1) +  # For the x-axis
+  labs(title = "betag vs betag_bar",
+       x = "betag", y = "betag_bar") +
+  theme_minimal()
+
+
+  
+
+```
+
+The exact time $\hat \beta_g$ will be significant depends on chance. But it should be around $70\%$ of the time. For (vi) and around $5\%$ for (vii). Why is that the case? Why do they differ and why is it not $5\%$ in the first case?
+
+Looking at the coefficients (the last two plots), we can see that it is clearly not those that differ. I.e. aggregating on the treatment level does not affect the coefficients much. The difference therefore, must lie in the denominator of the t-stat (the test we use for constructing confidence intervals, more on that in the lectures to come). The t-stat in a test for a coefficient being equal to zero is: $t = \frac{\hat \beta_g - 0}{\sqrt{Var(\hat \beta_g)}}$. And when we don't aggregate we are calculating the variance in the denominator wrong, because our observations are not i.i.d., i.e. they are dependent across clusters. In our case we know that this dependence comes from the unobserved $x_2$. So if we could control for that, then we would no need to aggregate.
+
+# 2. FWL, OV'B and LATE's
+
+```{r}
+rm(list=ls())
+
+## It will again be useful to write a function for the simulation
+run_simulation <- function(n, earnings_mean = 19, c_gain_mean = 1,
+                           sigma_sq_earnings = 1, sigma_sq_cgains = 1){
+  ### The only thing that needs to be specified is n
+  
+  ## Let's create our rvs
+  earnings <- rnorm(n, mean = earnings_mean, sd = sqrt(sigma_sq_earnings)) 
+  c_gains  <- rnorm(n, mean = c_gain_mean, sd = sqrt(sigma_sq_cgains))
+  u <- rnorm(n, mean = 0, sd = 1)
+  e <- rnorm(n, mean = 0, sd = 1)
+  
+  ## Let's create our constructed rvs
+  occ_st <- earnings + u
+  child_oc <- earnings - c_gains + e
+  income <- earnings + c_gains
+  
+  ## Let's put all our variables in a tibble
+  return(tibble(earnings, c_gains, u, e, occ_st, child_oc, income))
+}
+```
+
+## (a)
+
+```{=html}
+<!--
+Before we go to the sample and answer the question about our particular draws. Let's look at what this should be in the population:
+
+$$\mathbb{E}\left[\frac{Earnings}{Income} \right] = ?$$
+This is surprisingly non-trivial to solve algebraically and not necessarily the same as
+$$\neq \frac{\mathbb{E}\left[Earnings \right]}{\mathbb{E}\left[Income \right]}$$
+-->
+```
+```{r}
+## For this we can simply run the simulation once
+df <- run_simulation(n = 500)
+
+## So let's calculate the average
+1/nrow(df) * sum(df$earnings/df$income)
+
+## this is not the same as this:
+sum(df$earnings)/sum(df$income)
+
+```
+
+While the two are not the same, in this particular example they are very close to each other.
+
+## (b)
+
+Note that we can't know the effect of "income" as it is defined above, without knowing how much the constituents of income change. I.e. if the whole change is driven by an increase in Capital gains. Then we will have an average causal effect of $-2$. If the whole effects is driven by an increase in earnings, then we will have an average causal effect of $2$. So there is no "right" answer. Also notice that OLS won't give more emphasis to the larger variable, because OLS only "cares" about variances (so if you increase earnings and capital gains both by $1$, the effects will cancel out).
+
+A second take-away from this exercise is that even knowing the DGP and having perfectly measured variables the true causal effect is a random variable and not a constant. Just as an example (this is not the "right" answer, it's just one arbitrary case), let's assume both factors increase by $10\%$ (this way the larger variable increases by more, so its effect will dominate). Again let's start with calculations in "population-world". Let's denote the causal effect $C$ and denote treatment $t$ as $1$ when an observation gets treated and $0$ otherwise. We have
+
+$$
+\begin{aligned}
+C_i &= child \ outcome_i(1) - child \ outcome_i(0)\\
+&= (earnings_i - capital \ gains_i)*1.1 - earnings_i - capital \ gains_i \\
+&= 0.1*(earnings_i - capital \ gains_i)
+\end{aligned}
+$$
+
+If we want the average causal effect we can take expectations:
+
+$$\mathbb{E}\left[C_i \right] = 0.1 * \mathbb{E}\left[Earnings_i - Capital \ gains_i \right] = 0.1*(19-1) = 1.8$$ Note that for each child the exact value of the effect differs, depending on how large their specific parent's earnings and capital gains are. Now taking it to the data:
+
+```{r}
+## Let's calculate individual causal effects
+df <- df |> 
+  mutate(t_earnings = 1.1 * earnings,
+         t_c_gains  = 1.1 * c_gains,
+         t_child_oc = t_earnings - t_c_gains,
+         C_i = t_child_oc - child_oc)
+
+## Let's plot the distribution of causal effects
+df |> ggplot() + 
+  geom_density(aes(x = C_i), fill = "blue", alpha = 0.5) +
+  labs(title = "Density of causal effects", x = "Value", y = "Density") +
+  theme_minimal()
+```
+
+Note that the individual effects are quite variable. So even in a clean setting like this individuals can have very different causal effects.
+
+## (c)
+
+Given the DGP the coefficient on earnings should be $1$ and that on capital gains should be $-1$. Let's take it to the data:
+
+```{r}
+#| warning=FALSE
+
+## Let's run the two regressions
+model1 <- lm(child_oc ~ earnings + c_gains, data = df)
+model2 <- lm(child_oc ~ earnings + c_gains + occ_st, data = df)
+
+## Let's compare the results
+stargazer(model1, model2, type = "text")
+```
+
+The estimates are not precisely the same, but pretty close (earnings will change slightly more then capital gains, because it is correlated with occupational status).
+
+## (d)
+
+```{r}
+#| warning=FALSE
+
+## Let's run the regression
+model3 <- lm(child_oc ~ income, data = df)
+
+## Let's compare the results
+stargazer(model3, type = "text")
+
+rm(model1, model2, model3)
+```
+
+It's not super obvious how to interpret what we did here. Income is to a large extend earnings and only to a small extend capital gains, BUT both random variables have the same variance. And that is what OLS is picking up. To see why recall the regression anatomy formula (for the constant having a separate coefficient $\alpha$):
+
+$$
+\beta = \left(Var\left[X \right] \right)^{-1} Cov\left[X, Y \right]
+$$
+
+Essentially we are constraining the model such that earnings and capital gains have the same coefficient, and this results in the effect behaving weirdly. We can also have a look what happens if we play with the variances of each term (look at the code below, this is not necessary to answer the question but gives good intuition). We don't have endogeneity despite the misspecification. BUT that's only due to the variances being equal. See the digression further up in the document.
+
+```{r}
+## Now let's repeat the same thing a few times and plot the coefficient of income
+## from a regression like before and once with higher variance for capital gains
+n_sims <- 100
+coefs <- tibble(variances_are_1 = numeric(),
+                c_gains_has_variance_2 = numeric())
+
+for (i in 1:n_sims){
+  df <- run_simulation(n = 500)
+  model_3 <- lm(child_oc ~ income, data = df)
+  coef_income <- coef(model_3)[2]
+  
+  df <- run_simulation(n = 500, sigma_sq_cgains = 2)
+  model_3_high_variance <- lm(child_oc ~ income, data = df)
+  coef_income_high_variance <- coef(model_3_high_variance)[2]
+  
+  
+  coefs <- coefs |> 
+    add_row(variances_are_1 = coef(model_3)[2],
+            c_gains_has_variance_2 = coef(model_3_high_variance)[2])
+}
+
+## plot the coefficients
+coefs |> 
+  pivot_longer(cols = everything()) |> 
+  ggplot() + 
+  geom_density(aes(x = value, fill = name), alpha = 0.5) +
+  labs(title = "Density of Income estimates", x = "Value", y = "Density") +
+  theme_minimal() +
+  scale_x_continuous(expand = c(.1, .1), limits = c(-0.6, .1))
+
+rm(coefs, df, model_3, model_3_high_variance)
+```
+
+## (e)
+
+```{r}
+## Let's run the simulation a few times and store the correlation coefficients
+n_sims <- 100
+correlations <- numeric()
+
+for (i in 1:n_sims){
+  df <- run_simulation(500)
+  correlations[i] <- cor(df$occ_st, df$income)
+}
+
+## Now let's plot their distributions
+tibble(correlations) |> 
+  ggplot() + 
+  geom_density(aes(x = correlations), fill = "blue", alpha = 0.5) +
+  labs(title = "Density of correlations", x = "Value", y = "Density") +
+  theme_minimal()
+```
+
+This should be around $\frac{1}{2}$ as can be derived from the DGP.
+
+## (f)
+
+The researcher thinks the world might look like this:
+
+$$Child \ Outcomes = \alpha + \beta_1 \ Income + \beta_2 Occ. \ Status + e$$
+
+In which case we can derive the OVB from the short regression $Child \ Outcomes = \gamma_0 + \gamma_1 \ Income + \varepsilon$:
+
+We can use the formula for a linear projection in the univariate case, to find $\gamma_1$, denoting Income $I$, Occ. status = O and Child Outcomes $Y$. So what the researcher expects might happen is:
+
+$$
+\begin{aligned}
+\gamma_1 &= \frac{\text{Cov}({I}, Y)}{\text{Var}({I})} \\
+&= \frac{\text{Cov}({I}, \alpha + \beta_1 I + \beta_2 O + e)}{\text{Var}({I})} \\
+&= \beta_1 + \beta_2\frac{\text{Cov}({O}, I)}{\text{Var}({I})}
+\end{aligned}
+$$
+
+Since the correlation between Income and Occ. Status is relatively large this would be a concern, as long as $\beta_2 \neq 0$.
+
+We however know more than the researcher. So we can show that (denoting earnings as $E$ and capital gains as $C$):
+
+$$
+\begin{aligned}
+\gamma_1 = \frac{Cov( I, Y)}{Var( I)} &= \frac{Cov( I, E - C + e)}{Var( I)} \\
+&= \frac{Cov(I, E)}{Var(I)} - \frac{Cov(I, C)}{Var(I)}
+\end{aligned}
+$$
+
+This means that $\gamma_1$ from the short regression is a sum of two covariances (scaled by the variance). Also note, that both nominators (and of course the denominator) are positive.
+
+## (g)
+
+```{r}
+#| warning=FALSE
+## Let's run the simulation a few times and store the coefficients for both models
+n_sims <- 100
+coefs <- tibble(modelg1 = numeric(), modelg2 = numeric())
+
+for (i in 1:n_sims){
+  df <- run_simulation(500)
+  modelg1 <- lm(child_oc ~ income + occ_st, data = df)
+  modelg2 <- lm(child_oc ~ income, data = df)
+  
+  coefs <- coefs |> 
+    add_row(
+      modelg1 = coef(modelg1)[2],
+      modelg2 = coef(modelg2)[2]
+    )
+}
+
+## Let's plot both
+
+coefs |> 
+  pivot_longer(cols = everything()) |> 
+  ggplot() + 
+  geom_density(aes(x = value, fill = name), alpha = 0.5) +
+  labs(title = "Density of coefficients", x = "Value", y = "Density") +
+  theme_minimal()
+```
+
+Inclusion of Occupational status has a large effect. Where is this effect coming from? The researcher not knowing the true state of the world, will likely assume there is OVB and that the longer regression is "more correct" (conveniently also more significant). We, however, can show what is really going on. Keep in mind that our artificial DGP-world here is very simple. Let's have a look at what the coefficient on income really is.
+
+Lets residualise $I$ by regressing it on a constant and Occupational status ($O$) to obtain a new $\tilde I$ (let's denote the coefficients in this regression $\delta$):
+
+To clarify the different models let's write them all down again: $$
+\begin{aligned}
+Y &=  E - C + \varepsilon, &&\text{ True DGP} \\
+I &= \delta_0 + O \delta_1 + \tilde I, &&\text{ Residualisation} \\
+Y &= \alpha + \beta_1 I + \beta_2 O + e, &&\text{ Model we estimate} \\
+\end{aligned}
+$$ Now, let's use the regression anatomy formula (if that does not ring a bell, have a look at Mostly Harmless section 3.1.2):
+
+$$
+\begin{aligned}
+\beta_1 &= \frac{Cov(\tilde I, Y)}{Var(\tilde I)} \\
+&= \frac{Cov(\tilde I, E - C)}{Var(\tilde I)} \\
+&= \frac{Cov(I - \delta_0 - O \delta_1, E - C)}{Var(\tilde I)} \\
+&= \frac{Cov(I, E - C)}{Var(\tilde I)} - \delta_1\frac{Cov(O, E - C)}{Var(\tilde I)} \\
+&= \frac{Cov(E + C, E - C)}{Var(\tilde I)} - \delta_1\frac{Cov(E + u, E - C)}{Var(\tilde I)} \\
+&= \frac{Var(E) - Var(C)}{Var(\tilde I)} - \delta_1\frac{Var(E)}{Var(\tilde I)} \\
+\bigg /   Var(\tilde I) &= Var(I) + \delta_1^2 Var(O) - 2\delta_1 Cov(I,O)   \\
+  &= Var(E) + Var(C) + \delta_1^2\left(Var(E) + Var(u) \right) \\
+& \ \ - 2\delta_1 Cov(E + C, E + u)   \\
+&= Var(E) + Var(C) + \delta_1^2\left(Var(E) + Var(u) \right) - 2\delta_1 Var(E)   \\
+&= Var(E)(1 - \delta_1)^2 + Var(C) + Var(u)\delta_1^2 \bigg / \\
+&= \frac{Var(E)(1 - \delta_1) - Var(C)}{Var(E)(1 - \delta_1)^2 + Var(C) + Var(u)\delta_1^2} \\
+&= \frac{1(1 - \delta_1) - 1}{1(1-\delta_1)^2 + 1 + 1\delta_1^2} = - \frac{1}{3} \\
+&\bigg / \text{bc. } \delta_1 = \frac{1}{2}  \bigg / \\
+\end{aligned}
+$$
+
+There is no need to do derive this yoursel. It just shows you how complicated the relationships can get from even a very simple DGP. In words what happened is that the positive correlation of Earnings with Occupational status has absorbed some of the effect of income. The coefficient on income is now more pulled towards the effect of Capital gains. So is it "wrong" to control for Occupational status? Not really. Similarly, to just running the regression with income, it just becomes very hard to interpret what is actually going on - i.e. in real life we won't know what all these variances and relationships are. The potential outcomes framework can help clarifying some of this.
+
+# End
