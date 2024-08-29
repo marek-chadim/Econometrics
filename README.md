@@ -7,15 +7,16 @@ MIT OpenCourseWare
 ### slides: Kirill Borusyak and Peter Hull 2024
 ### textbooks:  Hansen 2022; Imbens & Rubin 2015; Angrist & Pischke 2008
 
-- [AEA Continuing Education Webcasts](https://www.aeaweb.org/conference/cont-ed), [NBER Methods Lectures](https://www-nber-org.ez.hhs.se/research/lectures?facet=lectureType%3AMethods%20Lecture&page=1&perPage=50)
-- Mixtape-Session: workshops organized by Scott Cunningham: <https://github.com/Mixtape-Sessions>
+### [AEA Continuing Education Webcasts](https://www.aeaweb.org/conference/cont-ed)
+### [NBER Methods Lectures](https://www-nber-org.ez.hhs.se/research/lectures?facet=lectureType%3AMethods%20Lecture&page=1&perPage=50)
   
 coding
+- Mixtape-Session: workshops organized by Scott Cunningham: <https://github.com/Mixtape-Sessions>
 - [Data Science for Economists](https://github.com/uo-ec607/lectures) Grant McDermott
 - Stata [Coding Guide](https://julianreif.com/guide/) Julian Reif + [A little bit goes a long
 way](https://ideas.repec.org/p/boc/bocoec/612.html) Christopher Baum
 
-Recordings
+Course Recordings
 - [Econometrics](https://www.youtube.com/playlist?list=PL_vQFUgojoerLH1AfiBylg_UvbAaRncKx), Christopher Conlon
 - [Applied Methods](https://www.youtube.com/playlist?list=PLWWcL1M3lLlojLTSVf2gGYQ_9TlPyPbiJ), Paul Goldsmith-Pinkham
   
