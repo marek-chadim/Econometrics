@@ -1,8 +1,11 @@
 # Econometrics Resources
 
-- [MIT 14.382 | Spring 2017 | Econometrics](https://ocw.mit.edu/courses/14-382-econometrics-spring-2017/), Prof. Victor Chernozhukov
-- [MIT 14.387 | Fall 2014 | Applied Econometrics: Mostly Harmless Big Data](https://ocw.mit.edu/courses/14-387-applied-econometrics-mostly-harmless-big-data-fall-2014/), Prof. Joshua Angrist
-- Mixtape-Session: workshops organized by Scott Cunningham: <https://github.com/Mixtape-Sessions>
+### MIT Open Courseware
+- [14.382 | Spring 2017 | Econometrics](https://ocw.mit.edu/courses/14-382-econometrics-spring-2017/), Prof. Victor Chernozhukov
+- [14.387 | Fall 2014 | Applied Econometrics: Mostly Harmless Big Data](https://ocw.mit.edu/courses/14-387-applied-econometrics-mostly-harmless-big-data-fall-2014/), Prof. Joshua Angrist
+
+### Coding
+- Workshops organized by Scott Cunningham: <https://github.com/Mixtape-Sessions>
 - [Data Science for Economists](https://github.com/uo-ec607/lectures) Grant McDermott
 
 ### Recordings
