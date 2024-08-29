@@ -1,7 +1,7 @@
 # Econometrics Resources
 
-- [MIT 14.382 | Spring 2017 | Econometrics, Prof. Victor Chernozhukov](https://ocw.mit.edu/courses/14-382-econometrics-spring-2017/)
-- [MIT 14.387 | Fall 2014 | Applied Econometrics: Mostly Harmless Big Data, Prof. Joshua Angrist](https://ocw.mit.edu/courses/14-387-applied-econometrics-mostly-harmless-big-data-fall-2014/)
+- [MIT 14.382 | Spring 2017 | Econometrics](https://ocw.mit.edu/courses/14-382-econometrics-spring-2017/), Prof. Victor Chernozhukov
+- [MIT 14.387 | Fall 2014 | Applied Econometrics: Mostly Harmless Big Data](https://ocw.mit.edu/courses/14-387-applied-econometrics-mostly-harmless-big-data-fall-2014/), Prof. Joshua Angrist
 
 - slides: Kirill Borusyak and Peter Hull 2024
 - textbooks:  Hansen 2022; Imbens & Rubin 2015; Angrist & Pischke 2008
