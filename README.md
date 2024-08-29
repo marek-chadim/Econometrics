@@ -5,8 +5,8 @@
 - [14.387 | Fall 2014 | Applied Econometrics: Mostly Harmless Big Data](https://ocw.mit.edu/courses/14-387-applied-econometrics-mostly-harmless-big-data-fall-2014/), Prof. Joshua Angrist
 
 ### Coding
-- Workshops organized by Scott Cunningham: <https://github.com/Mixtape-Sessions>
-- [Data Science for Economists](https://github.com/uo-ec607/lectures) Grant McDermott
+- [Mixtape-Sessions](https://github.com/Mixtape-Sessions), organized Scott Cunningham 
+- [Data Science for Economists](https://github.com/uo-ec607/lectures), Grant McDermott
 
 ### Recordings
 - [Econometrics](https://www.youtube.com/playlist?list=PL_vQFUgojoerLH1AfiBylg_UvbAaRncKx), Christopher Conlon
