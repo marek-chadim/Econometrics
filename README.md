@@ -7,7 +7,7 @@ MIT OpenCourseWare
 ### slides: Kirill Borusyak and Peter Hull 2024
 ### textbooks:  Hansen 2022; Imbens & Rubin 2015; Angrist & Pischke 2008
 
-- AEA Continuing Education Webcasts, NBER Methods Lectures
+- [AEA Continuing Education Webcasts](https://www.aeaweb.org/conference/cont-ed), [NBER Methods Lectures](https://www-nber-org.ez.hhs.se/research/lectures?facet=lectureType%3AMethods%20Lecture&page=1&perPage=50)
 - Mixtape-Session: workshops organized by Scott Cunningham: <https://github.com/Mixtape-Sessions>
   
 coding
