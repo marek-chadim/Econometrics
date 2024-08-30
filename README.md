@@ -22,6 +22,6 @@
 
 ### Coding
 - 2024: [Applied Causal Inference Powered by ML and AI](https://causalml-book.org/labs.html), V. Chernozhukov, C. Hansen, N. Kallus, M. Spindler, V. Syrgkanis
-- 2023: [Machine Learning & Causal Inference](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/), Susan Athey, Jann Spiess and Stefan Wager
+- 2023: [Machine Learning & Causal Inference](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/), Susan Athey, Jann Spiess, and Stefan Wager
 - 2021: [Data Science for Economists](https://github.com/uo-ec607/lectures), Grant McDermott
 
