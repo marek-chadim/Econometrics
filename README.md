@@ -5,14 +5,14 @@
 - [14.387 | Fall 2014 | Applied Econometrics: Mostly Harmless Big Data](https://ocw.mit.edu/courses/14-387-applied-econometrics-mostly-harmless-big-data-fall-2014/), Victor Chernozhukov and Joshua Angrist 
 
 ### Recordings
-- [The Gary Chamberlain Online Seminar in Econometrics](https://www.chamberlainseminar.org/home)
+ [The Gary Chamberlain Online Seminar in Econometrics](https://www.chamberlainseminar.org/home)
 
-- AEA Continuing Education Webcasts
+ AEA Continuing Education Webcasts
    - 2020: [Mastering Mostly Harmless Econometrics](https://www.aeaweb.org/conference/cont-ed/2020-webcasts), Alberto Abadie, Joshua Angrist, and Christopher Walters
    - 2021: [Applied Econometrics](https://www.aeaweb.org/conference/cont-ed/2021-webcasts), Patrick Kline and Christopher Walters
    - 2018: [Machine Learning and Econometrics](https://www.aeaweb.org/conference/cont-ed/2018-webcasts), Susan Athey and Guido Imbens
      
-- NBER Methods Lectures
+ NBER Methods Lectures
    -  2024: [Multi-Armed Bandit Experiments. Interference and Spillovers](https://www.youtube.com/watch?v=I6GyDWh8kfw&list=PLzkvpFzYZ4tqxt_6M_DHpLk9VAkEzS6kh), Susan Athey and Guido Imbens
    -  2023: [Linear Panel Event Studies](https://www.youtube.com/watch?v=B4Q-KAGcadU&list=PLzkvpFzYZ4tpe2KrfFbQ-k4W7AMOlq0IL), Jesse Shapiro and Liyang Sun
    -  2022: [Empirical Bayes](https://www.youtube.com/watch?v=z0cdgtcWs0c&list=PLzkvpFzYZ4tp9T7DVLjNisuP9v--0gWtF), Jiaying Gu and Christopher Walters
