@@ -1,10 +1,8 @@
 # Econometrics Resources
 
-### Course Materials
-- Notes: [14.382 | Spring 2017 | Econometrics](https://ocw.mit.edu/courses/14-382-econometrics-spring-2017/), Victor Chernozhukov
-- Slides: [14.387 | Fall 2014 | Applied Econometrics: Mostly Harmless Big Data](https://ocw.mit.edu/courses/14-387-applied-econometrics-mostly-harmless-big-data-fall-2014/), Joshua Angrist
-- Textbook: [Applied Causal Inference Powered by ML and AI](https://causalml-book.org/labs.html), V. Chernozhukov, C. Hansen, N. Kallus, M. Spindler, V. Syrgkanis
-- Videos and Code: [Machine Learning & Causal Inference](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/), Susan Athey, Jann Spiess, and Stefan Wager
+### MIT Course Materials
+- [14.382 | Spring 2017 | Econometrics](https://ocw.mit.edu/courses/14-382-econometrics-spring-2017/), Victor Chernozhukov
+- [14.387 | Fall 2014 | Applied Econometrics: Mostly Harmless Big Data](https://ocw.mit.edu/courses/14-387-applied-econometrics-mostly-harmless-big-data-fall-2014/), Joshua Angrist
 
 ### Recordings
 - AEA Continuing Education Webcasts
@@ -23,7 +21,14 @@
 - [The Gary Chamberlain Online Seminar in Econometrics](https://www.chamberlainseminar.org/home)
 
 ### Coding
-- [Mixtape-Sessions repositories](https://github.com/orgs/Mixtape-Sessions/repositories), organized by Scott Cunningham
-- [Causal Inference for The Brave and True repository](https://github.com/matheusfacure/python-causality-handbook/tree/master/causal-inference-for-the-brave-and-true), Matheus Facure Alves
-- [Data Science for Economists](https://github.com/uo-ec607/lectures), Grant McDermott
+- Python:
+   - [Applied Causal Inference Powered by ML and AI](https://causalml-book.org/labs.html), V. Chernozhukov, C. Hansen, N. Kallus, M. Spindler, V. Syrgkanis
+   - [Causal Inference for The Brave and True repository](https://github.com/matheusfacure/python-causality-handbook/tree/master/causal-inference-for-the-brave-and-true), Matheus Facure Alves
+
+- R
+   - [Machine Learning & Causal Inference](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/), Susan Athey, Jann Spiess, and Stefan Wager
+   - [Data Science for Economists](https://github.com/uo-ec607/lectures), Grant McDermott
+ 
+- Stata   
+   - [Mixtape-Sessions repositories](https://github.com/orgs/Mixtape-Sessions/repositories), organized by Scott Cunningham
 
