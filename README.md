@@ -23,7 +23,7 @@
 ### Coding
 - Python:
    - [Applied Causal Inference Powered by ML and AI](https://causalml-book.org/labs.html), V. Chernozhukov, C. Hansen, N. Kallus, M. Spindler, V. Syrgkanis
-   - [Causal Inference for The Brave and True repository](https://github.com/matheusfacure/python-causality-handbook/tree/master/causal-inference-for-the-brave-and-true), Matheus Facure Alves
+   - [Causal Inference for The Brave and True](https://github.com/matheusfacure/python-causality-handbook/tree/master/causal-inference-for-the-brave-and-true), Matheus Facure Alves
 
 - R
    - [Machine Learning & Causal Inference](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/), Susan Athey, Jann Spiess, and Stefan Wager
