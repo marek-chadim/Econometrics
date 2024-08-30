@@ -14,7 +14,6 @@
    -  2024: [Multi-Armed Bandit Experiments. Interference and Spillovers](https://www.youtube.com/watch?v=I6GyDWh8kfw&list=PLzkvpFzYZ4tqxt_6M_DHpLk9VAkEzS6kh), Susan Athey and Guido Imbens
    -  2023: [Linear Panel Event Studies](https://www.youtube.com/watch?v=B4Q-KAGcadU&list=PLzkvpFzYZ4tpe2KrfFbQ-k4W7AMOlq0IL), Jesse Shapiro and Liyang Sun
    -  2022: [Empirical Bayes](https://www.youtube.com/watch?v=z0cdgtcWs0c&list=PLzkvpFzYZ4tp9T7DVLjNisuP9v--0gWtF), Jiaying Gu and Christopher Walters
-   -  2018: [Weak Instruments and What to do About Them](https://www.youtube.com/watch?v=TIWJkmNsV4k&list=PLzkvpFzYZ4tqSwUvESqobnT4vjn2aP-gp), Isaiah Andrews and James H. Stock
    -  2015: [Machine Learning for Economists](https://www.youtube.com/watch?v=hp5uEZshJlY&list=PLzkvpFzYZ4trimNzdGJY1fyX1glR5LnHx), Susan Athey and Guido Imbens
    -  2013: [Econometric Methods for High-Dimensional Data](https://www.youtube.com/watch?v=bdbDq012SEk&list=PLzkvpFzYZ4trMgRxl-4tRqSEcqAOZuoA3), V. Chernozhukov, M. Gentzkow, C. Hansen, J. Shapiro, M. Taddy
    -  2007: [What’s New in Econometrics](https://www.youtube.com/watch?v=YguQBF-vzWg&list=PLzkvpFzYZ4trFArm_VjRSscL5AyQSQQLc), Jeffrey Wooldridge and Guido Imbens
