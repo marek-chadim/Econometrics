@@ -5,7 +5,11 @@
 - [14.387 | Fall 2014 | Applied Econometrics: Mostly Harmless Big Data](https://ocw.mit.edu/courses/14-387-applied-econometrics-mostly-harmless-big-data-fall-2014/), Joshua Angrist
 
 ### Recordings
-- [The Gary Chamberlain Online Seminar in Econometrics](https://www.chamberlainseminar.org/home)
+- AEA Continuing Education Webcasts
+   - 2020: [Mastering Mostly Harmless Econometrics](https://www.aeaweb.org/conference/cont-ed/2020-webcasts), Alberto Abadie, Joshua Angrist, and Christopher Walters
+   - 2021: [abor and Applied Econometrics](https://www.aeaweb.org/conference/cont-ed/2021-webcasts), Patrick Kline and Christopher Walters
+   - 2018: [Machine Learning and Econometrics](https://www.aeaweb.org/conference/cont-ed/2018-webcasts), Susan Athey and Guido Imbens
+     
 - NBER Methods Lectures
    -  2024: [Multi-Armed Bandit Experiments. Interference and Spillovers](https://www.youtube.com/watch?v=I6GyDWh8kfw&list=PLzkvpFzYZ4tqxt_6M_DHpLk9VAkEzS6kh), Susan Athey and Guido Imbens
    -  2023: [Linear Panel Event Studies](https://www.youtube.com/watch?v=B4Q-KAGcadU&list=PLzkvpFzYZ4tpe2KrfFbQ-k4W7AMOlq0IL), Jesse Shapiro and Liyang Sun
@@ -15,12 +19,8 @@
    -  2013: [Econometric Methods for High-Dimensional Data](https://www.youtube.com/watch?v=bdbDq012SEk&list=PLzkvpFzYZ4trMgRxl-4tRqSEcqAOZuoA3), V. Chernozhukov, M. Gentzkow, C. Hansen, J. Shapiro, M. Taddy
    -  2007: [What’s New in Econometrics](https://www.youtube.com/watch?v=YguQBF-vzWg&list=PLzkvpFzYZ4trFArm_VjRSscL5AyQSQQLc), Jeffrey Wooldridge and Guido Imbens
      
-- AEA Continuing Education Webcasts
-   - 2020: [Mastering Mostly Harmless Econometrics](https://www.aeaweb.org/conference/cont-ed/2020-webcasts), Alberto Abadie, Joshua Angrist, and Christopher Walters
-   - 2021: [abor and Applied Econometrics](https://www.aeaweb.org/conference/cont-ed/2021-webcasts), Patrick Kline and Christopher Walters
-   - 2018: [Machine Learning and Econometrics](https://www.aeaweb.org/conference/cont-ed/2018-webcasts), Susan Athey and Guido Imbens
+- [The Gary Chamberlain Online Seminar in Econometrics](https://www.chamberlainseminar.org/home)
 
- 
 ### Coding
 - [Mixtape-Sessions](https://github.com/Mixtape-Sessions), organized by Scott Cunningham 
 - [Data Science for Economists](https://github.com/uo-ec607/lectures), Grant McDermott
