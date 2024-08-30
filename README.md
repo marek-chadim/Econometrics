@@ -13,7 +13,7 @@
    -  2018: [Weak Instruments and What to do About Them](https://www.youtube.com/watch?v=TIWJkmNsV4k&list=PLzkvpFzYZ4tqSwUvESqobnT4vjn2aP-gp), Isaiah Andrews and James H. Stock
    -  2015: [Machine Learning for Economists](https://www.youtube.com/watch?v=hp5uEZshJlY&list=PLzkvpFzYZ4trimNzdGJY1fyX1glR5LnHx), Susan Athey and Guido Imbens
    -  2013: [Econometric Methods for High-Dimensional Data](https://www.youtube.com/watch?v=bdbDq012SEk&list=PLzkvpFzYZ4trMgRxl-4tRqSEcqAOZuoA3), V. Chernozhukov, M. Gentzkow, C. Hansen, J. Shapiro, M. Taddy
-   -  2007: [What’s New in Econometrics](https://www.youtube.com/watch?v=YguQBF-vzWg&list=PLzkvpFzYZ4trFArm_VjRSscL5AyQSQQLc), Guido Imbens and Jeffrey Wooldridge
+   -  2007: [What’s New in Econometrics](https://www.youtube.com/watch?v=YguQBF-vzWg&list=PLzkvpFzYZ4trFArm_VjRSscL5AyQSQQLc), Jeffrey Wooldridge and Guido Imbens
      
 - AEA Continuing Education Webcasts
    - 2020: [Mastering Mostly Harmless Econometrics](https://www.aeaweb.org/conference/cont-ed/2020-webcasts), Alberto Abadie, Joshua Angrist, and Christopher Walters
