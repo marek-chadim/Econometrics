@@ -20,15 +20,14 @@
      
 - [The Gary Chamberlain Online Seminar in Econometrics](https://www.chamberlainseminar.org/home)
 
-### Coding
-- Python:
-   - [Applied Causal Inference Powered by ML and AI](https://causalml-book.org/labs.html), V. Chernozhukov, C. Hansen, N. Kallus, M. Spindler, V. Syrgkanis
-   - [Causal Inference for The Brave and True](https://github.com/matheusfacure/python-causality-handbook/tree/master/causal-inference-for-the-brave-and-true), Matheus Facure Alves
-
-- R
-   - [Machine Learning & Causal Inference](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/), Susan Athey, Jann Spiess, and Stefan Wager
-   - [Data Science for Economists](https://github.com/uo-ec607/lectures), Grant McDermott
- 
-- Stata   
+# Code 
+Stata   
    - [Mixtape-Sessions repositories](https://github.com/orgs/Mixtape-Sessions/repositories), organized by Scott Cunningham
+R
+   - [Machine Learning & Causal Inference](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/), Susan Athey, Jann Spiess, and Stefan Wager
+Python
+   - [Applied Causal Inference Powered by ML and AI](https://causalml-book.org/labs.html), V. Chernozhukov, C. Hansen, N. Kallus, M. Spindler, V. Syrgkanis
+
+ 
+
 
