@@ -23,6 +23,6 @@
 
 ### Coding
 - [Applied Causal Inference Powered by ML and AI](https://causalml-book.org/labs.html), Victor Chernozhukov, Christian Hansen, Nathan Kallus, Martin Spindler, Vasilis Syrgkanis
-- [Machine Learning & Causal Inference]([https://www.gsb.stanford.edu/faculty-research/labs-initiatives/sil/research/methods/ai-machine-learning/short-course](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/)), Susan Athey, Jann Spiess and Stefan Wager
+- [Machine Learning & Causal Inference](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/), Susan Athey, Jann Spiess and Stefan Wager
 - [Data Science for Economists](https://github.com/uo-ec607/lectures), Grant McDermott
 
