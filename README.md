@@ -1,8 +1,8 @@
 # Econometrics Resources
 
-### MIT OpenCourseWare
-- notes: [14.382 | Spring 2017 | Econometrics](https://ocw.mit.edu/courses/14-382-econometrics-spring-2017/), Victor Chernozhukov and Ivan Fernandez-Val 
-- slides: [14.387 | Fall 2014 | Applied Econometrics: Mostly Harmless Big Data](https://ocw.mit.edu/courses/14-387-applied-econometrics-mostly-harmless-big-data-fall-2014/), Victor Chernozhukov and Joshua Angrist 
+### MIT Lecture Notes
+- [14.382 | Spring 2017 | Econometrics](https://ocw.mit.edu/courses/14-382-econometrics-spring-2017/), Victor Chernozhukov and Ivan Fernandez-Val 
+- [14.387 | Fall 2014 | Applied Econometrics: Mostly Harmless Big Data](https://ocw.mit.edu/courses/14-387-applied-econometrics-mostly-harmless-big-data-fall-2014/), Victor Chernozhukov and Joshua Angrist 
 
 ### Recordings
 - [The Gary Chamberlain Online Seminar in Econometrics](https://www.chamberlainseminar.org/home)
