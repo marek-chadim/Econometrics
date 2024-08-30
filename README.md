@@ -23,7 +23,7 @@
 
 ### Code 
    - 2024: [Applied Causal Inference Powered by ML and AI Labs](https://causalml-book.org/labs.html), Chernozhukov, Hansen, Kallus, Spindler, Syrgkanis
-   - 2024: [Machine Learning & Causal Inference Tutorial](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/), Susan Athey, Jann Spiess, and Stefan Wager
+   - 2023: [Machine Learning & Causal Inference Tutorial](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/), Susan Athey, Jann Spiess, and Stefan Wager
    - [Mixtape-Sessions Repositories](https://github.com/orgs/Mixtape-Sessions/repositories), organized by Scott Cunningham
 
 
