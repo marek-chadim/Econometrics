@@ -20,7 +20,7 @@
      
 - [The Gary Chamberlain Online Seminar in Econometrics](https://www.chamberlainseminar.org/home)
 
-# Code 
+### Code 
    - [Applied Causal Inference Powered by ML and AI Labs](https://causalml-book.org/labs.html), V. Chernozhukov, C. Hansen, N. Kallus, M. Spindler, V. Syrgkanis
    - [Machine Learning & Causal Inference Tutorial](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/), Susan Athey, Jann Spiess, and Stefan Wager
    - [Mixtape-Sessions Repositories](https://github.com/orgs/Mixtape-Sessions/repositories), organized by Scott Cunningham
