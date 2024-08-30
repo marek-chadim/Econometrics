@@ -21,9 +21,10 @@
 - [The Gary Chamberlain Online Seminar in Econometrics](https://www.chamberlainseminar.org/home)
 
 # Code 
-   - [Mixtape-Sessions repositories](https://github.com/orgs/Mixtape-Sessions/repositories), organized by Scott Cunningham
-   - [Machine Learning & Causal Inference](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/), Susan Athey, Jann Spiess, and Stefan Wager
-   - [Applied Causal Inference Powered by ML and AI](https://causalml-book.org/labs.html), V. Chernozhukov, C. Hansen, N. Kallus, M. Spindler, V. Syrgkanis
+   - [Mixtape-Sessions Repositories](https://github.com/orgs/Mixtape-Sessions/repositories), organized by Scott Cunningham
+   - [Applied Causal Inference Powered by ML and AI Labs](https://causalml-book.org/labs.html), V. Chernozhukov, C. Hansen, N. Kallus, M. Spindler, V. Syrgkanis
+   - [Machine Learning & Causal Inference Tutorial](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/), Susan Athey, Jann Spiess, and Stefan Wager
+
 
  
 
