@@ -2,7 +2,7 @@
 
 ### MIT Course Materials
 - [14.382 | Spring 2017 | Econometrics](https://ocw.mit.edu/courses/14-382-econometrics-spring-2017/), Victor Chernozhukov
-- [14.387 | Fall 2014 | Applied Econometrics: Mostly Harmless Big Data](https://ocw.mit.edu/courses/14-387-applied-econometrics-mostly-harmless-big-data-fall-2014/), Joshua Angrist
+- [14.387 | Fall 2014 | Applied Econometrics: Mostly Harmless Big Data](https://ocw.mit.edu/courses/14-387-applied-econometrics-mostly-harmless-big-data-fall-2014/), Joshua Angrist and Victor Chernozhukov
 
 ### Recordings
 - [The Gary Chamberlain Online Seminar in Econometrics](https://www.chamberlainseminar.org/home)
