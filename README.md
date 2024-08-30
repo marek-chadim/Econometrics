@@ -7,7 +7,7 @@
 ### Recordings
 - AEA Continuing Education Webcasts
    - 2020: [Mastering Mostly Harmless Econometrics](https://www.aeaweb.org/conference/cont-ed/2020-webcasts), Alberto Abadie, Joshua Angrist, and Christopher Walters
-   - 2021: [abor and Applied Econometrics](https://www.aeaweb.org/conference/cont-ed/2021-webcasts), Patrick Kline and Christopher Walters
+   - 2021: [Applied Econometrics](https://www.aeaweb.org/conference/cont-ed/2021-webcasts), Patrick Kline and Christopher Walters
    - 2018: [Machine Learning and Econometrics](https://www.aeaweb.org/conference/cont-ed/2018-webcasts), Susan Athey and Guido Imbens
      
 - NBER Methods Lectures
