@@ -1,0 +1,143 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_execution_state": "idle",
+    "_uuid": "051d70d956493feee0c6d64651c6a088724dca2a",
+    "id": "UE_OM9YaynNP"
+   },
+   "source": [
+    "# Simple Exercise on Overfitting\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "AhJbONGfynNR"
+   },
+   "source": [
+    "First set p=n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "id": "cbgHLwp5ynNS",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "\n",
+    "set.seed(123)\n",
+    "n <- 1000\n",
+    "\n",
+    "p <- n\n",
+    "X <- matrix(rnorm(n * p), n, p)\n",
+    "y <- rnorm(n)\n",
+    "\n",
+    "print(\"p/n is\")\n",
+    "print(p / n)\n",
+    "print(\"R2 is\")\n",
+    "print(summary(lm(y ~ X))$r.squared)\n",
+    "print(\"Adjusted R2 is\")\n",
+    "print(summary(lm(y ~ X))$adj.r.squared)\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "3sPgPQ7eynNU"
+   },
+   "source": [
+    "Second, set p=n/2."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "id": "gWbDboRYynNV",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "\n",
+    "set.seed(123)\n",
+    "n <- 1000\n",
+    "\n",
+    "p <- n / 2\n",
+    "X <- matrix(rnorm(n * p), n, p)\n",
+    "y <- rnorm(n)\n",
+    "\n",
+    "print(\"p/n is\")\n",
+    "print(p / n)\n",
+    "print(\"R2 is\")\n",
+    "print(summary(lm(y ~ X))$r.squared)\n",
+    "print(\"Adjusted R2 is\")\n",
+    "print(summary(lm(y ~ X))$adj.r.squared)\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "m0BfMzhCynNV"
+   },
+   "source": [
+    "Third, set p/n =.05"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "id": "uF5tT-MdynNV",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "\n",
+    "set.seed(123)\n",
+    "n <- 1000\n",
+    "\n",
+    "p <- .05 * n\n",
+    "X <- matrix(rnorm(n * p), n, p)\n",
+    "y <- rnorm(n)\n",
+    "\n",
+    "print(\"p/n is\")\n",
+    "print(p / n)\n",
+    "print(\"R2 is\")\n",
+    "print(summary(lm(y ~ X))$r.squared)\n",
+    "print(\"Adjusted R2 is\")\n",
+    "print(summary(lm(y ~ X))$adj.r.squared)\n"
+   ]
+  }
+ ],
+ "metadata": {
+  "colab": {
+   "provenance": []
+  },
+  "kernelspec": {
+   "display_name": "R",
+   "language": "R",
+   "name": "ir"
+  },
+  "language_info": {
+   "codemirror_mode": "r",
+   "file_extension": ".r",
+   "mimetype": "text/x-r-source",
+   "name": "R",
+   "pygments_lexer": "r",
+   "version": "3.6.3"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 0
+}

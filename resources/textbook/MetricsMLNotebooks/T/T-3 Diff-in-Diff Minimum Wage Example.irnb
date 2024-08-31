@@ -1,0 +1,1005 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "rsOnp1Y-TJy_"
+   },
+   "source": [
+    "# Minimum Wage Example Notebook with DiD"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "trvqH1pjTJpR"
+   },
+   "source": [
+    "This notebook implements Difference-in-Differences in an application on\n",
+    "the effect of minimum wage changes on teen employment. We use data from\n",
+    "[Callaway\n",
+    "(2022)](https://bcallaway11.github.io/files/Callaway-Chapter-2022/main.pdf). The data are annual county level data from the United States covering 2001 to 2007. The outcome variable is log county-level teen employment, and the treatment variable is an indicator for whether the county has a minimum wage above the federal minimum wage. Note that this definition of the treatment variable makes the analysis straightforward but ignores the nuances of the exact value of the minimum wage in each county and how far those values are from the federal minimum. The data also include county population and county average annual pay.\n",
+    "See [Callaway and Sant’Anna\n",
+    "(2021)](https://www.sciencedirect.com/science/article/abs/pii/S0304407620303948)\n",
+    "for additional details on the data.\n",
+    "\n",
+    "First, we will load some libraries.\n",
+    "\n",
+    "*(The installation of the packages might take up to 5 minutes)*"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 201
+    },
+    "id": "FFlG2QhXTJav",
+    "outputId": "254f92c0-bae4-41e2-fb92-7d32f17eb751",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "dependencies <- c(\"BMisc\", \"glmnet\", \"randomForest\", \"rpart\", \"xtable\", \"data.table\")\n",
+    "install.packages(dependencies)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "lapply(dependencies, library, character.only = TRUE)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "set.seed(772023)\n",
+    "options(warn = -1)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "u6jWjkrzU8I6"
+   },
+   "source": [
+    "## Loading the data"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "id": "znh8YcAXSp3E",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "data <- read.csv(\"https://raw.githubusercontent.com/CausalAIBook/MetricsMLNotebooks/main/data/minwage_data.csv\",\n",
+    "                 row.names = 1)\n",
+    "data <- data.table(data)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 306
+    },
+    "id": "PQdsT6BnWKeq",
+    "outputId": "d71da67c-541c-4c5f-f65a-7e6dd70230cd",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "head(data)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "v37g7zlwW5pH"
+   },
+   "source": [
+    "### Data Preparation\n",
+    "\n",
+    "We remove observations that are already treated in the first observed period (2001). We drop all variables that we won't use in our analysis."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "id": "W6ob7pptW49G",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "data <- subset(data, (G == 0) | (G > 2001))\n",
+    "data <- data[, -c(\n",
+    "  \"countyreal\", \"state_name\", \"FIPS\", \"emp0A01_BS\",\n",
+    "  \"quarter\", \"censusdiv\", \"pop\", \"annual_avg_pay\",\n",
+    "  \"state_mw\", \"fed_mw\", \"ever_treated\"\n",
+    ")]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "Ri12EDNJaAfF"
+   },
+   "source": [
+    "Next, we create the treatment groups. We focus our analysis exclusively on the set of counties that had wage increases away from the federal minimum wage in 2004. That is, we treat 2003 and earlier as the pre-treatment period."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "id": "huj7huQ1aQSq",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "treat1 <- subset(data, (G == 2004) & (year == 2001))\n",
+    "treat2 <- subset(data, (G == 2004) & (year == 2002))\n",
+    "treat3 <- subset(data, (G == 2004) & (year == 2003))\n",
+    "treat4 <- subset(data, (G == 2004) & (year == 2004))\n",
+    "treat5 <- subset(data, (G == 2004) & (year == 2005))\n",
+    "treat6 <- subset(data, (G == 2004) & (year == 2006))\n",
+    "treat7 <- subset(data, (G == 2004) & (year == 2007))\n",
+    "\n",
+    "cont1 <- subset(data, (G == 0 | G > 2001) & (year == 2001))\n",
+    "cont2 <- subset(data, (G == 0 | G > 2002) & (year == 2002))\n",
+    "cont3 <- subset(data, (G == 0 | G > 2003) & (year == 2003))\n",
+    "cont4 <- subset(data, (G == 0 | G > 2004) & (year == 2004))\n",
+    "cont5 <- subset(data, (G == 0 | G > 2005) & (year == 2005))\n",
+    "cont6 <- subset(data, (G == 0 | G > 2006) & (year == 2006))\n",
+    "cont7 <- subset(data, (G == 0 | G > 2007) & (year == 2007))\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "6HC1PX_Uc5bQ"
+   },
+   "source": [
+    "We assume that the basic assumptions, particularly parallel trends, hold after conditioning on pre-treatment variables: 2001 population, 2001 average pay and 2001 teen employment, as well as the region in which the county is located. (The region is characterized by four\n",
+    "categories.)\n",
+    "\n",
+    "Consequently, we want to extract the control variables for both treatment and control group in 2001."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "id": "KvkwAdL6evsU",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "treat1 <- treat1[, -c(\"year\", \"G\", \"region\", \"treated\")]\n",
+    "\n",
+    "cont1 <- cont1[, -c(\"year\", \"G\", \"region\", \"treated\")]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "zU7rM_5Ne3Xr"
+   },
+   "source": [
+    "2003 serves as the pre-treatment period for both counties that do receive the treatment in 2004 and those that do not."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "id": "3cd3dBDqeyqa",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "treatB <- merge(treat3, treat1, by = \"id\", suffixes = c(\".pre\", \".0\"))\n",
+    "treatB <- treatB[, -c(\"treated\", \"lpop.pre\", \"lavg_pay.pre\", \"year\", \"G\")]\n",
+    "\n",
+    "contB <- merge(cont3, cont1, by = \"id\", suffixes = c(\".pre\", \".0\"))\n",
+    "contB <- contB[, -c(\"treated\", \"lpop.pre\", \"lavg_pay.pre\", \"year\", \"G\")]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "xL1fSfb5e82d"
+   },
+   "source": [
+    "We estimate the ATET in 2004-2007, which corresponds to the effect in the year of treatment as well as in the three years after the treatment. The control observations are the observations that still have the federal minimum wage in each year. (The control group is shrinking in each year as additional units receive treatment)."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "id": "zvN6Nmy0gPy4",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "treat4 <- treat4[, -c(\"lpop\", \"lavg_pay\", \"year\", \"G\", \"region\")]\n",
+    "treat5 <- treat5[, -c(\"lpop\", \"lavg_pay\", \"year\", \"G\", \"region\")]\n",
+    "treat6 <- treat6[, -c(\"lpop\", \"lavg_pay\", \"year\", \"G\", \"region\")]\n",
+    "treat7 <- treat7[, -c(\"lpop\", \"lavg_pay\", \"year\", \"G\", \"region\")]\n",
+    "\n",
+    "cont4 <- cont4[, -c(\"lpop\", \"lavg_pay\", \"year\", \"G\", \"region\")]\n",
+    "cont5 <- cont5[, -c(\"lpop\", \"lavg_pay\", \"year\", \"G\", \"region\")]\n",
+    "cont6 <- cont6[, -c(\"lpop\", \"lavg_pay\", \"year\", \"G\", \"region\")]\n",
+    "cont7 <- cont7[, -c(\"lpop\", \"lavg_pay\", \"year\", \"G\", \"region\")]\n",
+    "\n",
+    "tdid04 <- merge(treat4, treatB, by = \"id\")\n",
+    "dy <- tdid04$lemp - tdid04$lemp.pre\n",
+    "tdid04$dy <- dy\n",
+    "tdid04 <- tdid04[, -c(\"id\", \"lemp\", \"lemp.pre\")]\n",
+    "\n",
+    "tdid05 <- merge(treat5, treatB, by = \"id\")\n",
+    "dy <- tdid05$lemp - tdid05$lemp.pre\n",
+    "tdid05$dy <- dy\n",
+    "tdid05 <- tdid05[, -c(\"id\", \"lemp\", \"lemp.pre\")]\n",
+    "\n",
+    "tdid06 <- merge(treat6, treatB, by = \"id\")\n",
+    "dy <- tdid06$lemp - tdid06$lemp.pre\n",
+    "tdid06$dy <- dy\n",
+    "tdid06 <- tdid06[, -c(\"id\", \"lemp\", \"lemp.pre\")]\n",
+    "\n",
+    "tdid07 <- merge(treat7, treatB, by = \"id\")\n",
+    "dy <- tdid07$lemp - tdid07$lemp.pre\n",
+    "tdid07$dy <- dy\n",
+    "tdid07 <- tdid07[, -c(\"id\", \"lemp\", \"lemp.pre\")]\n",
+    "\n",
+    "cdid04 <- merge(cont4, contB, by = \"id\")\n",
+    "dy <- cdid04$lemp - cdid04$lemp.pre\n",
+    "cdid04$dy <- dy\n",
+    "cdid04 <- cdid04[, -c(\"id\", \"lemp\", \"lemp.pre\")]\n",
+    "\n",
+    "cdid05 <- merge(cont5, contB, by = \"id\")\n",
+    "dy <- cdid05$lemp - cdid05$lemp.pre\n",
+    "cdid05$dy <- dy\n",
+    "cdid05 <- cdid05[, -c(\"id\", \"lemp\", \"lemp.pre\")]\n",
+    "\n",
+    "cdid06 <- merge(cont6, contB, by = \"id\")\n",
+    "dy <- cdid06$lemp - cdid06$lemp.pre\n",
+    "cdid06$dy <- dy\n",
+    "cdid06 <- cdid06[, -c(\"id\", \"lemp\", \"lemp.pre\")]\n",
+    "\n",
+    "cdid07 <- merge(cont7, contB, by = \"id\")\n",
+    "dy <- cdid07$lemp - cdid07$lemp.pre\n",
+    "cdid07$dy <- dy\n",
+    "cdid07 <- cdid07[, -c(\"id\", \"lemp\", \"lemp.pre\")]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "EqHmiHaZgPZz"
+   },
+   "source": [
+    "### Estimation of the ATET with DML\n",
+    "\n",
+    "We estimate the ATET of the county level minimum wage being larger than the federal minimum with the DML algorithm presented in Section 16.3 in the book. This requires estimation of the nuisance functions $E[Y|D=0,X]$, $E[D|X]$ as well as $P(D = 1)$. For the conditional expectation functions, we will consider different modern ML regression methods, namely: Constant (= no controls); a linear combination of the controls; an expansion of the raw control variables including all third order interactions; Lasso (CV); Ridge (CV); Random Forest; Shallow Tree; Deep Tree; and CV Tree.\n",
+    "The methods indicated with CV have their tuning parameter selected by cross-validation.\n",
+    "\n",
+    "The following code block implements the DML cross-fitting procedure."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/"
+    },
+    "id": "PMFoM90-guGI",
+    "outputId": "a088bc6b-8c4b-466a-dade-2e133e917250",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "att <- matrix(NA, 4, 10)\n",
+    "se_att <- matrix(NA, 4, 10)\n",
+    "rmse_d <- matrix(NA, 4, 9)\n",
+    "rmse_y <- matrix(NA, 4, 9)\n",
+    "trimmed <- matrix(NA, 4, 9)\n",
+    "\n",
+    "print(\"DML estimation starting, please wait\")\n",
+    "for (ii in 1:4) { # ii refer to the 4 investigated post-treatment periods\n",
+    "\n",
+    "  tdata <- get(paste(\"tdid0\", (3 + ii), sep = \"\")) # Treatment data\n",
+    "  cdata <- get(paste(\"cdid0\", (3 + ii), sep = \"\")) # Control data\n",
+    "  usedata <- rbind(tdata, cdata)\n",
+    "\n",
+    "  #-----------------------------------------------------------------------------\n",
+    "  # Cross-fit setup\n",
+    "  n <- nrow(usedata)\n",
+    "  Kf <- 5 # Number of folds\n",
+    "  sampleframe <- rep(1:Kf, ceiling(n / Kf))\n",
+    "  cfgroup <- sample(sampleframe, size = n, replace = FALSE) # Cross-fitting groups\n",
+    "\n",
+    "  # Initialize variables for CV predictions\n",
+    "  y_gd0x_fit <- matrix(NA, n, 9)\n",
+    "  dgx_fit <- matrix(NA, n, 9)\n",
+    "  pd_fit <- matrix(NA, n, 1)\n",
+    "\n",
+    "  #-----------------------------------------------------------------------------\n",
+    "  # Cross-fit loop\n",
+    "  for (k in 1:Kf) {\n",
+    "    cat(\"year: \", ii + 2003, \"; fold: \", k, \"\\n\")\n",
+    "    indk <- cfgroup == k\n",
+    "\n",
+    "    ktrain <- usedata[!indk, ]\n",
+    "    ktest <- usedata[indk, ]\n",
+    "\n",
+    "    # Build some matrices for later\n",
+    "    ytrain <- as.matrix(usedata[!indk, \"dy\"])\n",
+    "    ytest <- as.matrix(usedata[indk, \"dy\"])\n",
+    "    dtrain <- as.matrix(usedata[!indk, \"treated\"])\n",
+    "    dtest <- as.matrix(usedata[indk, \"treated\"])\n",
+    "\n",
+    "    # Expansion for lasso/ridge (region specific cubic polynomial)\n",
+    "    Xexpand <- model.matrix(\n",
+    "      ~ region * (polym(lemp.0, lpop.0, lavg_pay.0,\n",
+    "        degree = 3, raw = TRUE\n",
+    "      )),\n",
+    "      data = usedata\n",
+    "    )\n",
+    "\n",
+    "    xtrain <- as.matrix(Xexpand[!indk, ])\n",
+    "    xtest <- as.matrix(Xexpand[indk, ])\n",
+    "\n",
+    "    #-----------------------------------------------------------------------------\n",
+    "    # Estimating P(D = 1)\n",
+    "    pd_fit[indk, 1] <- mean(ktrain$treated)\n",
+    "\n",
+    "    #-----------------------------------------------------------------------------\n",
+    "    # Estimating E[D|X]\n",
+    "\n",
+    "    # 1) Constant\n",
+    "    dgx_fit[indk, 1] <- mean(ktrain$treated)\n",
+    "\n",
+    "    # 2) Baseline controls\n",
+    "    glmXdk <- glm(treated ~ region + lemp.0 + lpop.0 + lavg_pay.0,\n",
+    "      family = \"binomial\", data = ktrain\n",
+    "    )\n",
+    "    dgx_fit[indk, 2] <- predict(glmXdk, newdata = ktest, type = \"response\")\n",
+    "\n",
+    "    # 3) Region specific linear index\n",
+    "    glmRXdk <- glm(treated ~ region * (lemp.0 + lpop.0 + lavg_pay.0),\n",
+    "      family = \"binomial\", data = ktrain\n",
+    "    )\n",
+    "    dgx_fit[indk, 3] <- predict(glmRXdk, newdata = ktest, type = \"response\")\n",
+    "\n",
+    "    # 4) Lasso - expansion - default CV tuning\n",
+    "    lassoXdk <- cv.glmnet(xtrain, dtrain, family = \"binomial\", type.measure = \"mse\")\n",
+    "    dgx_fit[indk, 4] <- predict(lassoXdk,\n",
+    "      newx = xtest, type = \"response\",\n",
+    "      s = \"lambda.min\"\n",
+    "    )\n",
+    "\n",
+    "    # 5) Ridge - expansion - default CV tuning\n",
+    "    ridgeXdk <- cv.glmnet(xtrain, dtrain,\n",
+    "      family = \"binomial\",\n",
+    "      type.measure = \"mse\", alpha = 0\n",
+    "    )\n",
+    "    dgx_fit[indk, 5] <- predict(ridgeXdk,\n",
+    "      newx = xtest, type = \"response\",\n",
+    "      s = \"lambda.min\"\n",
+    "    )\n",
+    "\n",
+    "    # 6) Random forest\n",
+    "    rfXdk <- randomForest(as.factor(treated) ~ region + lemp.0 + lpop.0 + lavg_pay.0,\n",
+    "      data = ktrain, mtry = 4, ntree = 1000\n",
+    "    )\n",
+    "    dgx_fit[indk, 6] <- predict(rfXdk, ktest, type = \"prob\")[, 2]\n",
+    "\n",
+    "    # 7) Tree (start big)\n",
+    "    btXdk <- rpart(treated ~ region + lemp.0 + lpop.0 + lavg_pay.0,\n",
+    "      data = ktrain, method = \"anova\",\n",
+    "      control = rpart.control(maxdepth = 15, cp = 0, xval = 5, minsplit = 10)\n",
+    "    )\n",
+    "    # xval is the number of cross-validation splits. E.g. xval = 5 is five fold CV\n",
+    "    dgx_fit[indk, 7] <- predict(btXdk, ktest)\n",
+    "\n",
+    "    # 8) Tree (small tree)\n",
+    "    stXdk <- rpart(treated ~ region + lemp.0 + lpop.0 + lavg_pay.0,\n",
+    "      data = ktrain, method = \"anova\",\n",
+    "      control = rpart.control(maxdepth = 3, cp = 0, xval = 0, minsplit = 10)\n",
+    "    )\n",
+    "    # xval is the number of cross-validation splits. E.g. xval = 5 is five fold CV\n",
+    "    dgx_fit[indk, 8] <- predict(stXdk, ktest)\n",
+    "\n",
+    "    # 9) Tree (cv)\n",
+    "    bestcp <- btXdk$cptable[which.min(btXdk$cptable[, \"xerror\"]), \"CP\"]\n",
+    "    cvXdk <- prune(btXdk, cp = bestcp)\n",
+    "    dgx_fit[indk, 9] <- predict(cvXdk, ktest)\n",
+    "\n",
+    "    #-----------------------------------------------------------------------------\n",
+    "    # Estimating E[Y|D=0,X]\n",
+    "\n",
+    "    # subset to D = 0\n",
+    "    ktrain0 <- ktrain[ktrain$treated == 0, ]\n",
+    "\n",
+    "    ytrain0 <- ytrain[ktrain$treated == 0, ]\n",
+    "    xtrain0 <- xtrain[ktrain$treated == 0, ]\n",
+    "\n",
+    "    # 1) Constant\n",
+    "    y_gd0x_fit[indk, 1] <- mean(ktrain0$dy)\n",
+    "\n",
+    "    # 2) Baseline controls\n",
+    "    lmXyk <- lm(dy ~ region + lemp.0 + lpop.0 + lavg_pay.0, data = ktrain0)\n",
+    "    y_gd0x_fit[indk, 2] <- predict(lmXyk, newdata = ktest)\n",
+    "\n",
+    "    # 3) Region specific linear index\n",
+    "    lmRXyk <- lm(treated ~ region * (lemp.0 + lpop.0 + lavg_pay.0),\n",
+    "      data = ktrain\n",
+    "    )\n",
+    "    y_gd0x_fit[indk, 3] <- predict(lmRXyk, newdata = ktest)\n",
+    "\n",
+    "    # 4) Lasso - expansion - default CV tuning\n",
+    "    lassoXyk <- cv.glmnet(xtrain0, ytrain0)\n",
+    "    y_gd0x_fit[indk, 4] <- predict(lassoXyk, newx = xtest, s = \"lambda.min\")\n",
+    "\n",
+    "    # 5) Ridge - expansion - default CV tuning\n",
+    "    ridgeXyk <- cv.glmnet(xtrain0, ytrain0, alpha = 0)\n",
+    "    y_gd0x_fit[indk, 5] <- predict(ridgeXyk, newx = xtest, s = \"lambda.min\")\n",
+    "\n",
+    "    # 6) Random forest\n",
+    "    rfXyk <- randomForest(dy ~ region + lemp.0 + lpop.0 + lavg_pay.0,\n",
+    "      data = ktrain0, mtry = 4, ntree = 1000\n",
+    "    )\n",
+    "    y_gd0x_fit[indk, 6] <- predict(rfXyk, ktest)\n",
+    "\n",
+    "    # 7) Tree (start big)\n",
+    "    btXyk <- rpart(dy ~ region + lemp.0 + lpop.0 + lavg_pay.0,\n",
+    "      data = ktrain0, method = \"anova\",\n",
+    "      control = rpart.control(maxdepth = 15, cp = 0, xval = 5, minsplit = 10)\n",
+    "    )\n",
+    "    y_gd0x_fit[indk, 7] <- predict(btXyk, ktest)\n",
+    "\n",
+    "    # 8) Tree (small tree)\n",
+    "    stXyk <- rpart(dy ~ region + lemp.0 + lpop.0 + lavg_pay.0,\n",
+    "      data = ktrain, method = \"anova\",\n",
+    "      control = rpart.control(maxdepth = 3, cp = 0, xval = 0, minsplit = 10)\n",
+    "    )\n",
+    "    y_gd0x_fit[indk, 8] <- predict(stXyk, ktest)\n",
+    "\n",
+    "    # 9) Tree (cv)\n",
+    "    bestcp <- btXyk$cptable[which.min(btXyk$cptable[, \"xerror\"]), \"CP\"]\n",
+    "    cvXyk <- prune(btXyk, cp = bestcp)\n",
+    "    y_gd0x_fit[indk, 9] <- predict(cvXyk, ktest)\n",
+    "  }\n",
+    "\n",
+    "  rmse_d[ii, ] <- sqrt(colMeans((usedata$treated - dgx_fit)^2))\n",
+    "  rmse_y[ii, ] <- sqrt(colMeans((usedata$dy[usedata$treated == 0] -\n",
+    "                                   y_gd0x_fit[usedata$treated == 0, ])^2))\n",
+    "\n",
+    "  # trim propensity scores of 1 to .95\n",
+    "  for (r in 1:9) {\n",
+    "    trimmed[ii, r] <- sum(dgx_fit[, r] > .95)\n",
+    "    dgx_fit[dgx_fit[, r] > .95, r] <- .95\n",
+    "  }\n",
+    "\n",
+    "  att_num <- c(\n",
+    "    colMeans(((usedata$treated - dgx_fit) / ((pd_fit %*% matrix(1, 1, 9)) * (1 - dgx_fit))) *\n",
+    "               (usedata$dy - y_gd0x_fit)),\n",
+    "    mean(((usedata$treated - dgx_fit[, which.min(rmse_d[ii, ])])\n",
+    "          / (pd_fit * (1 - dgx_fit[, which.min(rmse_d[ii, ])]))) *\n",
+    "           (usedata$dy - y_gd0x_fit[, which.min(rmse_y[ii, ])]))\n",
+    "  )\n",
+    "  att_den <- mean(usedata$treated / pd_fit)\n",
+    "\n",
+    "  att[ii, ] <- att_num / att_den\n",
+    "\n",
+    "  phihat <- cbind(\n",
+    "    ((usedata$treated - dgx_fit) / ((pd_fit %*% matrix(1, 1, 9)) * (1 - dgx_fit))) *\n",
+    "      (usedata$dy - y_gd0x_fit),\n",
+    "    ((usedata$treated - dgx_fit[, which.min(rmse_d[ii, ])])\n",
+    "     / (pd_fit * (1 - dgx_fit[, which.min(rmse_d[ii, ])]))) *\n",
+    "      (usedata$dy - y_gd0x_fit[, which.min(rmse_y[ii, ])])\n",
+    "  ) / att_den\n",
+    "  se_att[ii, ] <- sqrt(colMeans((phihat^2)) / n)\n",
+    "}"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "o-r2aJIv2_Yh"
+   },
+   "source": [
+    "We start by reporting the RMSE obtained during cross-fitting for each learner in each period."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 349
+    },
+    "id": "xRazffP5kaq8",
+    "outputId": "eb34dd8d-fb75-4d48-cfe7-63baf9906645",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "table1y <- matrix(0, 9, 4)\n",
+    "table1y <- t(rmse_y)\n",
+    "colnames(table1y) <- c(\"2004\", \"2005\", \"2006\", \"2007\")\n",
+    "rownames(table1y) <- c(\n",
+    "  \"No Controls\", \"Basic\", \"Expansion\",\n",
+    "  \"Lasso (CV)\", \"Ridge (CV)\",\n",
+    "  \"Random Forest\", \"Deep Tree\",\n",
+    "  \"Shallow Tree\", \"Tree (CV)\"\n",
+    ")\n",
+    "table1y"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 349
+    },
+    "id": "tlrNObn1kvpF",
+    "outputId": "80322a03-006e-4696-ae2e-a02c1c97422a",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "table1d <- matrix(0, 9, 4)\n",
+    "table1d <- t(rmse_d)\n",
+    "colnames(table1d) <- c(\"2004\", \"2005\", \"2006\", \"2007\")\n",
+    "rownames(table1d) <- c(\n",
+    "  \"No Controls\", \"Basic\", \"Expansion\",\n",
+    "  \"Lasso (CV)\", \"Ridge (CV)\",\n",
+    "  \"Random Forest\", \"Deep Tree\",\n",
+    "  \"Shallow Tree\", \"Tree (CV)\"\n",
+    ")\n",
+    "table1d"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "nxlhGchj4n-9"
+   },
+   "source": [
+    "Here we see that the Deep Tree systematically performs worse in terms of cross-fit predictions than the other learners for both tasks and that Expansion performs similarly poorly for the outcome prediction. It also appears there is some signal in the regressors, especially for the propensity score, as all methods outside of Deep Tree and Expansion produce smaller RMSEs than the No Controls baseline. The other methods all produce similar RMSEs, with a small edge going to Ridge and Lasso. While it would be hard to reliably conclude which of the relatively good performing methods is statistically best here, one could exclude Expansion and Deep Tree from further consideration on the basis of out-of-sample performance suggesting\n",
+    "they are doing a poor job approximating the nuisance functions. Best (or a different ensemble) provides a good baseline that is principled in the sense that one could pre-commit to using the best learners without having first looked at the subsequent estimation results."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "85jrGLgG4-Gw"
+   },
+   "source": [
+    "We report estimates of the ATET in each period in the following table."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 693
+    },
+    "id": "-tfALIgnkvao",
+    "outputId": "cf1c07a7-60ef-41a3-f8b3-51a01819c4c9",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "table2 <- matrix(0, 20, 4)\n",
+    "table2[seq(1, 20, 2), ] <- t(att)\n",
+    "table2[seq(2, 20, 2), ] <- t(se_att)\n",
+    "colnames(table2) <- c(\"2004\", \"2005\", \"2006\", \"2007\")\n",
+    "rownames(table2) <- c(\n",
+    "  \"No Controls\", \"s.e.\", \"Basic\", \"s.e.\",\n",
+    "  \"Expansion\", \"s.e.\", \"Lasso (CV)\", \"s.e.\",\n",
+    "  \"Ridge (CV)\", \"s.e.\", \"Random Forest\", \"s.e.\",\n",
+    "  \"Deep Tree\", \"s.e.\", \"Shallow Tree\", \"s.e.\",\n",
+    "  \"Tree (CV)\", \"s.e.\", \"Best\", \"s.e.\"\n",
+    ")\n",
+    "table2"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "euBQPSYs47iZ"
+   },
+   "source": [
+    "Here, we see that the majority of methods provide point estimates that suggest the effect of the minimum wage increase leads to decreases in youth employment with small effects in the initial period that become larger in the years following the treatment. This pattern seems economically plausible as it may take time for firms to adjust employment and other input choices in response to a minimum wage change. The methods that produce estiamtes that are not consistent with this pattern are Deep Tree and Expansion which are both suspect as they systematically underperform in terms of having poor cross-fit prediction performance. In terms of point estimates, the other pattern that emerges is that all estimates that use the covariates produce ATET estimates that are systematically smaller in magnitude than the No Controls baseline, suggesting that failing to include the controls may lead to overstatement of treatment effects in this example.\n",
+    "\n",
+    "Turning to inference, we would reject the hypothesis of no minimum wage effect two or more years after the change at the 5% level, even after multiple testing correction, if we were to focus on the row \"Best\" (or many of the other individual rows). Focusing on \"Best\" is a reasonable ex ante strategy that could be committed to prior to conducting any analysis. It is, of course, reassuring that this broad conclusion is also obtained using many of the individual learners suggesting some robustness to the exact choice of learner made."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "MhFmwCr3kulb"
+   },
+   "source": [
+    "### Assess pre-trends\n",
+    "\n",
+    "Because we have data for the period 2001-2007, we can perform a so-called pre-trends test to provide some evidence about the plausibility of the conditional parallel trends assumption. Specifically, we can continue to use 2003 as the reference period but now consider 2002 to be the treatment period. Sensible economic mechanisms underlying the assumption would then typically suggest that the ATET in 2002 - before the 2004 minimum wage change we are considering - should be zero. Finding evidence that the ATET in 2002 is non-zero then calls into question the validity of the assumption.\n",
+    "\n",
+    "We change the treatment status of those observations, which received treatment in 2004 in the 2002 data and create a placebo treatment as well as control group."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "id": "dogBL7W4o3P4",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "treat2 <- treat2[, -c(\"lpop\", \"lavg_pay\", \"year\", \"G\", \"region\")]\n",
+    "treat2$treated <- 1 # Code these observations as treated\n",
+    "\n",
+    "tdid02 <- merge(treat2, treatB, by = \"id\")\n",
+    "dy <- tdid02$lemp - tdid02$lemp.pre\n",
+    "tdid02$dy <- dy\n",
+    "tdid02 <- tdid02[, -c(\"id\", \"lemp\", \"lemp.pre\")]\n",
+    "\n",
+    "cont2 <- cont2[, -c(\"lpop\", \"lavg_pay\", \"year\", \"G\", \"region\")]\n",
+    "\n",
+    "cdid02 <- merge(cont2, contB, by = \"id\")\n",
+    "dy <- cdid02$lemp - cdid02$lemp.pre\n",
+    "cdid02$dy <- dy\n",
+    "cdid02 <- cdid02[, -c(\"id\", \"lemp\", \"lemp.pre\")]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "JhjbleYX599z"
+   },
+   "source": [
+    "We repeat the exercise for obtaining our ATET estimates and standard error for 2004-2007. Particularly, we also use all the learners as mentioned above."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/"
+    },
+    "id": "Df8A2qj_odSh",
+    "outputId": "7b81df57-3ad3-4f15-9651-1313dd53189f",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "att_p <- matrix(NA, 1, 10)\n",
+    "se_att_p <- matrix(NA, 1, 10)\n",
+    "rmse_d_p <- matrix(NA, 1, 9)\n",
+    "rmse_y_p <- matrix(NA, 1, 9)\n",
+    "trimmed_p <- matrix(NA, 1, 9)\n",
+    "for (ii in 1) {\n",
+    "  tdata <- get(paste(\"tdid0\", (3 - ii), sep = \"\")) # Treatment data\n",
+    "  cdata <- get(paste(\"cdid0\", (3 - ii), sep = \"\")) # Control data\n",
+    "  usedata <- rbind(tdata, cdata)\n",
+    "\n",
+    "  #-----------------------------------------------------------------------------\n",
+    "  # Cross-fit setup\n",
+    "  n <- nrow(usedata)\n",
+    "  Kf <- 5 # Number of folds\n",
+    "  sampleframe <- rep(1:Kf, ceiling(n / Kf))\n",
+    "  cfgroup <- sample(sampleframe, size = n, replace = FALSE) # Cross-fitting groups\n",
+    "\n",
+    "  # Initialize variables for CV predictions\n",
+    "  y_gd0x_fit <- matrix(NA, n, 9)\n",
+    "  dgx_fit <- matrix(NA, n, 9)\n",
+    "  pd_fit <- matrix(NA, n, 1)\n",
+    "\n",
+    "  #-----------------------------------------------------------------------------\n",
+    "  # Cross-fit loop\n",
+    "  for (k in 1:Kf) {\n",
+    "    cat(\"year: \", ii + 2001, \"; fold: \", k, \"\\n\")\n",
+    "    indk <- cfgroup == k\n",
+    "\n",
+    "    ktrain <- usedata[!indk, ]\n",
+    "    ktest <- usedata[indk, ]\n",
+    "\n",
+    "    # Build some matrices for later\n",
+    "    ytrain <- as.matrix(usedata[!indk, \"dy\"])\n",
+    "    ytest <- as.matrix(usedata[indk, \"dy\"])\n",
+    "    dtrain <- as.matrix(usedata[!indk, \"treated\"])\n",
+    "    dtest <- as.matrix(usedata[indk, \"treated\"])\n",
+    "\n",
+    "    # Expansion for lasso/ridge (region specific cubic polynomial)\n",
+    "    Xexpand <- model.matrix(\n",
+    "      ~ region * (polym(lemp.0, lpop.0, lavg_pay.0,\n",
+    "        degree = 3, raw = TRUE\n",
+    "      )),\n",
+    "      data = usedata\n",
+    "    )\n",
+    "\n",
+    "    xtrain <- as.matrix(Xexpand[!indk, ])\n",
+    "    xtest <- as.matrix(Xexpand[indk, ])\n",
+    "\n",
+    "    #-----------------------------------------------------------------------------\n",
+    "    # Estimating P(D = 1)\n",
+    "    pd_fit[indk, 1] <- mean(ktrain$treated)\n",
+    "\n",
+    "    #-----------------------------------------------------------------------------\n",
+    "    # Estimating E[D|X]\n",
+    "\n",
+    "    # 1) Constant\n",
+    "    dgx_fit[indk, 1] <- mean(ktrain$treated)\n",
+    "\n",
+    "    # 2) Baseline controls\n",
+    "    glmXdk <- glm(treated ~ region + lemp.0 + lpop.0 + lavg_pay.0,\n",
+    "      family = \"binomial\", data = ktrain\n",
+    "    )\n",
+    "    dgx_fit[indk, 2] <- predict(glmXdk, newdata = ktest, type = \"response\")\n",
+    "\n",
+    "    # 3) Region specific linear index\n",
+    "    glmRXdk <- glm(treated ~ region * (lemp.0 + lpop.0 + lavg_pay.0),\n",
+    "      family = \"binomial\", data = ktrain\n",
+    "    )\n",
+    "    dgx_fit[indk, 3] <- predict(glmRXdk, newdata = ktest, type = \"response\")\n",
+    "\n",
+    "    # 4) Lasso - expansion - default CV tuning\n",
+    "    lassoXdk <- cv.glmnet(xtrain, dtrain, family = \"binomial\", type.measure = \"mse\")\n",
+    "    dgx_fit[indk, 4] <- predict(lassoXdk,\n",
+    "      newx = xtest, type = \"response\",\n",
+    "      s = \"lambda.min\"\n",
+    "    )\n",
+    "\n",
+    "    # 5) Ridge - expansion - default CV tuning\n",
+    "    ridgeXdk <- cv.glmnet(xtrain, dtrain,\n",
+    "      family = \"binomial\",\n",
+    "      type.measure = \"mse\", alpha = 0\n",
+    "    )\n",
+    "    dgx_fit[indk, 5] <- predict(ridgeXdk,\n",
+    "      newx = xtest, type = \"response\",\n",
+    "      s = \"lambda.min\"\n",
+    "    )\n",
+    "\n",
+    "    # 6) Random forest\n",
+    "    rfXdk <- randomForest(as.factor(treated) ~ region + lemp.0 + lpop.0 + lavg_pay.0,\n",
+    "      data = ktrain, mtry = 4, ntree = 1000\n",
+    "    )\n",
+    "    dgx_fit[indk, 6] <- predict(rfXdk, ktest, type = \"prob\")[, 2]\n",
+    "\n",
+    "    # 7) Tree (start big)\n",
+    "    btXdk <- rpart(treated ~ region + lemp.0 + lpop.0 + lavg_pay.0,\n",
+    "      data = ktrain, method = \"anova\",\n",
+    "      control = rpart.control(maxdepth = 15, cp = 0, xval = 5, minsplit = 10)\n",
+    "    )\n",
+    "    # xval is the number of cross-validation splits. E.g. xval = 5 is five fold CV\n",
+    "    dgx_fit[indk, 7] <- predict(btXdk, ktest)\n",
+    "\n",
+    "    # 8) Tree (small tree)\n",
+    "    stXdk <- rpart(treated ~ region + lemp.0 + lpop.0 + lavg_pay.0,\n",
+    "      data = ktrain, method = \"anova\",\n",
+    "      control = rpart.control(maxdepth = 3, cp = 0, xval = 0, minsplit = 10)\n",
+    "    )\n",
+    "    # xval is the number of cross-validation splits. E.g. xval = 5 is five fold CV\n",
+    "    dgx_fit[indk, 8] <- predict(stXdk, ktest)\n",
+    "\n",
+    "    # 9) Tree (cv)\n",
+    "    bestcp <- btXdk$cptable[which.min(btXdk$cptable[, \"xerror\"]), \"CP\"]\n",
+    "    cvXdk <- prune(btXdk, cp = bestcp)\n",
+    "    dgx_fit[indk, 9] <- predict(cvXdk, ktest)\n",
+    "\n",
+    "    #-----------------------------------------------------------------------------\n",
+    "    # Estimating E[Y|D=0,X]\n",
+    "\n",
+    "    # subset to D = 0\n",
+    "    ktrain0 <- ktrain[ktrain$treated == 0, ]\n",
+    "\n",
+    "    ytrain0 <- ytrain[ktrain$treated == 0, ]\n",
+    "    xtrain0 <- xtrain[ktrain$treated == 0, ]\n",
+    "\n",
+    "    # 1) Constant\n",
+    "    y_gd0x_fit[indk, 1] <- mean(ktrain0$dy)\n",
+    "\n",
+    "    # 2) Baseline controls\n",
+    "    lmXyk <- lm(dy ~ region + lemp.0 + lpop.0 + lavg_pay.0, data = ktrain0)\n",
+    "    y_gd0x_fit[indk, 2] <- predict(lmXyk, newdata = ktest)\n",
+    "\n",
+    "    # 3) Region specific linear index\n",
+    "    lmRXyk <- lm(treated ~ region * (lemp.0 + lpop.0 + lavg_pay.0),\n",
+    "      data = ktrain\n",
+    "    )\n",
+    "    y_gd0x_fit[indk, 3] <- predict(lmRXyk, newdata = ktest)\n",
+    "\n",
+    "    # 4) Lasso - expansion - default CV tuning\n",
+    "    lassoXyk <- cv.glmnet(xtrain0, ytrain0)\n",
+    "    y_gd0x_fit[indk, 4] <- predict(lassoXyk, newx = xtest, s = \"lambda.min\")\n",
+    "\n",
+    "    # 5) Ridge - expansion - default CV tuning\n",
+    "    ridgeXyk <- cv.glmnet(xtrain0, ytrain0, alpha = 0)\n",
+    "    y_gd0x_fit[indk, 5] <- predict(ridgeXyk, newx = xtest, s = \"lambda.min\")\n",
+    "\n",
+    "    # 6) Random forest\n",
+    "    rfXyk <- randomForest(dy ~ region + lemp.0 + lpop.0 + lavg_pay.0,\n",
+    "      data = ktrain0, mtry = 4, ntree = 1000\n",
+    "    )\n",
+    "    y_gd0x_fit[indk, 6] <- predict(rfXyk, ktest)\n",
+    "\n",
+    "    # 7) Tree (start big)\n",
+    "    btXyk <- rpart(dy ~ region + lemp.0 + lpop.0 + lavg_pay.0,\n",
+    "      data = ktrain0, method = \"anova\",\n",
+    "      control = rpart.control(maxdepth = 15, cp = 0, xval = 5, minsplit = 10)\n",
+    "    )\n",
+    "    y_gd0x_fit[indk, 7] <- predict(btXyk, ktest)\n",
+    "\n",
+    "    # 8) Tree (small tree)\n",
+    "    stXyk <- rpart(dy ~ region + lemp.0 + lpop.0 + lavg_pay.0,\n",
+    "      data = ktrain, method = \"anova\",\n",
+    "      control = rpart.control(maxdepth = 3, cp = 0, xval = 0, minsplit = 10)\n",
+    "    )\n",
+    "    y_gd0x_fit[indk, 8] <- predict(stXyk, ktest)\n",
+    "\n",
+    "    # 9) Tree (cv)\n",
+    "    bestcp <- btXyk$cptable[which.min(btXyk$cptable[, \"xerror\"]), \"CP\"]\n",
+    "    cvXyk <- prune(btXyk, cp = bestcp)\n",
+    "    y_gd0x_fit[indk, 9] <- predict(cvXyk, ktest)\n",
+    "  }\n",
+    "\n",
+    "  rmse_d_p[ii, ] <- sqrt(colMeans((usedata$treated - dgx_fit)^2))\n",
+    "  rmse_y_p[ii, ] <- sqrt(colMeans((usedata$dy[usedata$treated == 0] -\n",
+    "                                     y_gd0x_fit[usedata$treated == 0, ])^2))\n",
+    "\n",
+    "  # trim propensity scores of 1 to .95\n",
+    "  for (r in 1:9) {\n",
+    "    trimmed_p[ii, r] <- sum(dgx_fit[, r] > .95)\n",
+    "    dgx_fit[dgx_fit[, r] > .95, r] <- .95\n",
+    "  }\n",
+    "\n",
+    "  att_num <- c(\n",
+    "    colMeans(((usedata$treated - dgx_fit) / ((pd_fit %*% matrix(1, 1, 9)) * (1 - dgx_fit))) *\n",
+    "               (usedata$dy - y_gd0x_fit)),\n",
+    "    mean(((usedata$treated - dgx_fit[, which.min(rmse_d[ii, ])])\n",
+    "          / (pd_fit * (1 - dgx_fit[, which.min(rmse_d[ii, ])]))) *\n",
+    "           (usedata$dy - y_gd0x_fit[, which.min(rmse_y[ii, ])]))\n",
+    "  )\n",
+    "  att_den <- mean(usedata$treated / pd_fit)\n",
+    "\n",
+    "  att_p[ii, ] <- att_num / att_den\n",
+    "\n",
+    "  phihat <- cbind(\n",
+    "    ((usedata$treated - dgx_fit) / ((pd_fit %*% matrix(1, 1, 9)) * (1 - dgx_fit))) *\n",
+    "      (usedata$dy - y_gd0x_fit),\n",
+    "    ((usedata$treated - dgx_fit[, which.min(rmse_d[ii, ])])\n",
+    "     / (pd_fit * (1 - dgx_fit[, which.min(rmse_d[ii, ])]))) *\n",
+    "      (usedata$dy - y_gd0x_fit[, which.min(rmse_y[ii, ])])\n",
+    "  ) / att_den\n",
+    "  se_att_p[ii, ] <- sqrt(colMeans((phihat^2)) / n)\n",
+    "}"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "ZpL1SPbe6HRE"
+   },
+   "source": [
+    "We report the results in the following table."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 380
+    },
+    "id": "2y3YugM4omz4",
+    "outputId": "44e812c4-bc35-4309-e567-f6a37bca1d0f",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "tableP <- matrix(0, 4, 10)\n",
+    "tableP[1, ] <- c(rmse_y_p, min(rmse_y_p))\n",
+    "tableP[2, ] <- c(rmse_d_p, min(rmse_d_p))\n",
+    "tableP[3, ] <- att_p\n",
+    "tableP[4, ] <- se_att_p\n",
+    "rownames(tableP) <- c(\"RMSE Y\", \"RMSE D\", \"ATET\", \"s.e.\")\n",
+    "colnames(tableP) <- c(\n",
+    "  \"No Controls\", \"Basic\", \"Expansion\",\n",
+    "  \"Lasso (CV)\", \"Ridge (CV)\",\n",
+    "  \"Random Forest\", \"Deep Tree\",\n",
+    "  \"Shallow Tree\", \"Tree (CV)\", \"Best\"\n",
+    ")\n",
+    "tableP <- t(tableP)\n",
+    "tableP"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "k0jGwOFO6NZD"
+   },
+   "source": [
+    "Here we see broad agreement across all methods in the sense of returning point estimates that are small in magnitude and small relative to standard errors. In no case would we reject the hypothesis that the pre-event effect in 2002 is different from zero at usual levels of significance. We note that failing to reject the hypothesis of no pre-event effects certainly does not imply that the conditional DiD assumption is in fact satisfied. For example, confidence intervals include values that would be consistent with relatively large pre-event effects. However, it is reassuring to see that there is not strong evidence of a violation of the underlying identifying assumption."
+   ]
+  }
+ ],
+ "metadata": {
+  "colab": {
+   "provenance": []
+  },
+  "kernelspec": {
+   "display_name": "R",
+   "name": "ir"
+  },
+  "language_info": {
+   "name": "R"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 0
+}

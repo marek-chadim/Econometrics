@@ -1,0 +1,555 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "POIGemzqP6P9"
+   },
+   "source": [
+    "There are system packages that some of the R packages need. We install them here."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "id": "9TqXQzIlOelc",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "system(\"sudo add-apt-repository ppa:ubuntugis/ubuntugis-unstable\")\n",
+    "system(\"sudo apt-get update\")\n",
+    "system(\"sudo apt-get install libglpk-dev libgmp-dev libxml2-dev\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "mll4gH73k2-A"
+   },
+   "source": [
+    "# Causal Identification in DAGs using Backdoor and Swigs, Equivalence Classes, Falsifiability Tests\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "_execution_state": "idle",
+    "_uuid": "051d70d956493feee0c6d64651c6a088724dca2a",
+    "colab": {
+     "base_uri": "https://localhost:8080/"
+    },
+    "id": "md3VArZXk2-G",
+    "outputId": "2b1a6a60-18a4-4de3-cec6-de65a2516641",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "# install and load package\n",
+    "install.packages(\"dagitty\")\n",
+    "install.packages(\"ggdag\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "library(dagitty)\n",
+    "library(ggdag)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "5DaJmPrbk2-J"
+   },
+   "source": [
+    "# Graph Generation and Plotting"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "eeldklHqk2-K"
+   },
+   "source": [
+    "The following DAG is due to Judea Pearl"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 437
+    },
+    "id": "1fgBFtRxk2-K",
+    "outputId": "88af1fad-7fbe-46a6-986c-637462e8e86d",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "# generate a couple of DAGs and plot them\n",
+    "\n",
+    "G <- dagitty('dag{\n",
+    "Z1 [pos=\"-2,-1.5\"]\n",
+    "X1 [pos=\"-2,0\"]\n",
+    "Z2 [pos=\"1.5,-1.5\"]\n",
+    "X3 [pos=\"1.5, 0\"]\n",
+    "Y [outcome,pos=\"1.5,1.5\"]\n",
+    "D [exposure,pos=\"-2,1.5\"]\n",
+    "M [mediator, pos=\"0,1.5\"]\n",
+    "X2 [pos=\"0,0\"]\n",
+    "Z1 -> X1\n",
+    "X1 -> D\n",
+    "Z1 -> X2\n",
+    "Z2 -> X3\n",
+    "X3 -> Y\n",
+    "Z2 -> X2\n",
+    "D -> Y\n",
+    "X2 -> Y\n",
+    "X2 -> D\n",
+    "M->Y\n",
+    "D->M\n",
+    "}')\n",
+    "\n",
+    "\n",
+    "ggdag(G) + theme_dag()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "SfZKYPLgk2-K"
+   },
+   "source": [
+    "# Report Relatives of X2"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/"
+    },
+    "id": "PDE3ROjfk2-P",
+    "outputId": "0890ac94-4658-4ec7-b984-e7d0b2913483",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "print(parents(G, \"X2\"))\n",
+    "print(children(G, \"X2\"))\n",
+    "print(ancestors(G, \"X2\"))\n",
+    "print(descendants(G, \"X2\"))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "LEAIT0-_k2-R"
+   },
+   "source": [
+    "# Find Paths Between D and Y\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 114
+    },
+    "id": "5JhG_60wk2-R",
+    "outputId": "10ada2ca-f201-4a3a-ff84-89b2948775d6",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "paths(G, \"D\", \"Y\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "i8h9AIZYk2-S"
+   },
+   "source": [
+    "# List All Testable Implications of the Model"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/"
+    },
+    "id": "B5LnSoCik2-T",
+    "outputId": "a03a58e3-5ae1-4d22-beea-ff8f97f6c64b",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "print(impliedConditionalIndependencies(G))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "TKxYwKyuk2-U"
+   },
+   "source": [
+    "# Identification by Backdoor: List minimal adjustment sets to identify causal effecs $D \\to Y$"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/"
+    },
+    "id": "dXKGvXgTk2-V",
+    "outputId": "daefd9dd-eba8-4057-b2d8-e5347ee30c79",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "print(adjustmentSets(G, \"D\", \"Y\"))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "4QqmWahfk2-W"
+   },
+   "source": [
+    "# Identification via SWIG and D-separation"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 437
+    },
+    "id": "Zv3rbjEuk2-W",
+    "outputId": "ce658fd8-b475-4deb-c809-602de1686b60",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "SWIG <- dagitty('dag{\n",
+    "Z1 [pos=\"-2,-1.5\"]\n",
+    "X1 [pos=\"-2,0\"]\n",
+    "Z2 [pos=\"1.5,-1.5\"]\n",
+    "X3 [pos=\"1.5, 0\"]\n",
+    "Yd [outcome,pos=\"1.5,1.5\"]\n",
+    "D [exposure,pos=\"-2,1.5\"]\n",
+    "d [pos=\"-1, 1.5\"]\n",
+    "Md [mediator, pos=\"0,1.5\"]\n",
+    "X2 [pos=\"0,0\"]\n",
+    "Z1 -> X1\n",
+    "X1 -> D\n",
+    "Z1 -> X2\n",
+    "Z2 -> X3\n",
+    "X3 -> Yd\n",
+    "Z2 -> X2\n",
+    "X2 -> Yd\n",
+    "X2 -> D\n",
+    "X3-> Yd\n",
+    "Md-> Yd\n",
+    "d-> Md\n",
+    "}')\n",
+    "\n",
+    "ggdag(SWIG) + theme_dag()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "7Bdrp3mOk2-W"
+   },
+   "source": [
+    "\n",
+    "# Deduce Conditional Exogeneity or Ignorability by D-separation\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/"
+    },
+    "id": "KwJgFzoqk2-X",
+    "outputId": "b66ee434-d948-4c7e-cf45-0fbc6843c6cc",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "print(impliedConditionalIndependencies(SWIG)[5:8])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "wgaiPTysk2-X"
+   },
+   "source": [
+    "This coincides with the backdoor criterion for this graph."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "iHHStLhqk2-X"
+   },
+   "source": [
+    "# Print All Average Effects Identifiable by Conditioning"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/"
+    },
+    "id": "OcBfUurBk2-X",
+    "outputId": "b2a8b5c2-3407-48e4-e68e-61f19ac9e598",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "for (n in names(G)) {\n",
+    "  for (m in children(G, n)) {\n",
+    "    a <- adjustmentSets(G, n, m)\n",
+    "    if (length(a) > 0) {\n",
+    "      cat(\"The effect \", n, \"->\", m, \" is identifiable by controlling for:\\n\", sep = \"\")\n",
+    "      print(a, prefix = \" * \")\n",
+    "    }\n",
+    "  }\n",
+    "}"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "gZRMiUymk2-Y"
+   },
+   "source": [
+    "# Equivalence Classes"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 437
+    },
+    "id": "8vNiL5HWk2-Y",
+    "outputId": "fcd29ac8-675b-4fb1-8a95-8e62ccba8d44",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "P <- equivalenceClass(G)\n",
+    "plot(P)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "mUAnGdrkk2-Z"
+   },
+   "source": [
+    "Next Consider the elemntary Triangular Model:\n",
+    "$$\n",
+    "D \\to Y, \\quad X \\to (D,Y).\n",
+    "$$\n",
+    "This model has no testable implications and is Markov-equivalent to any other DAG difined on names $(X, D, Y)$."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 437
+    },
+    "id": "pBHDnH7Fk2-Z",
+    "outputId": "ea6c8fd5-4e90-4ce6-e84b-449d9c49d8b5",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "G3 <- dagitty(\"dag{\n",
+    "D -> Y\n",
+    "X -> D\n",
+    "X -> Y\n",
+    "}\n",
+    "\")\n",
+    "\n",
+    "ggdag(G3) + theme_dag()\n",
+    "\n",
+    "print(impliedConditionalIndependencies(G3))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 1000
+    },
+    "id": "1cw47mOEk2-Z",
+    "outputId": "9e4f3af6-1f2b-4eac-ab68-841aaebaa87d",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "P <- equivalenceClass(G3)\n",
+    "plot(P)\n",
+    "equivalentDAGs(G3, 10)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "kjil8zIfk2-Z"
+   },
+   "source": [
+    "# Example of Testing DAG Validity\n",
+    "\n",
+    "Next we simulate the data from a Linear SEM associated to DAG G, and perform a test of conditional independence restrictions, exploting linearity.\n",
+    "\n",
+    "\n",
+    "There are many other options for nonlinear models and discrete categorical variabales. Type help(localTests)."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 1000
+    },
+    "id": "MZ_4jxNdk2-a",
+    "outputId": "d91485d7-311d-4ae2-ea60-2e7f87a2fb96",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "set.seed(1)\n",
+    "x <- simulateSEM(G)\n",
+    "head(x)\n",
+    "localTests(G, data = x, type = c(\"cis\"))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "aUQHK-vEk2-a"
+   },
+   "source": [
+    "Next we replaced $D$ by $\\bar D$ generated differently:\n",
+    "$$\n",
+    "\\bar D= (D + Y)/2.\n",
+    "$$\n",
+    "$\\bar D$ is an average of $D$ and $Y$ generated by $D$.  We then test if the resulting collection of random variables satisifes conditional independence restrictions, exploiting linearity.  We end up rejectiong these restrictions and therefore the validity of this model for the data generated in this way.  This makes sense, because the new data no longer obeys the previous DAG structure.\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 1000
+    },
+    "id": "C0ND4GbEk2-a",
+    "outputId": "37236927-3ece-458f-fcd4-820422609d7b",
+    "vscode": {
+     "languageId": "r"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "xR <- x\n",
+    "xR$D <- (x$D + x$Y) / 2\n",
+    "\n",
+    "localTests(G, data = xR, type = c(\"cis\"))"
+   ]
+  }
+ ],
+ "metadata": {
+  "colab": {
+   "provenance": []
+  },
+  "kernelspec": {
+   "display_name": "R",
+   "language": "R",
+   "name": "ir"
+  },
+  "language_info": {
+   "codemirror_mode": "r",
+   "file_extension": ".r",
+   "mimetype": "text/x-r-source",
+   "name": "R",
+   "pygments_lexer": "r",
+   "version": "3.6.3"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 0
+}
