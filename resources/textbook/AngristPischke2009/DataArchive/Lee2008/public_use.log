@@ -1,0 +1,466 @@
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  C:\Users\chadi\OneDrive - Handelshögskolan i Stockholm\Econometrics\Econometrics\resources\textbook\Lee2008\public_use.log
+  log type:  text
+ opened on:  31 Aug 2024, 03:46:02
+
+. program drop _all;
+
+. ************************************************************************************************;
+. /*FIGURE ONE*/;
+. ************************************************************************************************;
+. use figure1.dta, clear;
+
+. list;
+
+     +---------------------------------------+
+     | year       col1       col2       col3 |
+     |---------------------------------------|
+  1. | 1948   .7952941   .7990654   .0215054 |
+  2. | 1950   .9088785   .7640187   .0168067 |
+  3. | 1952          .   .8341122   .0250696 |
+  4. | 1954   .9018692   .8668224   .0250696 |
+  5. | 1956   .9462617   .7733645   .0464481 |
+     |---------------------------------------|
+  6. | 1958   .8693587   .8349057   .0172414 |
+  7. | 1960   .9009434   .7915691   .0134771 |
+  8. | 1962          .   .7672209   .0209424 |
+  9. | 1964   .8687351         .8   .0325815 |
+ 10. | 1966   .8548009   .8538283   .0103359 |
+     |---------------------------------------|
+ 11. | 1968   .9392523   .8167053   .0102564 |
+ 12. | 1970   .9086651   .7785548   .0103627 |
+ 13. | 1972          .   .7023256   .0382653 |
+ 14. | 1974   .8181818   .7985782   .0077121 |
+ 15. | 1976   .9336493   .7132867    .009901 |
+     |---------------------------------------|
+ 16. | 1978    .926396   .7531807   .0277778 |
+ 17. | 1980   .8920308   .7189873   .0080429 |
+ 18. | 1982          .   .8222749    .014742 |
+ 19. | 1984   .9170616   .8424821   .0179028 |
+ 20. | 1986   .9200969   .8726415    .005168 |
+     |---------------------------------------|
+ 21. | 1988   .9691212   .8160377   .0180412 |
+ 22. | 1990   .9180723   .6863208   .0052493 |
+ 23. | 1992          .   .7603686   .0260047 |
+ 24. | 1994   .8498845   .7934272      .0175 |
+ 25. | 1996   .9014084   .8317536   .0121065 |
+     |---------------------------------------|
+ 26. | 1998   .9506173          .          . |
+     +---------------------------------------+
+
+. twoway (connected col1 year, ms(s) mc(gs0) msize(medium) mfcolor(gs0) mlcolor(gs0) lpattern(solid) lcolor(gs0)) || 
+>                                 (connected col2 year, ms(sh) mc(gs0) msize(medium) mfcolor(none) mlcolor(gs0) lpattern(dash) lcolor(gs0)) || 
+>                                 (connected col3 year, ms(x) mc(gs0) msize(medium) mfcolor(none) mlcolor(gs0) lpattern(dash) lcolor(gs0)),
+>                                 title("Figure 1", color(gs0)) xtitle("Year") ytitle("Proportion Winning Election") legend(label(1 "Incumbent Party") label(2 
+>                                 "Winning Candidate") label(3 "Runner-up Candidate")) yscale(r(0 1)) xscale(r(1948 1998)) ylabel(0(.1)1) 
+>                                 xlabel(1948(10)1998) saving("./final/Fig1.gph", replace);
+(file ./final/Fig1.gph not found)
+file ./final/Fig1.gph saved
+
+.  ************************************************************************************************;
+. /*FIGURES TWO AND THREE*/;
+. ************************************************************************************************;
+. use individ_final.dta, clear;
+
+. graph twoway (scatter mmyoutcomenext difshare, ms(O) mc(gs0) msize(small)) (line mpmyoutcomenext difshare, sort lcolor(gs0)) 
+>                                 if difshare>-0.251 & difshare<0.251 & use==1, xline(0, lcolor(gs0)) title("Figure 2a", color(gs0)) xtitle("Democratic Vote Share Margin of Victory, Election t") 
+>                                 ytitle("Probability of Winning, Election t+1") yscale(r(0 1)) ylabel(0(.1)1) xscale(r(-0.25 0.25)) xlabel(-0.25(.05)0.25) 
+>                                 legend(label(1 "Local Average") label(2 "Logit Fit")) saving("./final/Fig2a.gph", replace);
+(file ./final/Fig2a.gph not found)
+file ./final/Fig2a.gph saved
+
+. graph twoway (scatter mofficeexp difshare, ms(O) mc(gs0) msize(small)) (line mpofficeexp difshare, sort lcolor(gs0)) 
+>                                 if difshare>-0.251 & difshare<0.251 & use==1, xline(0, lcolor(gs0))
+>                                 title("Figure 2b", color(gs0)) xtitle("Democratic Vote Share Margin of Victory, Election t") ytitle("No. of Past Victories as of Election t")
+>                                 yscale(r(0 5)) ylabel(0(.5)5) xscale(r(-0.25 0.25)) xlabel(-0.25(.05)0.25) 
+>                                 legend(label(1 "Local Average") label(2 "Polynomial Fit")) saving("./final/Fig2b.gph", replace);
+(file ./final/Fig2b.gph not found)
+file ./final/Fig2b.gph saved
+
+. graph twoway (scatter mrunagain difshare, ms(O) mc(gs0) msize(small)) (line mprunagain difshare, sort lcolor(gs0)) 
+>                                 if difshare>-0.251 & difshare<0.251 & use==1, xline(0, lcolor(gs0))
+>                                 title("Figure 3a", color(gs0)) xtitle("Democratic Vote Share Margin of Victory, Election t") 
+>                                 ytitle("Probability of Candidacy, Election t+1") 
+>                                 yscale(r(0 1)) ylabel(0(.1)1) xscale(r(-0.25 0.25)) xlabel(-0.25(.05)0.25)
+>                                 legend(label(1 "Local Average") label(2 "Logit Fit")) saving("./final/Fig3a.gph", replace);
+(file ./final/Fig3a.gph not found)
+file ./final/Fig3a.gph saved
+
+. graph twoway (scatter melectexp difshare, ms(O) mc(gs0) msize(small)) (line mpelectexp difshare, sort lcolor(gs0)) 
+>                                 if difshare>-0.251 & difshare<0.251 & use==1, xline(0, lcolor(gs0)) 
+>                                 title("Figure 3b", color(gs0)) xtitle("Democratic Vote Share Margin of Victory, Election t") 
+>                                 ytitle("No. of Past Attempts as of Election t") 
+>                                 yscale(r(0 5)) ylabel(0(.5)5) xscale(r(-0.25 0.25)) xlabel(-0.25(.05)0.25)
+>                                 legend(label(1 "Local Average") label(2 "Polynomial Fit")) saving("./final/Fig3b.gph", replace);
+(file ./final/Fig3b.gph not found)
+file ./final/Fig3b.gph saved
+
+. sort difgrp use;
+
+. quietly by difgrp: keep if _n==1;
+
+. outsheet mpmyoutcomenext mmyoutcomenext mprunagain mrunagain mpofficeexp mofficeexp mpelectexp melectexp difgrp 
+>                         difshare using fig23 if difgrp>=150 & difgrp<=250, replace comma;
+(file fig23.out not found)
+
+.                         ************************************************************************************************;
+. /*FIGURES FOUR AND FIVE*/;
+. ************************************************************************************************;
+. use group_final, clear;
+
+. graph twoway (scatter mdemsharenext difdemshare, ms(O) mc(gs0) msize(small)) (line mpdemsharenext difdemshare, sort lcolor(gs0)) if 
+>                                 difdemshare>-0.251 & difdemshare<0.251 & use==1, 
+>                                 xline(0, lcolor(gs0)) title("Figure 4a", color(gs0)) xtitle("Democratic Vote Share Margin of Victory, Election t") 
+>                                 ytitle("Vote Share, Election t+1") 
+>                                 yscale(r(0.30 0.70)) ylabel(0.3(.05)0.7) xscale(r(-0.25 0.25)) xlabel(-0.25(.05)0.25)
+>                                 legend(label(1 "Local Average") label(2 "Polynomial Fit")) saving("./final/Fig4a.gph", replace);
+(file ./final/Fig4a.gph not found)
+file ./final/Fig4a.gph saved
+
+. graph twoway (scatter mdemshareprev difdemshare, ms(O) mc(gs0) msize(small)) (line mpdemshareprev difdemshare, sort lcolor(gs0)) 
+>                                 if difdemshare>-0.251 & difdemshare<0.251 & use==1, 
+>                                 xline(0, lcolor(gs0)) title("Figure 4b", color(gs0)) xtitle("Democratic Vote Share Margin of Victory, Election t") 
+>                                 ytitle("Vote Share, Election t-1") 
+>                                 yscale(r(0.30 0.70)) ylabel(0.3(.05)0.7) xscale(r(-0.25 0.25)) xlabel(-0.25(.05)0.25)
+>                                 legend(label(1 "Local Average") label(2 "Polynomial Fit")) saving("./final/Fig4b.gph", replace);
+(file ./final/Fig4b.gph not found)
+file ./final/Fig4b.gph saved
+
+. graph twoway (scatter mdemwinnext difdemshare, ms(O) mc(gs0) msize(small)) (line mpdemwinnext difdemshare, sort lcolor(gs0)) 
+>                                 if difdemshare>-0.251 & difdemshare<0.251 & use==1, 
+>                                 xline(0, lcolor(gs0)) title("Figure 5a", color(gs0)) xtitle("Democratic Vote Share Margin of Victory, Election t") 
+>                                 ytitle("Probability of Victory, Election t+1") 
+>                                 yscale(r(0 1)) ylabel(0(.1)1) xscale(r(-0.25 0.25)) xlabel(-0.25(.05)0.25)
+>                                 legend(label(1 "Local Average") label(2 "Logit Fit")) saving("./final/Fig5a.gph", replace);
+(file ./final/Fig5a.gph not found)
+file ./final/Fig5a.gph saved
+
+. graph twoway (scatter mdemwinprev difdemshare, ms(O) mc(gs0) msize(small)) (line mpdemwinprev difdemshare, sort lcolor(gs0)) 
+>                                 if difdemshare>-0.251 & difdemshare<0.251 & use==1, 
+>                                 xline(0, lcolor(gs0)) title("Figure 5b", color(gs0)) xtitle("Democratic Vote Share Margin of Victory, Election t") 
+>                                 ytitle("Probability of Victory, Election t+1") 
+>                                 yscale(r(0 1)) ylabel(0(.1)1) xscale(r(-0.25 0.25)) xlabel(-0.25(.05)0.25)
+>                                 legend(label(1 "Local Average") label(2 "Logit Fit")) saving("./final/Fig5b.gph", replace);
+(file ./final/Fig5b.gph not found)
+file ./final/Fig5b.gph saved
+
+. sort difgrp use;
+
+. quietly by difgrp: keep if _n==1;
+
+. outsheet mpdemsharenext mdemsharenext mpdemwinnext mdemwinnext mpdemshareprev mdemshareprev mpdemwinprev mdemwinprev 
+>                         difgrp difdemshare using fig45 if difgrp>=150 & difgrp<=250, replace comma;
+(file fig45.out not found)
+
+.                         ************************************************************************************************;
+. /*TABLE ONE*/;
+. ************************************************************************************************;
+. use table_one_final, clear;
+
+. outsheet Variable Col_1 Col_2 Col_3 Col_4 Col_5 Col_6 Col_7 Col_8
+>          using "./final/table1.csv", comma replace;
+(file ./final/table1.csv not found)
+
+. ************************************************************************************************;
+. /*TABLE TWO*/;
+. ************************************************************************************************;
+. program drop _all;
+
+. program define fitpoly;
+  1.         regress `1' difdemshare difdemshare2 difdemshare3 difdemshare4 rdifdemshare
+>         rdifdemshare2 rdifdemshare3 rdifdemshare4 right `2' if use==1, cluster(statedisdec);
+  2. end;
+
+. use table_two_final, clear;
+
+. /*column one*/;
+. fitpoly demsharenext;
+
+Linear regression                               Number of obs     =      6,558
+                                                F(9, 2617)        =    1349.75
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.6838
+                                                Root MSE          =     .13565
+
+                         (Std. err. adjusted for 2,618 clusters in statedisdec)
+-------------------------------------------------------------------------------
+              |               Robust
+ demsharenext | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+--------------+----------------------------------------------------------------
+  difdemshare |   .5237658    .145659     3.60   0.000     .2381473    .8093842
+ difdemshare2 |   1.529922   .7525064     2.03   0.042     .0543541     3.00549
+ difdemshare3 |   4.221185   1.369262     3.08   0.002     1.536239    6.906132
+ difdemshare4 |   3.045695   .7695054     3.96   0.000     1.536794    4.554596
+ rdifdemshare |   .0192665   .1952235     0.10   0.921    -.3635416    .4020746
+rdifdemshare2 |  -2.234339   .9554433    -2.34   0.019     -4.10784   -.3608382
+rdifdemshare3 |  -2.985604   1.625745    -1.84   0.066     -6.17348    .2022715
+rdifdemshare4 |  -3.775835   .9112402    -4.14   0.000    -5.562659   -1.989011
+        right |   .0765852   .0113949     6.72   0.000     .0542414    .0989291
+        _cons |   .4541771   .0079796    56.92   0.000     .4385302     .469824
+-------------------------------------------------------------------------------
+
+. estimates store c1;
+
+. /*column two*/;
+. fitpoly demsharenext "demshareprev demwinprev";
+
+Linear regression                               Number of obs     =      6,558
+                                                F(11, 2617)       =    1371.96
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.7098
+                                                Root MSE          =     .12997
+
+                         (Std. err. adjusted for 2,618 clusters in statedisdec)
+-------------------------------------------------------------------------------
+              |               Robust
+ demsharenext | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+--------------+----------------------------------------------------------------
+  difdemshare |   .4039238   .1365553     2.96   0.003     .1361566    .6716911
+ difdemshare2 |   1.251315   .6961668     1.80   0.072     -.113778    2.616408
+ difdemshare3 |   3.355113   1.251275     2.68   0.007     .9015247    5.808701
+ difdemshare4 |   2.387916   .6969617     3.43   0.001     1.021264    3.754567
+ rdifdemshare |  -.0596941   .1860933    -0.32   0.748     -.424599    .3052108
+rdifdemshare2 |  -1.565521    .895814    -1.75   0.081    -3.322096    .1910549
+rdifdemshare3 |  -2.754912   1.503352    -1.83   0.067    -5.702792    .1929675
+rdifdemshare4 |  -2.781309   .8344188    -3.33   0.001    -4.417496   -1.145121
+        right |   .0777006   .0108389     7.17   0.000     .0564468    .0989543
+ demshareprev |    .292511   .0171316    17.07   0.000     .2589181    .3261039
+   demwinprev |  -.0165532   .0066561    -2.49   0.013    -.0296049   -.0035014
+        _cons |   .3200821   .0107521    29.77   0.000     .2989987    .3411656
+-------------------------------------------------------------------------------
+
+. estimates store c2;
+
+. /*column three*/;
+. fitpoly demsharenext "demofficeexp othofficeexp";
+
+Linear regression                               Number of obs     =      6,558
+                                                F(11, 2617)       =    1128.12
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.6840
+                                                Root MSE          =     .13562
+
+                         (Std. err. adjusted for 2,618 clusters in statedisdec)
+-------------------------------------------------------------------------------
+              |               Robust
+ demsharenext | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+--------------+----------------------------------------------------------------
+  difdemshare |   .5385115   .1460378     3.69   0.000     .2521503    .8248728
+ difdemshare2 |   1.553172    .753831     2.06   0.039     .0750068    3.031337
+ difdemshare3 |   4.228501   1.371827     3.08   0.002     1.538525    6.918476
+ difdemshare4 |   3.041946   .7710279     3.95   0.000      1.53006    4.553832
+ rdifdemshare |   .0288276   .1959077     0.15   0.883    -.3553222    .4129774
+rdifdemshare2 |  -2.295484   .9571748    -2.40   0.017     -4.17238   -.4185878
+rdifdemshare3 |   -2.97731   1.629552    -1.83   0.068    -6.172652     .218031
+rdifdemshare4 |  -3.769894    .911925    -4.13   0.000    -5.558061   -1.981727
+        right |   .0765471   .0114463     6.69   0.000     .0541024    .0989919
+ demofficeexp |  -.0011242   .0005362    -2.10   0.036    -.0021755   -.0000729
+ othofficeexp |   .0005947   .0008006     0.74   0.458    -.0009751    .0021645
+        _cons |   .4547385   .0080922    56.19   0.000     .4388708    .4706063
+-------------------------------------------------------------------------------
+
+. estimates store c3;
+
+. /*column four*/;
+. fitpoly demsharenext "demelectexp othelectexp";
+
+Linear regression                               Number of obs     =      6,558
+                                                F(11, 2617)       =    1121.91
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.6841
+                                                Root MSE          =     .13561
+
+                         (Std. err. adjusted for 2,618 clusters in statedisdec)
+-------------------------------------------------------------------------------
+              |               Robust
+ demsharenext | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+--------------+----------------------------------------------------------------
+  difdemshare |   .5405042   .1461352     3.70   0.000      .253952    .8270564
+ difdemshare2 |   1.552384   .7542177     2.06   0.040     .0734604    3.031307
+ difdemshare3 |   4.221479   1.372349     3.08   0.002      1.53048    6.912478
+ difdemshare4 |   3.037005   .7712818     3.94   0.000     1.524621    4.549389
+ rdifdemshare |   .0300832   .1959407     0.15   0.878    -.3541313    .4142976
+rdifdemshare2 |  -2.302205   .9574335    -2.40   0.016    -4.179608   -.4248016
+rdifdemshare3 |  -2.964873   1.629887    -1.82   0.069    -6.160871    .2311251
+rdifdemshare4 |  -3.765692   .9120754    -4.13   0.000    -5.554154    -1.97723
+        right |   .0765106   .0114476     6.68   0.000     .0540633    .0989579
+  demelectexp |  -.0012296   .0005216    -2.36   0.018    -.0022523   -.0002068
+  othelectexp |   .0007624   .0007752     0.98   0.325    -.0007577    .0022826
+        _cons |   .4548392   .0081232    55.99   0.000     .4389107    .4707677
+-------------------------------------------------------------------------------
+
+. estimates store c4;
+
+. /*column five*/;
+. fitpoly demsharenext "demshareprev demwinprev demofficeexp othofficeexp demelectexp othelectexp";
+
+Linear regression                               Number of obs     =      6,558
+                                                F(15, 2617)       =    1019.07
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.7117
+                                                Root MSE          =     .12957
+
+                         (Std. err. adjusted for 2,618 clusters in statedisdec)
+-------------------------------------------------------------------------------
+              |               Robust
+ demsharenext | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+--------------+----------------------------------------------------------------
+  difdemshare |   .4246364   .1375411     3.09   0.002      .154936    .6943368
+ difdemshare2 |   1.229547   .7003157     1.76   0.079    -.1436813    2.602776
+ difdemshare3 |   3.236318   1.258897     2.57   0.010     .7677836    5.704853
+ difdemshare4 |   2.305463   .7011117     3.29   0.001     .9306735    3.680253
+ rdifdemshare |   -.047786   .1869944    -0.26   0.798    -.4144578    .3188857
+rdifdemshare2 |  -1.562391   .8986464    -1.74   0.082     -3.32452     .199739
+rdifdemshare3 |  -2.693963   1.509105    -1.79   0.074    -5.653123    .2651959
+rdifdemshare4 |   -2.64945   .8369339    -3.17   0.002    -4.290569   -1.008331
+        right |    .077514   .0108955     7.11   0.000     .0561493    .0988786
+ demshareprev |    .297572   .0171133    17.39   0.000     .2640151     .331129
+   demwinprev |   -.006485    .007036    -0.92   0.357    -.0202817    .0073116
+ demofficeexp |  -.0001356   .0027333    -0.05   0.960    -.0054953     .005224
+ othofficeexp |   -.000207   .0036763    -0.06   0.955    -.0074157    .0070017
+  demelectexp |  -.0029448   .0026333    -1.12   0.264    -.0081085    .0022188
+  othelectexp |   .0032936   .0035284     0.93   0.351    -.0036252    .0102125
+        _cons |   .3133731   .0110726    28.30   0.000     .2916611    .3350851
+-------------------------------------------------------------------------------
+
+. estimates store c5;
+
+. reg demsharenext demshareprev demwinprev demofficeexp othofficeexp demelectexp othelectexp if use==1;
+
+      Source |       SS           df       MS      Number of obs   =     6,559
+-------------+----------------------------------   F(6, 6552)      =   1591.33
+       Model |  226.002308         6  37.6670514   Prob > F        =    0.0000
+    Residual |  155.087013     6,552  .023670179   R-squared       =    0.5930
+-------------+----------------------------------   Adj R-squared   =    0.5927
+       Total |  381.089321     6,558  .058110601   Root MSE        =    .15385
+
+------------------------------------------------------------------------------
+demsharenext | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+demshareprev |   .5920784   .0129131    45.85   0.000     .5667644    .6173923
+  demwinprev |   .1000527   .0069061    14.49   0.000     .0865145     .113591
+demofficeexp |   .0030951   .0040811     0.76   0.448    -.0049052    .0110953
+othofficeexp |   .0034643   .0047295     0.73   0.464    -.0058071    .0127356
+ demelectexp |  -.0022314   .0039912    -0.56   0.576    -.0100553    .0055926
+ othelectexp |  -.0073388   .0045587    -1.61   0.107    -.0162754    .0015978
+       _cons |   .1737693   .0062776    27.68   0.000     .1614632    .1860754
+------------------------------------------------------------------------------
+
+. predict demsharenextres if use==1, residuals;
+(5,236 missing values generated)
+
+. /*column six*/;
+. fitpoly demsharenextres;
+
+Linear regression                               Number of obs     =      6,558
+                                                F(9, 2617)        =      79.55
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.0937
+                                                Root MSE          =     .14651
+
+                         (Std. err. adjusted for 2,618 clusters in statedisdec)
+-------------------------------------------------------------------------------
+              |               Robust
+demsharenex~s | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+--------------+----------------------------------------------------------------
+  difdemshare |  -.1018108   .1679421    -0.61   0.544    -.4311236     .227502
+ difdemshare2 |   .2082136   .8347057     0.25   0.803    -1.428537    1.844964
+ difdemshare3 |   1.970918   1.480008     1.33   0.183    -.9311866    4.873022
+ difdemshare4 |   1.642175   .8150779     2.01   0.044     .0439129    3.240438
+ rdifdemshare |  -.4149739   .2245551    -1.85   0.065    -.8552975    .0253498
+rdifdemshare2 |   1.616584   1.044779     1.55   0.122    -.4320916     3.66526
+rdifdemshare3 |  -3.916008      1.765    -2.22   0.027    -7.376944    -.455072
+rdifdemshare4 |  -.9676869   .9586534    -1.01   0.313    -2.847482    .9121087
+        right |   .0807526   .0136073     5.93   0.000     .0540705    .1074347
+        _cons |  -.0389982    .009998    -3.90   0.000     -.058603   -.0193934
+-------------------------------------------------------------------------------
+
+. estimates store c6;
+
+. /*column seven*/;
+. fitpoly difdemsharenext "demwinprev demofficeexp othofficeexp demelectexp othelectexp";
+
+Linear regression                               Number of obs     =      6,558
+                                                F(14, 2617)       =      48.18
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.1265
+                                                Root MSE          =     .15536
+
+                         (Std. err. adjusted for 2,618 clusters in statedisdec)
+-------------------------------------------------------------------------------
+              |               Robust
+difdemshare~t | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+--------------+----------------------------------------------------------------
+  difdemshare |   .4875522   .1702829     2.86   0.004     .1536494     .821455
+ difdemshare2 |   1.333945   .8474769     1.57   0.116    -.3278476    2.995738
+ difdemshare3 |   1.794363   1.497462     1.20   0.231    -1.141968    4.730693
+ difdemshare4 |     .89776     .82289     1.09   0.275     -.715821    2.511341
+ rdifdemshare |   .0234301   .2260298     0.10   0.917    -.4197852    .4666454
+rdifdemshare2 |   -2.32109    1.09595    -2.12   0.034    -4.470107   -.1720736
+rdifdemshare3 |   -1.07242   1.818554    -0.59   0.555    -4.638369    2.493528
+rdifdemshare4 |  -1.074402    .991714    -1.08   0.279    -3.019025    .8702212
+        right |   .0787914   .0134246     5.87   0.000     .0524676    .1051152
+   demwinprev |   -.175078   .0093562   -18.71   0.000    -.1934243   -.1567316
+ demofficeexp |  -.0018427   .0033178    -0.56   0.579    -.0083486    .0046631
+ othofficeexp |  -.0078229   .0042753    -1.83   0.067    -.0162061    .0005603
+  demelectexp |  -.0030602   .0031824    -0.96   0.336    -.0093004    .0031801
+  othelectexp |   .0112581   .0041102     2.74   0.006     .0031985    .0193178
+        _cons |   .0436647   .0102304     4.27   0.000     .0236043    .0637252
+-------------------------------------------------------------------------------
+
+. estimates store c7;
+
+. /*column eight*/;
+. fitpoly demshareprev "demwinprev demofficeexp othofficeexp demelectexp othelectexp";
+
+Linear regression                               Number of obs     =      6,558
+                                                F(14, 2617)       =    1285.99
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.7265
+                                                Root MSE          =     .12207
+
+                         (Std. err. adjusted for 2,618 clusters in statedisdec)
+-------------------------------------------------------------------------------
+              |               Robust
+ demshareprev | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+--------------+----------------------------------------------------------------
+  difdemshare |   -.089569   .1480499    -0.60   0.545    -.3798757    .2007377
+ difdemshare2 |  -.1486239   .7682613    -0.19   0.847    -1.655085    1.357837
+ difdemshare3 |   2.052817   1.408374     1.46   0.145    -.7088238    4.814457
+ difdemshare4 |   2.004053   .7909534     2.53   0.011     .4530957    3.555011
+ rdifdemshare |  -.1013857   .1909055    -0.53   0.595    -.4757267    .2729554
+rdifdemshare2 |    1.08011   .9525436     1.13   0.257    -.7877048    2.947925
+rdifdemshare3 |  -2.308483   1.673043    -1.38   0.168    -5.589105    .9721383
+rdifdemshare4 |  -2.242291   .9096168    -2.47   0.014    -4.025932   -.4586499
+        right |  -.0018186   .0107149    -0.17   0.865    -.0228291    .0191919
+   demwinprev |   .2400146   .0087063    27.57   0.000     .2229427    .2570865
+ demofficeexp |   .0024303    .002445     0.99   0.320    -.0023641    .0072247
+ othofficeexp |   .0108423   .0029684     3.65   0.000     .0050216     .016663
+  demelectexp |   .0001642   .0023446     0.07   0.944    -.0044333    .0047617
+  othelectexp |  -.0113385   .0028473    -3.98   0.000    -.0169218   -.0057553
+        _cons |   .3839659   .0086047    44.62   0.000     .3670933    .4008385
+-------------------------------------------------------------------------------
+
+. estimates store c8;
+
+. keep _est_c1 _est_c2 _est_c3 _est_c4 _est_c5 _est_c6 _est_c7 _est_c8;
+
+. esttab c1 c2 c3 c4 c5 c6 c7 c8 using "./final/table2.rtf", replace b(3) se(3) noconstant nostar noobs 
+>                 title({\b "Table 2"} {\i "Effect of winning an election on subsequent party electoral success"}) 
+>                 mtitles("Vote share t+1" "Vote share t+1" "Vote share t+1"
+>                 "Vote share t+1" "Vote share t+1" "Res. vote share t+1" "1st dif. vote share, t+1" 
+>                 "Vote share t-1") nodepvars coeflabels(right "Victory, election t" demshareprev 
+>                 "Dem. vote share, t-1" demwinprev "Dem. win, t-1" demofficeexp "Dem. political experience"
+>                 othofficeexp "Opp. political experience" demelectexp "Dem. electoral experience" 
+>                 othelectexp "Opp. electoral experience") drop(difdemshare* rdifdemshare* _cons)
+>                 addnotes("Note: Details of data processing in Appendix A. N=6558 in all regressions.");
+(file ./final/table2.rtf not found)
+(output written to ./final/table2.rtf)
+
+. log close;
+      name:  <unnamed>
+       log:  C:\Users\chadi\OneDrive - Handelshögskolan i Stockholm\Econometrics\Econometrics\resources\textbook\Lee2008\public_use.log
+  log type:  text
+ closed on:  31 Aug 2024, 03:46:12
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
