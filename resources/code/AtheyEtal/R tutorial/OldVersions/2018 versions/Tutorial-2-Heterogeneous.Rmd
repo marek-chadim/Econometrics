@@ -1,0 +1,967 @@
+---
+title: "<centering>Estimation of Heterogeneous Treatment Effects <br>and Treatment Policies</centering>"
+author:
+- affiliation: Stanford University
+  name: Prof. Susan Athey
+- affiliation: Boston College and Stanford University
+  name: PhD candidate, Vitor Hadad
+- affiliation: Aarhus University
+  name: PhD student, Nicolaj Naargaard Mahlbach
+date: "January 17, 2018"
+font-import: 
+#font-family: 'Yantramanav'
+output:
+  html_document:
+    number_sections: no
+    toc: yes
+    toc_float: true
+    toc_depth: 2
+    self_contained: yes
+  pdf_document:
+    toc: yes
+keywords: conditional average treatment effect; machine learning; econometrics
+theme: null
+abstract: |
+ In this tutorial, you will learn about machine learning methods for the estimation of heterogeneous treatment effects in randomized experiments and observational data. These include post-selection OLS, causal trees and forests, and X-learners. Also, at the end, you will also be introduced to the problem of estimation of treatment policies.
+---
+<!--
+<link href="https://fonts.googleapis.com/css?family=Lato:300|Tangerine|Yantramanav:100" rel="stylesheet">
+--->
+<style type="text/css">
+body {
+  font-family: 'Lato', sans-serif;
+  font-size: 12pt;
+}
+table {
+    width: 85%;
+    border: 1px solid black;
+    border-collapse: collapse;
+}
+tr, th {
+    border: 1px solid black;
+    border-collapse: collapse;
+}
+td {
+    border: 1px solid black;
+    border-collapse: collapse;
+    font-weight:normal;
+}
+</style>
+
+  
+Before beginning the tutorial, make sure that you have all the necessary packages. Try running the cell below and, if any issues arise, follow the instructions within.
+
+
+
+```{r setup, include=TRUE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, comment=NA)
+
+# CRAN Packages 
+# -------------
+# If any of these packages are not installed, write
+# install.packages("<name of package>")
+library(fBasics)     # Summary statistics
+library(corrplot)    # Correlations
+library(psych)       # Correlation p-values
+library(glmnet)      # Linear models with L1 or L2 penalty
+library(glmnetUtils) # Extra utilities for glmnet
+library(grf)         # Generalized random forests
+library(rpart)       # CART
+library(rpart.plot)  # Plotting CART
+library(treeClust)     # Predicting where leaf position
+library(randomForest)  # Random forests
+
+
+
+library(devtools)    
+library(tidyverse)    # Collection of great packages for modern R
+library(knitr)        # RMarkdown
+library(kableExtra)   # Prettier RMarkdown
+
+
+# Non-CRAN Packages 
+# -----------------
+# If any of these packages are not installed, 
+# uncomment the relevant line below
+# Note: install_github is a function from the devtools package
+#install_github('susanathey/causalTree')
+library(causalTree)
+#install_github('swager/randomForestCI')
+library(randomForestCI)
+#install_github('soerenkuenzel/hte')
+library(hte)
+```
+
+
+# Introduction
+
+One of machine learning's great successes in the last decade is the production of quality predictive estimates using high-dimensional data. Because such predictions can be used to target small subpopulations with very specific characteristics, machine learning methods can be tremendously useful in many different fields ranging from personalized medicine to targeted advertising.
+
+However, machine learning methods come with caveats. First, the researcher may end up finding *spurious* effects (i.e., by sheer chance some subpopulations might seem exhibit significant treatment effects that are not really there). Second, the optimization criteria used in off-the-shelf ML methods is often not appropriate for causal inference. 
+
+In this tutorial, you will learn about several new developments in the intersection of machine learning and econometrics that seek to ameliorate  these issues.
+
+## Conditional Average Treatment Effects
+
+Let's formalize the problem. We observe a sequence of triples $\{(W_i, Y_i, X_i)\}_{i}^{N}$, where $W_i$ represents whether subject $i$ was "treated", $Y_i$ is a variable representing the outcome, and $X_i$ is a potentially very high-dimensional vector of other observable characteristics. We will be concerned with estimating the **conditional average treatment effect (CATE)** given each level $X_i =x$. We denote this by
+
+$$\tau(x) = E[Y(1) - Y(0)  \ | \ X = x]$$
+
+where, in the potential-outcomes framework of Rubin (1974), $Y_i(1)$ represents the **potential outcome** of subject $i$ had they received the treatment, and $Y_i(0)$ the same potential outcome had they not. Keep in mind that both $Y_i(1)$ and $Y_i(0)$ are random variables, and we only observe the realization of one of these two for each individual in our dataset.
+
+There are two common assumptions in this literature. The first one will be called here the **overlap assumption**. It is formally stated as follows.
+
+$$\forall x \in \text{supp}(X), \qquad 0 < P(W = 1 \ | \ X = x)  < 1$$
+
+Effectively, this assumption guarantees that no subpopulation indexed by $X=x$ is entirely located in only one of control or treatment groups. It is necessary to ensure that we are able to compare individuals in control and treatment for every subpopulation.
+
+The second assumption is invoked when working with observational data, and is known as **unconfoundedness**. It is formalized as a conditional independence assumption as follows.
+
+$$Y_i(1), Y_i(0) \perp W_i \ | \ X_i$$
+
+Unconfoundedness implies that the treatment is randomly assigned within each subpopulation indexed by $X_i = x$. Alternatively, it means that once we know all observable characteristics of individual $i$, then knowing about his or her treatment status gives us no extra information about their potential outcomes.
+
+We won't need unconfoundedness in the applications below, since our data comes from a randomized experiment. However, had it not been the case, unconfoundedness would have been a necessary condition.
+
+
+## Data and economic setup
+
+The economic context in which we will be working is inspired by Gerber, Green, and Larimer (2008)'s paper "Social Pressure and Voter Turnout: Evidence from a Large-Scale Field Experiment" ([see article](http://isps.yale.edu/sites/default/files/publication/2012/12/ISPS08-001.pdf)). This paper begins by noting that voter turnout is hard to explain via theories based on rational self-interest behavior, because the observable payoff to voting seems so small that voter turnout should be much smaller than what we see in reality. It could be the case, then, that voters receive some unobserved utility from voting -- they have fulfilled their civic duty -- or it could be that voters feel pressured by their peers to exercise their voting duty. The authors are interested in understanding the latter effect. They pose the question: to what extent do *social norms* cause voter turnout? In other words, we would like to quantify the effect of social pressure on voter participation.
+
+For this experiment, a large number of voters were randomly divided in several groups, but for our purposes, we only need to know that there was a “control” group that did not receive anything, and a specific “treatment” group that received a message stating that, after the election, the recent voting record of everyone on their households would be sent to all their neighbors -- we will call this the *Neighbors* mailing. This mailing had the effect of maximizing social pressure on potential voters, since their peers would be able to know whether they voted or not.
+
+The outcome dataset is publicly available [here](https://github.com/gsbDBI/ExperimentData/tree/master/Social). In this tutorial, we will use the following variables from it.
+
+<br><br>
+<table>
+<thead>
+<tr><th> Variable </th><th> Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td> <it>outcome_voted</it></td><td> Indicator variable where $= 1$ indicates voted in the August 2006 primary ($Y_i$) </td></tr>
+<tr><td> <it>treat_neighbors</it></td><td> Indicator variable where $= 1$ indicates treatment ($W_i$) </td></tr>
+<tr><td> <it>sex</it></td><td> Indicator variable where $= 1$ indicates male</td></tr>
+<tr><td> <it>yob</it></td><td> Year of birth</td></tr>
+<tr><td> <it>g2000</it></td><td> Indicator variable where $= 1$ indicates voted in the 2000 general</td></tr>
+<tr><td> <it>g2002</it></td><td> Indicator variable where $= 1$ indicates voted in the 2002 general</td></tr>
+<tr><td> <it>p2000</it></td><td> Indicator variable where $= 1$ indicates voted in the 2000 primary</td></tr>
+<tr><td> <it>p2002</it></td><td> Indicator variable where $= 1$ indicates voted in the 2002 primary</td></tr>
+<tr><td> <it>p2004</it></td><td> Indicator variable where $= 1$ indicates voted in the 2004 primary</td></tr>
+<tr><td> <it>city</it></td><td> City index</td></tr>
+<tr><td> <it>hh_size</it></td><td> Household size</td></tr>
+<tr><td> <it>totalpopulation_estimate</it></td><td> Estimate of city population</td></tr>
+<tr><td> <it>percent_male</it></td><td> Percentage males in household</td></tr>
+<tr><td> <it>median_age</it></td><td> Median age in household</td></tr>
+<tr><td> <it>median_income</it></td><td> Median income in household</td></tr>
+<tr><td> <it>percent_62yearsandover</it></td><td> Percentage of subjects of age higher than 62 yo</td></tr>
+<tr><td> <it>percent_white</it></td><td> Percentage white in household</td></tr>
+<tr><td> <it>percent_black</it></td><td> Percentage black in household</td></tr>
+<tr><td> <it>percent_asian</it></td><td> Percentage asian in household</td></tr>
+<tr><td> <it>percent_hispanicorlatino</it></td><td> Percentage hispanic or latino in household</td></tr>
+<tr><td> <it>employ_20to64</it></td><td> Percentage of employed subjects of age 20 to 64 yo </td></tr>
+<tr><td> <it>highschool</it></td><td> Percentage having only high school degree</td></tr>
+<tr><td> <it>bach_orhigher</it></td><td> Percentage having bachelor degree or higher </td></tr>
+<tbody>
+</table>
+<br><br>
+
+Below, we load the data as a .csv file, rename the response and the treatment variable to $Y$ and $W$, respectively, and extract the relevant covariates outlined above. Then, we standardize the continuous covariates to have zero mean and unit variance and omit observations with _NA_ entries.
+
+
+
+```{r, message=FALSE, results="hide"}
+# Clear any existing variables
+#rm(list = ls())
+
+# Set seed for reproducibility
+set.seed(1991)
+
+# Load data
+data_raw <- read_csv('socialneighbor.csv')
+
+# These are the covariates we'll use
+cts_variables_names <- c("yob", "city", "hh_size", "totalpopulation_estimate",
+                         "percent_male", "median_age",
+                         "percent_62yearsandover",
+                         "percent_white", "percent_black",
+                         "percent_asian", "median_income",
+                         "employ_20to64", "highschool", "bach_orhigher",
+                         "percent_hispanicorlatino")
+binary_variables_names <- c("sex","g2000", "g2002", "p2000", "p2002", "p2004")
+covariates <- c(cts_variables_names, binary_variables_names)
+all_variables_names <- c(covariates, "outcome_voted", "treat_neighbors")
+
+# We will not use all observations -- it would take too long to run all the methods below
+n_obs <- 10000
+
+# Selecting only desired covariates
+df <- data_raw %>%
+  dplyr::sample_n(n_obs) %>%
+  dplyr::select(all_variables_names)
+
+```
+
+
+## Descriptive statistics
+
+Let's begin by showing some basic summary statistics. The function `fBasics::basicStats` does most of the job for us, and HTML output is handled by `knitr::kable` and `kableExtra::kable_styling`.
+
+```{r, results="asis", message=FALSE, echo=FALSE}
+# Make an R data.frame containing summary statistics of interest
+tab <- fBasics::basicStats(df) %>% t() %>% 
+        as.data.frame() %>% 
+        select(Mean, Stdev, Minimum, "1. Quartile", Median,  "3. Quartile", Maximum) %>%
+        rename("Lower quartile"="1. Quartile", "Upper quartile"="3. Quartile")
+
+# Pretty-print in HTML (Check out output on your browser for better results)
+tab %>%
+  knitr::kable("html", digits = 2) %>%
+  kableExtra::kable_styling(bootstrap_options=c("striped", "hover", "condensed", "responsive"),
+    full_width=FALSE)
+```
+
+
+Presenting correlations is easy with the `corrplot::corrplot` package. It has an intuitive API and many different styling options. On the table below, we present all pairwise correlations among the covariates in our data. If the (unadjusted) p-value for a pair is less than 0.05, its square is not colored.
+
+
+```{r, echo=FALSE, fig.width=15,fig.height=15,warning=FALSE}
+corrplot(cor(df),
+         type="upper", 
+         tl.col="black",
+         order="hclust",
+         tl.cex=1.5,
+         addgrid.col = "black",
+         p.mat=psych::corr.test(df, df)$p, # Pairwise p-values
+         sig.level=0.05,
+         number.font=10,
+         insig="blank")
+```
+
+
+
+## Preparing the data
+
+It's often advantageous to scale regressors to zero mean and unit variance. In fact, many of the R packages we will use below will do it automatically, but we will go ahead and show how to do it manually in the next snippet.
+
+```{r}
+# Extracting and scaling continuous variables
+scaled_cts_covariates <- df %>%
+  dplyr::select(cts_variables_names) %>%
+  dplyr::mutate_all(scale)
+
+# Extracting indicator variables
+binary_covariates <- df %>%
+  dplyr::select(binary_variables_names)
+
+# Extracting outcome and treatment
+outcome <- df %>% dplyr::select(outcome_voted)
+treatment <- df %>% dplyr::select(treat_neighbors)
+
+# Setting up the data, renaming columns and discarding rows with NA (if any)
+df <- bind_cols(scaled_cts_covariates, binary_covariates, outcome, treatment) %>%
+  plyr::rename(c(treat_neighbors = "W",
+                 outcome_voted = "Y")) %>%
+  na.omit()
+```
+
+Next, let's divide our data set into a training set and a test set. The function <font face="courier">resample_partition</font>, part of the <font face="courier">modelr</font> package will do that for us automatically.
+
+```{r}
+set.seed(12345)
+df_part <- modelr::resample_partition(df, c(train = 0.7, test = 0.3))
+df_train <- as.data.frame(df_part$train)
+df_test <- as.data.frame(df_part$test)
+```
+
+---
+
+# Post-LASSO
+
+The simplest possible way of modelling nontrivial conditional average treatment effects is by adding **interaction effects** to a linear model. For example, take a look at the model below.
+
+\begin{align}
+Y_i = \alpha + \beta_w W_i + \beta_x X_i + \beta_{xw} X_i W_i + \epsilon_i
+\end{align}
+
+If this is our true model, then we can write CATE as follows.
+
+\begin{align}
+\tau(x) = E[Y_i|X=x, W=1] - E[Y_i|X=x, W=0] = \beta_{w}  + \beta_{xw} x
+\end{align}
+<font size=2>
+**Caveat** For observational data, this is only valid under unconfoundedness.
+</font>
+
+The formula above implies that different subpopulations indexed by $X_i = x$ will have different treatment effects as long as $\beta_{xw} \neq 0$.
+
+It is common to use the approach above when the dimension of the covariates $p := dim(X_i)$ is small, where we can simply use OLS. However, the problem becomes increasingly harder as $p$ increases -- and, of course, when $p > n$, it's impossible to simply use OLS.
+
+In such scenarios, a common assumption is **sparsity**. That is, to assume that the true model contains only $s \ll p$ nonzero coefficients, and the problem then shifts to identifying and selecting out the relevant regressors. Now, when the objective is simply to produce accurate predictions, an off-the-shelf method such as LASSO can be used. However, LASSO also outputs biased estimates of the coefficients, so it cannot be used as-is for causal inference.
+
+Instead, a convenient alternative is the **post-LASSO** estimator. It works in two simple steps:
+
+1. Apply LASSO to uncover relevant covariates (i.e., covariates associated with nonzero coefficients)
+2. Run OLS using only these selected covariates.
+
+As shown in Belloni and Chernozhukov (2013) and Belloni, Chen, Chernozhukov, and Hansen (2012), this method has several advantageous properties, provided that the regularization parameter be chosen appropriately. In the snippet below, we use the function <font face="courier">rlasso</font> from the package <font face="courier"><a href="https://arxiv.org/pdf/1608.00354.pdf">hdm</a></font> (for "high-dimensional metrics") developed by Victor Chernozhukov, Chris Hansen and Martin Spindler. Note that it will choosee the regularization parameter automatically.
+
+```{r, results="asis", }
+interactions <- str_c("I(", covariates, "*W)")
+regressors <- str_c(c(covariates, interactions), collapse="+")
+fmla_with_interac <- as.formula(str_c("Y ~", regressors))
+lasso <- glmnetUtils::cv.glmnet(formula = fmla_with_interac,   data=df)
+
+# Which covariates are relevant?
+beta_xw <- lasso %>% coef()
+relevant <- which(beta_xw > 0) %>%
+            rownames(beta_xw)[.] %>%
+              .[2:length(.)] # Discard intercept
+
+# Use them for OLS
+regressors <- str_c(relevant, collapse="+")
+fmla_with_relevant <- as.formula(str_c("Y ~", regressors))
+postlasso <- lm(fmla_with_relevant, data=df_train)
+tauhatx_pl <- predict(postlasso, df_test) # We'll use this later
+
+kable(summary(postlasso)$coef, digits = 5) %>% 
+  kableExtra::kable_styling(bootstrap_options=c("striped", "hover", "condensed", "responsive"),
+    full_width=FALSE)
+```
+
+The interaction covariates are those with names like <font face="courier">I(.*W)</font>, so the interpretation of the results above is that the treatment has a <i>stronger</i> effect within the subpopulation that voted in some of the most recent elections.
+
+
+**NB** Let's not forget that post-LASSO is not a panacea: especially when the number of observations is small, the LASSO step may drop important control variables and introduce omitted-variable bias. In fact, even if the true model were indeed linear and sparse, it's only asymptotically that post-LASSO is guaranteed to choose the correct covariates. The bottom line is that in practice the researcher must exercise caution not to *mis*interpret the results.
+
+
+---
+
+# Recursive Partitioning
+
+Before conducting drug trials, researchers must often pre-register their analysis in order to prevent ex-post data-mining (i.e., cherry-picking patients for which drug worked based on spurious results). At the same time, there is a desire to know for which subpopulations the drug has strongest or weakest effects. In such cases, having a data-driven way to find out where is the relevant heterogeneity that still produces usable estimates can be very convenient.
+
+This was one of the motivations for Athey and Imbens (2016)'s **causal trees**, a method for estimating heterogeneity in causal effects in experimental and observational studies, and for conducting hypothesis tests about the magnitude of the differences in treatment effects across subsets of the population.
+
+Their main idea is to use a portion of the data to understand where the treatment heterogeneity is, and find an according partition of the covariate space (e.g, "*men* over/under the age of *50*"), while using the rest of the data to answer what is the treatment effect on each portion of this partition. They also prove that this allows them to produce unbiased and asymptotically Normal estimates of the treatment effect for each subgroup.
+
+
+```{r, results="hide"}
+# Split training data further into tree training and estimation samples
+df_split <- modelr::resample_partition(df_train, c(train=0.5, estim=0.5))
+df_tr <- as_tibble(df_split$train)
+df_est <- as_tibble(df_split$estim)
+
+set.seed(1003)
+tree <- causalTree::honest.causalTree("I(factor(Y)) ~ . -W",
+                  data=df_tr,
+                  treatment=df_tr$W,
+                  est_data=df_est,
+                  est_treatment=df_est$W,
+                  split.Rule="CT",
+                  split.Honest=TRUE,
+                  split.Bucket=TRUE,
+                  bucketNum=5,
+                  bucketMax=100,
+                  cv.option="CT",  
+                  cv.Honest=TRUE,
+                  minsize=200,
+                  split.alpha=0.5,
+                  cv.alpha=0.5,
+                  HonestSampleSize=length(df_split$estim$idx),
+                  cp=0)
+
+opcp <- tree$cptable[,1][which.min(tree$cptable[,4])]
+opfit <- prune(tree, opcp)
+tauhatx_ct <- predict(opfit, df_test)
+```
+
+Compared to post-LASSO, this method will work better if we cannot make sparsity assumptions, or if the true model cannot be well-approximated by a linear model with interactions. However, the trade-off is that we have to split the data to get unbiased estimates that have the correct confidence intervals.
+
+
+---
+
+# Causal Forests
+
+When the researcher has reasons to believe that the treatment effect heterogeneity is not sparse or very high dimensional, semi- and non-parametric methods based on nearest-neighbor matching, kernels or series expansions might be more appropriate. The problem with these methods is that tend to suffer acutely from the **curse of dimensionality**, so in high-dimensional or very nonlinear scenarios, practitioners may prefer to use an ensemble method like **random forests** instead. However, using random forests for causal inference tasks is also problematic, as they do not have well-understood asymptotic sampling distributions.
+
+In order to solve that problem, Athey and Wager (2016) extend the ideas in Athey and Imbens (2016) to **causal forests** which are provably endowed with desirable properties such as asymptotic unbiasedness and asymptotic Normality.
+
+In this tutorial, we will study two flavors of causal forests and apply them to estimation and inference of causal effects. They are similar in two important aspects.
+
+First, both procedures will ignore information about the outcome when placing sample splits -- this is a bias-reducing condition called **honesty**. Second, both will produce trees with large leaves so that asymptotically normality can kick in within each leaf.
+
+On the other hand, the two procedures will differ in how exactly they perform sample-splitting. Let's see each one in detail.
+
+## Double-sample causal trees
+
+In **double-sample causal trees**, the available training data is split into two equal parts: one half is used for placing splits, whereas the other half is used for estimating the desired response. The exact algorithm goes as follows.
+
+1. Draw a random subsample of size $s$ from $\{1, ..., n\}$ without replacement, and then divide it into two disjoint sets $\mathcal{I}$ and $\mathcal{J}.
+2. Grow a tree via recursive partitioning. The splits are chosen using any data *except* the responses $Y_i$ for the $\mathcal{I}$ subsample. The leaf must contain at least $k$ observations of each of treatment and control groups.
+3. Estimate leaf-wise treatment effect $\tau(x)$ using only the $\mathcal{I}$-sample observations:
+
+$$\hat{\tau}(x) = \frac{1}{|S_1|}\sum_{i \in S_1}Y_i - \frac{1}{|S_0|}\sum_{i \in S_0}Y_i \qquad \text{where} \qquad
+S_w = \{i : X_i \in L(x), W_i = w\}
+$$
+
+By averaging the output of many trees, we can compute an ensemble estimate of the conditional average treatment effect. Importantly, we are not wasting any data to satisfy the honesty property: each data point will sometimes belong to $\mathcal{I}$, sometimes to $\mathcal{J}$.
+
+The algorithm takes some time to run, so we'll only fit a few trees right now.
+
+```{r}
+# Fit the model
+set.seed(1001)
+cf <- grf::causal_forest(X = as.matrix(df_train[covariates]),
+                   Y = as.matrix(df_train["Y"]),
+                   W = as.matrix(df_train["W"]),
+                   num.trees = 2000, # Make this larger for better acc.
+                   num.threads = 1,
+                   honesty = TRUE,
+                   min.node.size = 100)
+
+# Predict CATE and its std error for each individual on the dataset
+cf_res <- predict(cf, df_test[covariates])
+tauhatx_cf <- cf_res$predictions %>% as.numeric()
+```
+
+## Propensity Forests
+
+**Propensity forests** work similarly to causal forests, but they ignore all outcome information $Y_i$ for placing splits, and use only the treatment assignment indicator $W_i$ and covariates $X_i$. The procedure is as follows.
+
+1. Draw a random subsample $\mathcal{I} \subset \{1, \cdots, n\}$ of size $| \mathcal{I} | = s$ (no replacement).
+2. Train a classification tree using sample $I$ where the outcome is the treatment assignment, i.e., on the $(Xi, Wi)$ pairs with $i \in \mathcal{I}$, making sure that each class has at least $k$ observations within each leaf.
+3. Same as for causal trees.
+
+The snippet below fits a propensity forest using the <font face="courier">causalTree</font> package. The confidence interval is computed using the *infinitesimal jackknife* method implemented in the <font face="courier">randomForestCI package</font>. Again, because the algorithm takes some time to run, we'll only fit a small number of trees here.
+
+
+```{r, results="hide"}
+fmla <- str_c("Y ~ ", str_c(covariates, collapse = "+"))
+set.seed(12345)
+pf <- causalTree::propensityForest(as.formula(fmla),
+                       data=df_train,
+                       treatment=df_train$W,
+                       split.Bucket=FALSE,
+                       sample.size.total = floor(nrow(df_train) / 2),
+                       mtry=ceiling(ncol(df_train)/3),
+                       nodesize=100,
+                       num.trees=2000,
+                       ncov_sample=14,
+                       ncolx=length(covariates))
+
+pf_res <- predict(pf,
+                  newdata=df_test, # Predicting for each test individual
+                  predict.all=TRUE,
+                  type="vector")
+
+tauhatx_pf <- pf_res$aggregate
+tauhatx_pf_varhat <- randomForestCI::infJack(pf_res$individual,
+                                             pf$inbag,
+                                            calibrate = TRUE)$var.hat
+
+```
+
+
+
+---
+
+# X-learners
+
+Kunzel et al (2017) propose a new meta-algorithm for CATE estimation. The authors begin by noting that many CATE algorithms either separately estimate *two* response functions, as in:
+
+$$\mu_1(x) = E[Y(1) | X=x] \qquad \text{and} \qquad \mu_1(x) = E[Y(0)|X=x]$$
+
+or they put the treatment variable along with the control variables and estimate a *single* function, like so:
+
+$$\mu(w, x) = E[Y(1) | W = w, X=x]$$
+
+They call the former class of methods *T-learners* (for "two") and the latter one *S-learners* (for "single"). Then, they propose an alternative *X-learner* that has the following procedure.
+
+1. Use any method to estimate separate response functions $\mu_1(x)$ and $\mu_0(x)$.
+2. Create *imputed individual treatment effects*:
+\begin{align}
+&\hat{D}_{1_i} = Y_i - \mu_0(X_i) \qquad \forall i \text{ in control group} \\
+&\hat{D}_{0_i} = Y_i - \mu_1(X_i) \qquad \forall i \text{ in treatment group}
+\end{align}
+3. Regress imputed treatment effects on covariates to obtain CATE estimates $\hat{\tau}_{0}(x)$ and $\hat{\tau}_1(x)$
+4. Take a weighted average of the CATE estimates
+$$\hat{\tau}(x) = \hat{g}(x)\hat{\tau}_0(x) + [1-\hat{g}(x)]\hat{\tau}_1(x)$$
+where $g$ is a function mapping to unit interval, typically chosen to be the propensity score.
+
+The motivation for this procedure is this. An *S-learner* works well when one of the treatment groups is much larger than the other because it pools information about both groups and so is able to pick up common trends in the data. On the other hand, the same *S-learner* might choose to completely ignore information about the treatment (e.g. a tree that doesn't split on $W_i$), which ends up biasing the CATE to zero since the resulting estimated function will be constant in $w$. In this case, a *T-learner* would do better. The authors claim that their meta-algorithm is able to ameliorate both of these disadvantages by the "crossing" technique (hence *"X"-learner*) shown in step 2 above.
+
+The snippet below uses code from the <font face="courier">hte</font> package developed by K\"{u}nzel et al (2017). Here we have chosen random forests as our base learner, but the package also contains a BART implementation.
+
+```{r, results="hide"}
+xl <- hte::X_RF(feat = as.data.frame(df_train[covariates]),
+                 tr = df_train$W,
+                 yobs = df_train$Y,
+                 ntree_first = 500,
+                 ntree_second = 500,
+                 ntree_prop = 500,
+                 nthread = 1)
+
+tauhatx_xl <- hte::EstimateCate(xl, df_test[covariates])
+```
+
+---
+
+# Sorted Group Average Treatment Effects (GATES)
+
+Chernozhukov, Demirer, Duflo and Fernandez-Val (2017) begin by noting that, in high-dimensional settings, there are limits to how well we can estimate and produce inference results about the CATE functions without making severe assumptions. For example, a theorem by Stone (1982) states a uniformly consistent nonparametric would need unrealistic amounts of data absent further assumptions. Similar results appear in earlier papers by Leeb and Pötscher (2006, 2008) about adaptive estimators.
+
+Faced with these negative results, the authors suggest that rather than severely restricting the class of available functions, we should use our (potentially biased biased and inconsistent) ML estimators as *proxies* for of CATE function that will allow us to learn some of its key aspects of interest. In other words, even though our ML estimators might be poor approximations of the true CATE, they can still tell us something interesting about it. The authors illustrate their method by providing algorithms for estimation and inference of three such features: the best linear predictor, or BLP, of CATE; the average CATE for groups of increasingly stronger treatment effect, which they call GATES; the difference in average characteristics of the most and least affected groups, which they call CLAN. 
+
+Here we will focus on the second one: **sorted group average treatment effect**, or GATES. As the name suggests, the idea is to divide the observations into groups depending on how strongly our ML method predicts that they were affected by the treatment. In practice, the parameter of interest is:
+
+$$E[\tau(X) \  | \ G_{k} ] \qquad G_k: k^{th} \text{ n-tile of estimated }\hat{\tau}(X)$$
+
+It's important to stress here that we haven't made any consistency assumptions, so it's not true that each $G_{k}$ will contain observations in the $k^{th}$ n-tile of the *true* CATE. Our hope is simply that the fixed map $X \mapsto \hat{\tau}(X)$  will provide us with subpopulations with interesting heterogeneity. That said, whenever consistency actually holds, then asymptotically so does the following (under mild regularity assumptions):
+
+$$E[\tau(X) \  | \ G_{1}] \leq \cdots \leq E[\tau(X) \  | \ G_{K}]$$
+
+Under consistency, we can additionally test whether treatment effects are equal across all subpopulations.
+
+$$E[\tau(X) \  | \ G_{1}] = \cdots = E[\tau(X) \  | \ G_{K}] = s$$
+
+**Remark** This should ring familiar to the *moving the goalposts* idea already discussed in the causal trees section. On one hand, we are admitting that we cannot reliably estimate a flexible, high-dimensional, non-sparse  $\tau$ function. At the same time, we are investigating what aspects of this object can be learned from the data at hand without making restrictive assumptions, and then we are applying reliable methods to do that.
+
+Back to GATES, Chernozhukov et al prove that we can estimate GATES using the  following weighted linear projection:
+
+$$Y_i = \sum_k\gamma_{k}\cdot (W_i - e(X_i)) \cdot 1\{ i \in G_{k}\}  + \nu_i \qquad E[w(X_i)\nu_i W_i] = 0$$
+
+where $e(\cdot)$ is the propensity score, and weights $w(x) = \frac{1}{e(x)(1 - e(x))}$. An additional set of terms $\alpha^{T}X_i$ may also enter to improve the precision of the estimator, but is unnecessary for idenfication.
+
+The snippet below provides a reference implementation of CATE, where we use predicted quartiles from random forests.
+
+```{r}
+gates <- function(dataset, covariates, outcome, treatment) {
+
+  # Split the sample into main and auxiliary
+  set.seed(1234)
+  df_split <- modelr::resample_partition(dataset, c(main = 0.5, aux = 0.5))
+  df_aux <- as.data.frame(df_split$aux)
+  df_main <- as.data.frame(df_split$main)
+
+  # On the auxiliary sample
+  # -----------------------
+  # Propensity score using regression forests
+  rf_prop <- randomForest::randomForest(x = as.matrix(df_aux[covariates]),
+                                        y = as.factor(pull(df_aux, treatment)),
+                                        num.trees = 200)
+  
+  # Conditional mean proxy using regression forests
+  rf_cate <- randomForest::randomForest(x = as.matrix(df_aux[c(covariates, treatment)]),
+                                        y = as.factor(pull(df_aux, treatment)),
+                                        num.trees = 200)
+  
+  
+  # On the main sample
+  # -----------------------
+  # Group variable by predicted CATE quintile 
+
+  y1 <- predict(rf_cate, newdata = mutate(df_main, W=1), 
+            type = "prob") %>% .[,2] %>% as.numeric()
+  y0 <- predict(rf_cate, newdata = mutate(df_main, W=0), 
+            type = "prob") %>% .[,2] %>% as.numeric()
+  df_main$G <- (y1 - y0) %>% 
+                dplyr::ntile(4) %>%  # Divide observations into 4-tiles
+                factor()
+  
+  # Propensity score offset W - e(X)
+  p <- predict(rf_prop, newdata = df_main, 
+               type = "prob") %>% .[,2] %>% as.numeric()
+  df_main$D <- as.data.frame(df_split$main)$W - p
+  
+
+  # Now regress on group membership variables
+  XX <- str_c(covariates, collapse="+")
+  fmla <- "Y ~" %>% str_c(XX) %>% str_c("+ D:G")
+  model <- lm(fmla, df_main) 
+  return(model) 
+}
+
+
+table_from_gates <-function(model) {
+  thetahat <- model%>% 
+             .$coefficients %>%
+             .[c("D:G1","D:G2","D:G3","D:G4")]
+  
+  # Confidence intervals
+  cihat <- confint(model)[c("D:G1","D:G2","D:G3","D:G4"),]
+  
+  res <- tibble(coefficient = c("gamma1","gamma2","gamma3","gamma4"),
+                 estimates = thetahat,
+                 ci_lower_90 = cihat[,1],
+                 ci_upper_90 = cihat[,2])
+  
+  return(res)
+}
+
+# Repeat for inference
+output <- rerun(30, table_from_gates(gates(df_train, covariates, "Y", "W"))) %>% # Increase reruns in practice!
+          bind_rows %>%
+          group_by(coefficient) %>%
+          summarize_all(median)
+
+kable(output,  booktabs = T, digits = 3) %>%
+  kableExtra::kable_styling(bootstrap_options=c("striped", "hover", "condensed", "responsive"),
+    full_width=FALSE)
+```
+
+Take a moment to read the last few lines of code. We are repeating the GATES algorithm several times, and at each time we produce slightly different results due to our random sample splitting. This is where another contribution of this paper comes in: the authors prove that the median $(1-\alpha)$-confidence interval will cover the true median estimate across partitions $(1-2\alpha)$% of the time. This doubling factor is the price we pay for the uncertainty we introduced by randomly splitting our sample. To illustrate that fact, we are reporting 90% confidence intervals above, instead of the 95% automatically produced by the `lm` function. Finally, note also that the point estimate for the groups might end up not being necessarily monotonic. If the estimator is consistent, these "mistakes" should disappear asymptotically.
+
+---
+
+# Visualizing and interpreting results
+
+<font size=1>Note: the code used in this section consists mostly of plot tuning that is not very interesting for us. <br> In order to reduce the clutter, we will hide the code, but you can still check it out in the original `.Rmd` source.</font>
+
+
+## Visualizing heterogeneity 
+
+For tree-based methods that output `rpart`-like objects, we can use the library `rpart.plot` to visualize the estimated tree. Here's what the output of our causal trees looks like.
+
+```{r, echo=FALSE}
+rpart.plot(tree,
+           type = 3,
+           fallen=TRUE,
+           leaf.round=1,
+           extra=100,
+           branch=.1,
+           box.palette="RdBu")
+```
+
+
+However, researchers should not easily fall into the trap of interpreting the variables above as causal effects. For example, the plot above should *not* be taken to mean that the average person who lives in a relatively rural area (`city < 0.5`), had they been transferred to a more urban area, would become much more receptive to the treatment. To see why, take a look at the next table showing the average covariate value on each leaf.
+
+```{r, echo=FALSE}
+# Map individuals to their leaf number
+individual_leaf <- treeClust::rpart.predict.leaves(tree, df_test)  %>% 
+                   as_tibble()  %>% 
+                   dplyr::rename(leaf=value) 
+
+# Add information about covariates
+leaf_covariates <- bind_cols(individual_leaf, df_test[covariates])
+
+# Get value of treatment on each leaf 
+leaf_cate <- tree$frame %>% as_tibble() %>%
+          dplyr::mutate(row = 1:nrow(.)) %>% 
+          dplyr::filter(var == "<leaf>") %>% # Filter nodes, leaves only
+          dplyr::rename(leaf=row, treatment_effect=yval) %>% 
+          dplyr::select(leaf, treatment_effect) 
+
+# Merge all the information above
+leaf_data <- left_join(leaf_covariates, leaf_cate, by="leaf")
+
+# Mean and stderr of each covariate on each leaf, 
+# sorted and renumbered by treatment effect value
+leaf_mean <- leaf_data %>% 
+               dplyr::group_by(leaf) %>%
+               dplyr::summarise_all(mean) %>%
+               dplyr::arrange(desc(treatment_effect)) %>%
+               dplyr::mutate(leaf = 1:nrow(.)) 
+
+# Rearrange columns by heterogeneity
+cov_order <- leaf_data %>%
+            select(covariates) %>%
+            summarize_all(sd) %>%
+            as.numeric %>% order
+
+# Plot
+plt <- leaf_mean %>% 
+        dplyr::select(leaf, covariates[cov_order]) %>%
+        melt(id="leaf") %>%
+        ggplot(aes(x=factor(leaf), y=variable, fill=value)) +
+        geom_raster() +
+        scale_fill_gradient2() + 
+        scale_x_discrete(breaks=seq_along(leaf_mean$treatment_effect),      
+                         labels=round(leaf_mean$treatment_effect, 2)) +
+        # From here on, all the code is optional styling
+        geom_tile(colour="white",size=0.25) +            # white cell border
+        labs(x="CATE",
+            y="", title="Average regressor value on each leaf") +# axis labels 
+        coord_fixed()+                                   # square cells
+        theme_grey(base_size=8)+                         # basic hue 
+        theme(
+          axis.text=element_text(face="bold"),      # axis font style
+          plot.background=element_blank(),          # cleaner background
+          panel.border=element_blank(),             # cleaner panel
+          legend.key.width=grid::unit(0.2,"cm"),    # slim legend color bar
+          axis.ticks=element_line(size=0.4),        # tick style
+          axis.text.x=element_text(size=7,          # tick label style
+                                   colour="grey40",
+                                   angle = 60,
+                                   hjust = 1),
+          plot.title=element_text(colour="grey40",  # plot title style
+                                  hjust=.5,size=7,
+                                  face="bold")
+        )
+
+plt
+
+```
+
+
+
+Now we can clearly see that the average individual in the most affected group (leftmost column), besides living in more urban areas, will likely also belong to a household with fewer whites and more minorities (`percent_[race]`), be younger (`median_age`, `percent_62yearsandover`) and less wealthy (`percent_income`). Not all of these variables were present in the tree splitting, and it's not clear which one might be driving the treatment effect. Moreover, the fact that the tree split on, say, `percent_hispanicorlatino` and not `percent_white` is probably due to finite-sample properties of the data set at hand. Once we take all of these caveats into account, it should be clear that the best way to understand the output of a causal tree is not as a representation of the true CATE function, but as a useful partition of our data set into groups of relevant heterogeneity.
+
+For more complex algorithms like causal forests, we can follow a similar approach by manually creating subpopulations based on predicted treatment effect strength. For variety, let's show the output on barcharts this time.
+
+```{r, fig.width=10,fig.height=10,echo=FALSE}
+cf_quintile <- df_test %>%
+            dplyr::select(covariates) %>%
+            dplyr::mutate(cate = tauhatx_cf) %>%
+            dplyr::mutate(cate_quintile = ntile(cate, n=5))
+
+m <- cf_quintile %>% group_by(cate_quintile) %>% summarize_all(mean) %>% melt(id="cate_quintile")
+s <- cf_quintile %>% group_by(cate_quintile) %>% summarize_all(~sqrt(var(.)/length(.))) %>% melt(id="cate_quintile")
+limits <- aes(ymax = m[,"value"] + s[,"value"], ymin=m[,"value"] - s[,"value"])
+
+m %>% ggplot(aes(x=factor(cate_quintile), y=value)) +
+      facet_wrap(~variable, nrow = 4) + 
+      geom_bar(aes(fill=factor(cate_quintile)), stat="identity") +
+      geom_errorbar(limits, width=.1) + 
+      ggtitle("Covariate values across predicted treatment effect quantiles") 
+```
+
+Once again, the group with largest effect (on the rightmost columns) seems to be composed of younger minority individuals living in more populated cities, whereas the average individual in the least affected group is more likely a white rural dweller. It's also interesting to check out what the algorithm is detects no heterogeneity, like gender in this example.
+
+**Remark** A caveat to the last few paragraphs is that we have been loosely describing the characteristics of each group without any explicit mention to statistical significance. While we won't delve into that here, the researcher should take into account loss of power due multiple hypothesis testing, as recommended List, Shaikh and Xu (2016).
+
+## Visualizing the effect of each covariate
+
+A benefit of estimating CATE flexibly is that we can investigate what happens at specific points in the covariate space, thus producing a "personalized" estimate. In the panels below, we again divide the data set by causal forest-predicted quintiles, and check out how our estimates of the treatment effect change as we vary the variable `median_age`, keeping every other covariate at their quintile-group median.
+
+
+```{r,fig.width=12, fig.height=3,  echo=FALSE}
+df_grid <- tibble(median_age=seq(-1.5, 1.5, length.out = 7))
+df_med <- cf_quintile %>% group_by(cate_quintile) %>% summarize_all(median) %>% select(-median_age)
+df_new <- crossing(df_grid, df_med) %>% arrange(cate_quintile, median_age)
+cf_pred <- predict(cf, df_new, estimate.variance=TRUE) 
+cf_quintile_pred <- crossing(df_med, df_grid) %>% mutate(tauhat=cf_pred$predictions,
+                                                         se=sqrt(cf_pred$variance.estimates))
+
+cf_quintile_pred %>% arrange(cate_quintile, median_age) %>%
+  ggplot() +
+  geom_line(aes(x=median_age, y=tauhat), color="blue") +
+   # scale_colour_gradient(low="coral", high="steelblue") +
+  geom_errorbar(aes(x=median_age, ymin=tauhat-1.96*se, ymax=tauhat+1.96*se, width=.1),color="blue") +
+  facet_wrap(~cate_quintile, nrow=1) +
+  xlab("Median age") +
+  ylab("Predicted treatment effect") +
+  theme_linedraw() 
+  
+```
+
+Confidence intervals will be large whenever there are few observations in the around the point we are estimating. (Note: we are only using a small portion of the original dataset in this tutorial. You may want to check out how these confidence intervals shrink by rerunning the code using the full dataset).
+
+We can also do the same for two variables using a heatmap or a surface plot. Here's an example. 
+
+```{r, echo=FALSE,fig.width=12, fig.height=3,  echo=FALSE}
+df_grid <- crossing(median_age=seq(-1.5, 1.5, length.out = 10), city=seq(-1.5, 1.5, length.out = 10))
+df_med <- cf_quintile %>% group_by(cate_quintile) %>% summarize_all(median) %>% select(-median_age, -city)
+df_new <- crossing(df_grid, df_med) %>% arrange(cate_quintile, median_age, city)
+cf_pred <- predict(cf, df_new, estimate.variance=TRUE) 
+cf_quintile_pred <- crossing(df_med, df_grid) %>% mutate(tauhat=cf_pred$predictions,
+                                                         se=sqrt(cf_pred$variance.estimates))
+
+cf_quintile_pred %>%
+  ggplot() +
+  geom_tile(aes(x=median_age, y=city, fill=tauhat)) +
+  facet_wrap(~cate_quintile, nrow=1) +
+  theme_linedraw() + scale_fill_gradientn(colours=rainbow(4))
+
+  
+```
+
+
+As we have seen before, young city dwellers seem to respond more strongly to the treatment than older rural dwellers.
+
+
+---
+
+
+# Comparing our predictions
+
+We'd like to compare how well our methods performed in terms of prediction error. In order to do so, let's begin by defining the following object.
+
+\begin{align}
+Y_i^{*} =
+\begin{cases}
+  \frac{1}{p}Y_i \qquad &\text{if} \qquad W_i = 1 \\
+  \frac{-1}{1-p}Y_i \qquad &\text{if} \qquad W_i = 0
+\end{cases}
+\end{align}
+
+where $p = P(W = 1)$. This is actually a high-variance unbiased estimator of the true individual treatment effect:
+
+\begin{align}
+E[Y_i^{*}] &= P(W=1)E[Y_i^{*}|W=1] + P(W=0)E[Y_i^{*}|W=0] \\
+           &= pE[\frac{1}{p}Y_i|W=1] + (1-p)E[\frac{-1}{1-p}Y_i|W=0] \\
+           &= pE[\frac{1}{p}Y_i(1)] + (1-p)E[\frac{-1}{1-p}Y_i(0)] \\
+           &= E[Y_i(1) - Y_i(0)] \\
+           &= E[\tau_i]
+\end{align}
+
+<font size=2>
+
+<b>Note</b> The third equality worked here because we are using a randomized experiment, but it would have worked us as well in a scenario with unconfoundedness provided that we used the propensity score $p(x) = P(W = 1 | X= x)$ instead of $p$.
+
+</font>
+
+
+In expectation, the squared distance between $Y_i^*$ and our prediction $\hat\tau(X_i)$ can be used to compare our estimators' mean square error. This is because of the following.
+
+\begin{align}
+E[(Y_i^{*} - \hat{\tau}(X_i))^2]
+  &=   E[(Y_i^{*} - \tau_i + \tau_i - \hat{\tau}(X_i))^2] \\
+  &=   E[(Y_i^{*} - \tau_i)^2] + E[(\tau_i - \hat{\tau}(X_i))^2]
+   + 2E[(Y_i^{*} - \tau_i)(\tau_i - \hat{\tau}(X_i))]\\
+  &= const +  E[(\tau_i - \hat{\tau}(X_i))^2]  + 0
+\end{align}
+
+where the first term in the last equality is a constant with respect to the algorithm used, so it gets cancelled out when we take the difference between two estimators.
+
+```{r}
+p <- mean(df_test$W)
+
+ystar <- (df_test$W - p)/(p*(1-p))*df_test$Y
+
+MSE <- as_tibble(list(
+            postlasso =  (ystar - tauhatx_pl)^2,
+            causal_trees = (ystar - tauhatx_ct)^2,
+            propensity_forests = (ystar - tauhatx_pf)^2,
+            causal_forests = (ystar - tauhatx_cf)^2,
+            xlearners = (ystar - tauhatx_xl)^2))
+
+
+m <- MSE %>% summarize_all(mean)
+s <- MSE %>% map_df(~sqrt(var(.)/length(.)))
+MSE_table <- bind_rows(m ,s)
+rownames(MSE_table) <- c("mean", "stderr")
+kable(MSE_table,  booktabs = T, digits = 3)
+```
+
+
+**Caveat** A flexible model like causal forests, while in theory being able to produce asymptotically unbiased and Normal estimates, in practice will only be able to do so if we have a sufficient number of observations. We haven't really escaped the curse of dimensionality, so if the heterogeneity we are trying to model is very high-dimensional and highly nonlinear with multiple interactions, we won't be able to produce reliable personalized estimates unless we have extremely large amounts of data. On the other hand, a simpler model like causal trees "moves the goalpost": it forgoes personalized estimates and fits a smaller number of parameters, but produces valid, high-quality estimates for specific subgroups. Practitioners should always keep these trade-offs in mind, decide what type of question they can answer, and choose their algorithms accordingly.
+
+
+
+
+---
+
+# Estimation of treatment policies
+
+The reason we care about treatment effect heterogeneity is that we'd like to assign the correct treatment to each individual or subpopulation. For example, a costly get-out-the-vote campaign should send mailings only to those more susceptible to it. Similarly, in the context of personalized medicine, a doctor would like to know whether to prescribe a treatment only if she expects it to improve her patient's condition. Or yet, in the advertising business, a company could save a lot of money by targeting users who are likely to purchase their product.
+
+To put it mathematically, we'd like to select a function $\pi$ that maps observed characteristics to an available action. Such a function is called a **policy**, and, in our context of treatment assignment, it maps an individual's characteristics to their level of treatment:
+
+$$\pi : X_i \mapsto W_i$$
+
+An optimal treatment assignment policy is one that maximizes expected utility.
+
+$$\pi^{*} \in \arg\max_{\pi \in \Pi} E[Y_i(\pi(X_i))] \qquad \text{ where } \Pi \text{ is a set of candidate policies }$$
+
+Any other non-optimal policy experiences **regret** $R(\pi)$.
+
+$$R(\pi) = E[Y_i(\pi^{*}(X_i))] - E[Y_i(\pi(X_i))]$$
+
+
+In Athey and Wager (2017), the authors study the problem of learning, from observational data, a binary treatment assignment policy $\hat{\pi}: X_i \mapsto \{+1,-1\}$ (the sign indicates treatment or not treatment). They show that, under unconfoundedness and the overlap assumption, it is possible to learn a function that exhibits small regret, and whose complexity increases with the amount of data.
+
+Before delving into the finer details, here's the intution. Suppose that we had access to an estimate of the treatment effect $\hat{\Gamma}_i$ for each individual $i$. Whenever $\hat{\Gamma}_i$ is positive, we'd like our policy to assign this individual to treatment ($\pi(X_i) = 1$), and not assign them when it's negative ($\pi(X_i) = -1$). In other words, we would like to maximize the average of the product $\pi(X_i)\Gamma_i$ across individuals:
+
+$$\hat{Q}(\pi) = \frac{1}{n}\sum_i \pi(X_i) \hat{\Gamma}_i$$
+
+Next, we can transform this into a problem that we are used to solving. By breaking down $\hat{\Gamma}_i = |\hat{\Gamma}_i| \cdot \text{sign}(\hat{\Gamma}_i)$ we can recast this as a classification problem where the goal is try to maximize the correlation between the policy assignment ($\pi(X_i) \in \{ +1, -1\}$) and the sign of its estimated effect ($sign(\hat{\Gamma}_i) \in \{ +1, -1\}$). Also, note the role of the weights: if a patient had $\hat{\Gamma} \gg 0$ but our policy predicted $\hat{\pi}(X_i) = -1$, it would have pay the very large penalty of $-\hat{\Gamma}_i$. An optimal policy will be the function that is able avoid this mistake the most within the available class $\Pi$.
+
+Before we move on, let's just take a moment to note that while we have rewritten this as a classification problem for algorithmic purposes, our objective is actually not to estimate a propensity score. We are not trying to predict the treatment of past individuals -- in fact, this method can be used even if the treatment was randomly assigned! Instead, we are fitting a new function that will allow us to *choose* a treatment assignment status given individual characteristics. In other words, we are producing a rule that answers the question: "if a new individual $j$ with characteristics $X_j$ comes tomorrow, should we send them to treatment or not?" And if patient $j$ has similar characteristics to patients with high $\hat{\Gamma}_i$ in the data, then $j$ should be "classified" into treatment.
+
+Back to the problem at hand. So far, we have been assuming access to good estimates of the treatment effect $\hat{\Gamma}_i$. What makes Athey and Wager (2017)'s method powerful is that they indeed provide us with provably optimal estimates of it (in the sense of semiparametric efficiency). This is possible by leveraging ideas from the doubly-robust estimation literature, in particular using the **double machine learning** methods of Chernozhukov et al (2017).
+
+$$
+\hat{\Gamma}_i := \hat{\mu}_{+1}^{-k(i)}(X_i) - \hat{\mu}_{-1}^{-k(i)}(X_i) + W_i \frac{Y_i -  \hat{\mu}_{W_i}^{-k(i)}(X_i)}{\hat{e}_{W_i}^{-k(i)}(X_i)}
+$$
+
+Forgetting about the superscripts for a moment, this should look familiar: the first two terms make up a direct estimates of CATE, where the last term is an inverse propensity score estimate of the same object. This is a *doubly-robust* estimator because only one of $\hat{\mu}$ or $\hat{e}$ needs to be correctly specified, and the term *double machine learning* is used because they can be semi- or non-parametric estimators from the machine learning literature. Finally, the superscripts indicate a form of sample splitting: the data is divided into $K$ evenly-sized folds, and the prediction for the $i$th individual from fold $k(i)$ uses function that were estimated on the remaining folds.
+
+
+In the snippet below, we apply Athey and Wager (2017)'s method to our data. Note again that we are working on experimental data in this tutorial, but everything would work on observational data as well under unconfoundedness.
+
+```{r}
+# Begin by transform W=0 into W=-1.
+set.seed(12345)
+df_mutated <- df %>% dplyr::mutate(W = 2*W - 1)
+```
+
+First we will estimate $\Gamma_i$. To make things simple and fast, our machine learning method of choice for both $\hat{\mu}$ and $\hat{e}$ will be an off-the-shelf regression forest algorithm.
+
+```{r}
+# Helper function
+predict_oof <- function(fmla, dataset) {
+          # 5-fold CV
+          modelr::crossv_kfold(dataset, k = 5) %>%
+          # logistic regression with LASSO penalty
+          mutate(model = map(train, ~randomForest(fmla,
+                                      data = as.data.frame(.),
+                                      type="classification",
+                                      ntree=1000))) %>%
+          # Predict for W=+1 using out-of-fold data
+          mutate(pos = map2(model, test,
+                         ~predict(.x,
+                         .y %>% as_tibble %>% mutate(W = +1),
+                          type = "prob")[,2])) %>%
+          # Predict for W=-1 using out-of-fold data
+          mutate(neg = map2(model, test,
+                         ~predict(.x,
+                         .y %>% as_tibble %>% mutate(W = -1),
+                          type = "prob")[,2])) %>%
+        # Gather columns and output
+        unnest(pos, neg) %>%
+        .[,c("pos", "neg")]
+}
+
+set.seed(12345)
+# Out-of-fold predictions of conditional mean function
+regressors <- str_c(c(covariates), collapse="+")
+fmla_y <- as.formula(str_c("factor(Y) ~ W +", regressors))
+muhat <- predict_oof(fmla_y, df_mutated)
+
+# Out-of-fold predictions of propensity score
+fmla_w <- as.formula(str_c("factor(W) ~ ", regressors))
+ehat <- predict_oof(fmla_w, df_mutated)
+
+# Create gamma variable
+muhat_w <- ifelse(df_mutated$W, muhat$pos, muhat$neg)
+ehat_w <- ifelse(df_mutated$W, ehat$pos, ehat$neg)
+gamma <- muhat$pos - muhat$neg +
+          df_mutated$W * (df_mutated$Y - muhat_w)/ehat_w
+```
+
+Finally, we have to make a choice of $\Pi$. This class of functions must have bounded complexity, so we will choose decision trees of maximum depth of 2.
+
+```{r}
+# Create augmented data set with Z and lambda
+df_aug <- df_mutated %>%
+            mutate(Z = sign(gamma)) %>%  # Is the effect positive?
+            mutate(lambda = abs(gamma))  # How large is it?
+
+df_aug$Z <- factor(df_aug$Z, labels = c("Don't", "Treat"))
+pihat <- rpart(formula = str_c("Z ~ ", regressors), # Predict sign of treatment
+                data = df_aug,
+                weights = lambda,  # Larger effect --> Higher weight
+                method = "class",
+                control = rpart.control(maxdepth = 3))
+
+rpart.plot(pihat, type = 3,
+           fallen =FALSE,
+           leaf.round=1,
+           extra=100,
+           branch=.1,
+           box.palette="RdBu")
+```
+
+According to this result, individuals who voted in recent elections are more susceptible to treatment (like we saw in the post-LASSO results), as do younger individuals from rural areas (similar to some of the causal trees and forests results). The optimal policy says we should treat individuals that fall into this category, and not treat the other ones.
+
+---

@@ -1,0 +1,791 @@
+---
+title: "Average Treatment Effects and Heterogeneous Treatment Effects"
+author:
+- affiliation: Stanford University
+  name: Prof. Susan Athey
+- affiliation: Aarhus University
+  name: PhD student, Nicolaj Naargaard Mahlbach
+date: "January 7, 2018"
+output:
+  html_document:
+    number_sections: no
+    toc: yes
+    toc_depth: 2
+  pdf_document:
+    toc: yes
+keywords: average treatment effect; machine learning; microeconometrics
+abstract: |
+  The focus of this tutorial is on heterogeneous treatment effects in randomized experiments. The techniques include LASSO, post-selection OLS, honest causal tree, and causal forest. We focus on machine learning methods as an alternative to standard microeconometric methods.
+---
+
+To recap, the economic question at hand concerns the effect of social pressure on voter turnout and this builds on a randomized controlled trial (RCT) by Gerber, Green, and Larimer (2008) ([for more details, see article](http://isps.yale.edu/sites/default/files/publication/2012/12/ISPS08-001.pdf)). As the first tutorial introduces the specific data set, we will not devote time to discuss it here. 
+
+In the following, we load all the necessary packages.
+```{r setup, include=TRUE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, comment=NA)
+
+# Load all packages needed to execute the job
+# If the packages are not installed, write
+# install.packages("<name of package>")
+
+#CRAN Packages
+library(devtools)
+library(ggplot2)    # plot
+library(devtools)   # install from GitHub 
+library(dplyr)      # tables
+library(glmnet)     # lasso
+
+library(grf)        # generalized random forest
+
+#Non-CRAN Packages
+# Need to install from github, uncomment next lines, and requires package devtools
+#install_github('susanathey/causalTree')
+#install_github('swager/randomForestCI')
+#install_github('swager/balanceHD')
+# if you have an error in installing from github, you may need developer tools (rtools on Windows)
+library(causalTree)
+library(randomForestCI)
+library(balanceHD)  # balance residuals
+
+```
+
+We load the data as a .csv file.
+```{r}
+# Clear RStudio
+rm(list = ls())
+
+# Start timer
+ptm <- proc.time()
+
+# Set seed
+set.seed(2045)
+
+# Loading data
+filename <- 'socialneighbor.csv'
+
+# Creating raw data
+data_raw <- read.csv(filename)
+
+# Restricting the sample size
+n_obs <- 35000 # Reduce for testing; choosing a sample size of 5,000 runs in few minutes
+data_raw <- data_raw[sample(nrow(data_raw), n_obs), ]
+
+# Rename treatment variable
+names(data_raw)[names(data_raw) == "treat_neighbors"] <- "W"
+
+# Rename outcome variable, i.e. voted in the August 2006 primary
+names(data_raw)[names(data_raw) == "outcome_voted"] <- "Y"
+
+# Extract covariates
+covariates_names <- c("sex", "yob", "city", "hh_size", "totalpopulation_estimate",
+                      "percent_male", "median_age", "percent_62yearsandover",
+                      "percent_white", "percent_black", "percent_asian", "median_income",
+                      "employ_20to64", "highschool", "bach_orhigher","percent_hispanicorlatino")
+
+# Create data frame of covariates
+covariates_raw <- data_raw[covariates_names]
+
+# Scale covariates
+covariates_scaled <- scale(covariates_raw)
+
+# Extract indicator variables
+dummy_names <- c("g2000", "g2002", "p2000", "p2002", "p2004")
+
+# Create data frame ofindicator variables
+dummy_raw <- data_raw[dummy_names]
+
+# Combine data into one data frame
+data_scaled <- data.frame(Y = data_raw[["Y"]], 
+                          W = data_raw[["W"]], 
+                          dummy_raw, 
+                          covariates_scaled)
+
+# Omit NA's
+data_complete <- na.omit(data_scaled)
+
+# Cleaning work space
+rm(list = setdiff(ls(), c("data_complete", "ptm")))
+```
+
+Next, we implement the decision rule, turning the randomized experiment into an observational study by randomly dropping certain candidate observations. Again, this is fully explained in our first tutorial.
+```{r}
+## Modify data set
+# Creating modified data set
+data_modified <- data_complete
+
+# Maximal percentage of candidates to be randomly removed
+remove_pct <- 0.80
+
+## Introducing bias by systematically deleting some obsercations
+# Voting history
+# Remove control with recent voting history
+# Count the potential candidates to be removed
+size_1 <- sum(data_modified$W == 0 & data_modified$p2004 == 1 & data_modified$p2000 == 1 & data_modified$p2002 == 1)
+
+data_modified <- data_modified[-sample(which(data_modified$W == 0 &
+                                             data_modified$p2000 == 1 &
+                                             data_modified$p2002 == 1 &
+                                             data_modified$p2004 == 1), 
+                                       size = remove_pct * size_1), ]
+
+# Remove treated with no recent voting history
+# Count the potential candidates to be removed
+size_2 <- sum(data_modified$W == 1 & data_modified$p2004 == 0 & data_modified$p2000 == 0 & data_modified$p2002 == 0)
+
+data_modified <- data_modified[-sample(which(data_modified$W == 1 &
+                                             data_modified$p2000 == 0 &
+                                             data_modified$p2002 == 0 &
+                                             data_modified$p2004 == 0), 
+                                       size = remove_pct * size_2), ]
+```
+
+
+Next, we will split the data into a training sample and a testing sample. This is a common approach in the machine learning literature to assess the ability to generalize out-of-sample. We allow the training proportion to be set dynamically by the researcher, but common practice is in the interval $\left(0.67, 0.9\right)$. 
+```{r}
+# Set up fraction for training/testing split
+train_pct <- 0.9
+
+# Create random sample index for training
+train_index <- sample(nrow(data_modified), size = round(nrow(data_modified) * train_pct), replace = FALSE)
+
+# Construct training and testing data as data frames with both Y, W, and covariates
+train <- data_modified[train_index, ]
+test <- data_modified[-train_index, ]
+
+# Construct reponse variable as a single-column matrix
+Y_train <- as.matrix(train$Y, ncol = 1)
+Y_test <- as.matrix(test$Y, ncol = 1)
+
+# Construct treatment variable as a single-column matrix
+W_train <- as.matrix(train$W, ncol = 1)
+W_test <- as.matrix(test$W, ncol = 1)
+
+# Construct covariates as a matrix
+X_train <- as.matrix(subset(train, select = c(setdiff(colnames(train), c("Y", "W")))))
+X_test <- as.matrix(subset(test, select = c(setdiff(colnames(test), c("Y", "W")))))
+```
+
+We begin by the propensity forest algorithm. The propensity forest is similar to causal forest, but whereas causal forest uses the actual outcome variable in the tree building phase, the propensity forest splits the trees using the covariates and treatment vector. Specifically, we build a tree with $W \sim X$, and then estimate the treatment effects within each leaf, which conceptually corresponds to propensity matching. The overall purpose of causal forest is to estimate the effect of the treatment at the leaves of the trees, and the same applies to propensity forest.  This method is similar to propensity score matching.  
+```{r, results=FALSE}
+# List covariates in the linear model
+sumx <- paste(c(colnames(X_train)) , collapse = " + ")
+
+# Get formula
+pf_fml <- as.formula(paste("Y", sumx, sep = " ~ "))
+
+# Settings for Propensity Forest (PS)
+# Minimum number of observations for treated and control cases in one leaf node
+node_size <- 25 
+
+# Number of trees to be built in the causal forest
+num_trees <- 2000 # make 2000
+
+# Sample size used to build each tree in the forest (sampled randomly with replacement)
+sample_size <- floor(nrow(train) / 2)
+
+# Number of covariates randomly sampled to build each tree in the forest
+covar_size <- floor(ncol(X_train) / 3) 
+
+# Train propensity forest model
+pf <- propensityForest(formula = pf_fml,
+                       data = train,
+                       treatment = W_train,
+                       split.Bucket = FALSE,
+                       sample.size.total = sample_size,
+                       nodesize = node_size,
+                       num.trees = num_trees,
+                       mtry = covar_size,
+                       ncolx = ncol(X_train),
+                       ncov_sample = covar_size)
+
+# Predict in test data  
+pf_pred_test <- predict(pf, newdata = test)
+
+
+
+```
+
+
+
+Next, we turn to the generalized random forest package.  We try it first without residualizing, but just run with Y, W, X.  Second, we try it after residualizing first,
+which is more important for an observational study than for a randomized experiment,
+but generally brings gains in both places. To residualize, you can use a standard random forest or lasso prediction
+package to estimate the conditional means of the treatment, the control outcomes, and
+the treated outcomes. Use grf's causal forest routine on the residuals. 
+A LASSO might be preferred if there are strong linear effects of covariates on outcomes.
+
+---
+
+We first estimate a causal forest without residualizing first. This is determined by the option _precompute.nuisance_, which we set to _FALSE_.
+```{r}
+# Settings for Gradient Forest (GS)
+# Number of trees grown in the forest
+num_trees <- 2000 # make 2000
+
+# The forest will grow ci.group.size trees on each subsample.
+ci_size <- 4
+
+# First run regression forests to estimate y(x) = E[Y|X=x] and w(x) = E[W|X=x], and then run a causal forest on the residuals?
+pre_comp <- FALSE
+
+# Train gradient forest model
+gf <- causal_forest(X = X_train,
+                    Y = Y_train,
+                    W = W_train,
+                    num.trees = num_trees,
+                    ci.group.size = ci_size,
+                    precompute.nuisance = pre_comp)
+
+# Predict in test data  
+gf_pred_test <- predict(gf, newdata = X_test, estimate.variance = TRUE)
+
+# Predict in training data
+gf_pred_train <- predict(gf, newdata = X_train, estimate.variance = TRUE)
+
+
+# Variance plot
+plot(gf_pred_train$predictions, gf_pred_train$variance.estimates)
+```
+
+
+Next, we residualize first. Note that we can use LASSO or random forest prediction, and we choose to stick with random forest here. Essentially, we estimate the conditional means of the treatment and the response. After taking first difference between the actual treatment and the estimated treatment and likewise for the response, we use causal forest to estimate the treatment effects by specifying the covariates and the residualized response and treatment.  Note that also if we set precompute.nuisance = TRUE, the routine would do this for us.
+```{r}
+# Estimate the conditional means of the treatment
+W_rf <- regression_forest(X = X_train, 
+                          Y = W_train, 
+                          num.trees = num_trees,
+                          ci.group.size = ci_size)
+
+# Predict residuals
+W_res <- W_train - predict(W_rf, newdata = X_train)$predictions
+
+# Estimate the conditional means of the response
+Y_rf <- regression_forest(X = X_train, 
+                          Y = Y_train, 
+                          num.trees = num_trees,
+                          ci.group.size = ci_size)
+
+# Predict residuals
+Y_res <- Y_train - predict(Y_rf, newdata = X_train)$predictions
+
+# Causal forest on residuals
+# Train gradient forest model
+gf_res <- causal_forest(X = X_train,
+                        Y = Y_res,
+                        W = W_res,
+                        num.trees = num_trees,
+                        ci.group.size = ci_size,
+                        precompute.nuisance = pre_comp)
+
+# Predict in test data  
+gf_res_pred_test <- predict(gf_res, newdata = X_test, estimate.variance = TRUE)
+
+# Predict in training data
+gf_res_pred_train <- predict(gf_res, newdata = X_train, estimate.variance = TRUE)
+
+# Variance plot
+plot(gf_res_pred_train$predictions, gf_res_pred_train$variance.estimates)
+```
+
+
+# Part 2: Heterogeneous Treatment Effects in Randomized Experiments  
+Now we return to the un-altered randomized experiment. Use random sampling to divide the data set into three equal size data sets, call them A, B, and C
+
+
+```{r}
+# Set up fraction for main split
+pct_main <- 2/3
+
+# Create random sample index for main split
+index_main <- sample(nrow(data_complete), size = round(nrow(data_complete) * pct_main), replace = FALSE)
+
+# Construct data frame with both Y, W, and covariates
+data_main <- data_complete[index_main, ]
+data_C <- data_complete[-index_main, ]
+
+# Set up fraction for causal split
+pct_causal <- 1/2
+
+# Create random sample index for causal split
+index_causal <- sample(nrow(data_main), size = round(nrow(data_main) * pct_causal), replace = FALSE)
+
+# Construct data frame with both Y, W, and covariates
+data_A <- data_main[index_causal, ]
+data_B <- data_main[-index_causal, ]
+
+# Construct reponse variable as a single-column matrix
+Y_A <- as.matrix(data_A$Y, ncol = 1)
+Y_B <- as.matrix(data_B$Y, ncol = 1)
+Y_C <- as.matrix(data_C$Y, ncol = 1)
+
+# Construct treatment variable as a single-column matrix
+W_A <- as.matrix(data_A$W, ncol = 1)
+W_B <- as.matrix(data_B$W, ncol = 1)
+W_C <- as.matrix(data_C$W, ncol = 1)
+
+# Construct covariates as a matrix
+X_A <- as.matrix(subset(data_A, select = c(setdiff(colnames(data_A), c("Y", "W")))))
+X_B <- as.matrix(subset(data_B, select = c(setdiff(colnames(data_B), c("Y", "W")))))
+X_C <- as.matrix(subset(data_C, select = c(setdiff(colnames(data_C), c("Y", "W")))))
+
+# Clear workspace
+rm(pct_main, pct_causal, index_main, index_causal, data_main, data_complete)
+```
+
+As we will compare performance of the different methods based on out-of-sample MSE, we will subsequently use sub-sample A as training data, sample B as estimation data (when needed) and sub-sample C as testing data, unless otherwise stated.
+
+
+## Problem 2
+
+---
+We first use LASSO to estimate heterogeneous treatment effects (interactions between w and X's) in Sample A.  We will choose lambda via cross-validation. We will also compare the results to post-selection OLS: take the variables with non-zero coefficients and run an OLS regression of y on the selected coefficients.  This eliminates the bias from penalized regression (given the specification).  Next, we take the non-zero selected variables, and repeat the regression in Sample B and Sample C. We ask the question, how do the coefficients and confidence intervals compare for your results on Sample A, and the results on Samples B and C?
+
+---
+
+We start out be running LASSO to estimate the heterogeneous effects. For intuition about LASSO, see the first tutorial. Note that we create copies of the sub-samples and alter the treatment variables to be only $0$ or $1$, respectively, and use this when making predictions. This is a practical trick for estimating E[Y|X=x,W=1]-E[Y|X=x,W=0]. 
+```{r}
+# Re-create data frame C and set treatment W to 0 for all observations
+data_C_W0 <- data_C
+data_C_W0$W <- 0
+
+# Re-create data frame C and set treatment W to 1 for all observations
+data_C_W1 <- data_C
+data_C_W1$W <- 1
+
+# Get formula
+sumx <- paste(c(colnames(X_A)) , collapse = " + ")
+linear_het <- as.formula(paste("Y", paste("W * (", sumx, ") ", sep = ""), sep = " ~ "))
+
+# Get model matrix used in the glmnet package
+train_A <- model.matrix(object = linear_het, data = data_A)[, -1]
+test_C_W0 <- model.matrix(object = linear_het, data = data_C_W0)[, -1]
+test_C_W1 <- model.matrix(object = linear_het, data = data_C_W1)[, -1]
+
+# Train lasso model using cross-validation
+lasso_linear_A <- cv.glmnet(x = train_A,
+                            y = Y_A,
+                            family = 'gaussian')
+
+# Make predictions for W = 0 and W = 1 using cross-validated penalty (\lambda)
+pred_lasso_W0 <- predict(lasso_linear_A, newx = test_C_W0, s = lasso_linear_A$lambda.1se)
+pred_lasso_W1 <- predict(lasso_linear_A, newx = test_C_W1, s = lasso_linear_A$lambda.1se)
+
+# Compute heterogeneous treatment effects
+pred_lasso_C <- pred_lasso_W1 - pred_lasso_W0
+
+# Plot MSE vs. shrinkage parameter
+plot(lasso_linear_A)
+```
+
+Then, we turn to post-selection OLS. The _post-selection_ refers to the first part where we select the relevant variables by LASSO. Now, we run OLS only on the relevant variables selected by LASSO.
+```{r}
+# List of non-zero variables
+coef <- predict(lasso_linear_A,
+                s = lasso_linear_A$lambda.1se,
+                type = "nonzero")
+
+# Index the column names of the matrix in order to index the selected variables
+colnames <- colnames(train_A)
+selected_vars <- colnames[unlist(coef)]
+
+# Get formula for non-zero coefficients
+post_selec_ols_fml <- as.formula(paste("Y", paste(append(selected_vars, "W"), collapse = " + "), sep = " ~ "))
+
+# Train post-selection OLS model using non-zero coefficients and data A
+post_selec_ols_A <- lm(formula = post_selec_ols_fml,
+                       data = data_A)
+
+# Make predictions for W = 0 and W = 1
+pred_ols_W0_C <- predict(post_selec_ols_A, newdata = data_C_W0)
+pred_ols_W1_C <- predict(post_selec_ols_A, newdata = data_C_W1)
+
+# Compute heterogeneous treatment effects
+pred_post_selec_ols_C <- pred_ols_W1_C - pred_ols_W0_C
+
+```
+We can also compare the coefficient estimates across sub-samples.  How do the coefficents compare between those where the same data were used to select the specification and estimate parameters, and those where different data were used?  Why do you think that happens?  Typically, sample splitting is very important in practice, and it is not recommended to use the same data to select the model and to estimate parameters unless you can establish that it works (by showing that sample splitting gives similar answers.)  You would generally get tighter standard errors by using all of your data to both select the model and estimate parameters, but also the coefficients are usually biased if you do that.
+```{r}
+
+post_selec_ols_B <- lm(formula = post_selec_ols_fml,
+                       data = data_B)
+post_selec_ols_C <- lm(formula = post_selec_ols_fml,
+                       data = data_C)
+
+
+summary(post_selec_ols_A)
+summary(post_selec_ols_B)
+summary(post_selec_ols_C)
+
+```
+Next we use https://github.com/susanathey/causalTree, use the command honest.causalTree to build and prune an honest Causal Tree.  To see the parameter estimates and standard errors, we use the following trick: create a factor variable for the leaves in sample B and sample C, and run linear regressions that estimate the treatment effect magnitudes and standard errors
+
+---
+
+The notion of _honest_ stems from building the tree structure on a training sample and the estimate the leafs on an estimation sample. Here, we use sub-sample A as the training data and sub-sample B as the estimation sample. Note the we do not need to explicitly formulate the interactions. This is exactly the benefit of tree-based methods.
+```{r, results=FALSE}
+# Get formula
+honest_tree_fml <- as.formula(paste("Y", sumx, sep = " ~ "))
+
+# Set parameters
+split.Rule.temp <- "CT"
+cv.option.temp <- "CT"
+split.Honest.temp <- TRUE # Build honost tree
+cv.Honest.temp <- TRUE
+split.alpha.temp <- 1/2
+cv.alpha.temp <- 1/2
+split.Bucket.temp <- TRUE
+bucketMax.temp <- 100
+bucketNum.temp <- 5
+minsize.temp <- 25
+
+# Train honest causal tree
+honest_tree <- honest.causalTree(formula = honest_tree_fml,
+                                 data = data_A,
+                                 treatment = W_A,
+                                 est_data = data_B,
+                                 est_treatment = W_B,
+                                 split.Rule = split.Rule.temp,
+                                 split.Honest = split.Honest.temp,
+                                 split.Bucket = split.Bucket.temp,
+                                 cv.option = cv.option.temp,
+                                 cv.Honest = cv.Honest.temp,
+                                 split.alpha = split.alpha.temp,
+                                 cv.alpha = cv.alpha.temp,
+                                 bucketMax = bucketMax.temp,
+                                 bucketNum = bucketNum.temp,
+                                 minsize = minsize.temp)
+
+# Prune honest tree
+opcpid <- which.min(honest_tree$cp[, 4])
+opcp <- honest_tree$cp[opcpid, 1]
+honest_tree_prune <- prune(honest_tree, cp = opcp)
+
+# Construct factor variables for the leaves in samples A, B, C
+data_A$leaf <- as.factor(round(predict(honest_tree_prune,
+                                       newdata = data_A,
+                                       type = "vector"), 4))
+
+data_B$leaf <- as.factor(round(predict(honest_tree_prune,
+                                       newdata = data_B,
+                                       type = "vector"), 4))
+
+data_C$leaf <- as.factor(round(predict(honest_tree_prune,
+                                       newdata = data_C,
+                                       type = "vector"), 4))
+
+# Run linear regression that estimate the treatment effect magnitudes and standard errors
+honest_ols_A <- lm( Y ~ leaf + W * leaf - W -1, data = data_A)
+honest_ols_B <- lm( Y ~ leaf + W * leaf - W -1, data = data_B)
+honest_ols_C <- lm( Y ~ leaf + W * leaf - W -1, data = data_C)
+
+```
+The linear regression is specified so that the coefficients on the leaves are the treatment effects.  Look at the difference between the coefficients on the leaves in the training sample, sample A, and the estimation and test samples, samples B and C.  Usually the results in the training sample are more extreme, because the same data is used to select the model and to estimate the effects.  Samples B and C are similar to one another because they are both independent samples and they were not used to select the leaves.
+
+Another important point is that you cannot inspect the tree and draw conclusions about covariates that do NOT matter.  The Causal Tree ``moves the goalposts'' and finds a simple representation of heterogeneity.  If you want to describe a leaf, a better way to do it than simply looking at the definition of the leaf is to look at the distribution of all covariates within the leaf, and compare to other leaves.  A good thing to add here would be a table that shows summary statistics by leaf.
+```{r}
+
+# Summary from the linear regression
+summary(honest_ols_A)
+summary(honest_ols_B)
+summary(honest_ols_C)
+
+# Predict from honest tree on training
+honest_tree_pred_A <- predict(honest_tree_prune, newdata = data_A, type = "vector")
+
+# Predict from honest tree on estimation and 
+honest_tree_pred_B <- predict(honest_tree_prune, newdata = data_B, type = "vector")
+honest_tree_pred_C <- predict(honest_tree_prune, newdata = data_C, type = "vector")
+
+# Plot splits
+par(mar = c(1, 1, 1, 1)) 
+plot(honest_tree_prune, uniform = TRUE, 
+     main = "Honest tree example")
+text(honest_tree_prune, use.n = TRUE, all = TRUE, cex=.6)
+
+# Or use build-in command
+
+rpart.plot(honest_tree_prune)
+```
+There are multiple packages for plotting; there is also fancyrpartplot.  If the plot is hard to read, you can prune the tree more and re-plot.
+
+```{r, results = FALSE}
+dev.off()
+```
+
+Next we estimate causal forest using causal.forest from grf package using residualization
+
+---
+
+We residualize in one command this time by setting _precompute.nuisance_ to _TRUE_.
+```{r}
+# Settings for Gradient Forest (GS)
+# Number of trees grown in the forest
+num_trees <- 2000 # make 2000
+
+# The forest will grow ci.group.size trees on each subsample.
+ci_size <- 4
+
+# First run regression forests to estimate y(x) = E[Y|X=x] and w(x) = E[W|X=x], and then run a causal forest on the residuals?
+pre_comp <- TRUE
+
+# Train gradient forest model
+cf_2 <- causal_forest(X = X_A,
+                      Y = Y_A,
+                      W = W_A,
+                      num.trees = num_trees,
+                      ci.group.size = ci_size,
+                      precompute.nuisance = pre_comp)
+
+# Predict in test data  
+cf_2_pred_C <- predict(cf_2, newdata = X_C, estimate.variance = TRUE)
+
+# Predict in training data
+cf_2_pred_A <- predict(cf_2, newdata = X_A, estimate.variance = TRUE)
+
+```
+We make a variance plot.
+
+```{r}
+# Variance plot
+plot(cf_2_pred_A$predictions, cf_2_pred_A$variance.estimates)
+```
+
+```{r}
+
+## Visualize the results
+# Extract names of both Y, W, and covariates
+data_A <- data_A[, !(names(data_A) %in% c("leaf", "Y","W"))]
+names_A <- names(data_A)
+
+# Create fake data with original dimensions
+train_fake <- as.matrix(data_A)
+
+# Calculate medians in fake data
+medians <- apply(X = train_fake, MARGIN = 2, FUN = median)
+
+# Extract unique values of "Year of Birth"
+unique_yob <- sort(unique(as.numeric(train_fake[, "yob"])))
+
+# Extract unique values of "Total Population Estimate"
+unique_totalpopulation_estimate <- sort(unique(as.numeric(train_fake[, "totalpopulation_estimate"])))
+
+# Expand grid of unique values, i.e. matrix of (length(unique_yob) x length(unique_totalpopulation_estimate)) x 2
+unique_val = expand.grid(yob = unique_yob,
+                         totalpopulation_estimate = unique_totalpopulation_estimate)
+
+# Create data matrix of medians (large matrix due to the grid expansion)
+train_focus <- outer(rep(1, nrow(unique_val)), medians)
+
+# Replace median values of "Year of Birth" by the unique values
+train_focus[, "yob"] = unique_val[, "yob"]
+
+# Replace median values of "Total Population Estimate" by the unique values
+train_focus[, "totalpopulation_estimate"] = unique_val[, "totalpopulation_estimate"]
+
+# Reformat focus matrix to data frame
+train_focus <- data.frame(train_focus)
+
+# Expand grid and format as factor
+direct_df <- expand.grid(yob = factor(unique_yob),
+                         totalpopulation_estimate = factor(unique_totalpopulation_estimate))
+
+# Predict conditional ATE (CATE)
+temp <- predict(cf_2, newdata = train_focus, estimate.variance=FALSE)$predictions
+direct_df$cate <- temp
+
+# Construct heatmap using gggplot2
+heatmap_plot <- ggplot(data = direct_df, aes(x = totalpopulation_estimate, y = yob)) +
+  geom_tile(aes(fill = cate), colour = "white") +
+  scale_fill_gradient(low = "aquamarine", high = "purple") + 
+  labs(title = "Heatmap of CATE",
+       x = "Total Population Estimate",
+       y = "Year of Birth") +
+  theme(legend.position = "bottom",
+        plot.title = element_text(hjust = 0.5, 
+                                  face ="bold", 
+                                  colour = "black", 
+                                  size = 12)) + 
+  theme(axis.line=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank())
+
+# Plot heatmap
+heatmap_plot
+
+# Create heatmap data for native function heatmap()
+heatmap_data <- direct_df
+
+# Order by "Year of Birth" (increasing)
+heatmap_data <- heatmap_data[order(heatmap_data$yob), ]
+
+# Reshape data as grid; 
+# rows corresponds to unique values of "Year of Birth"
+# columns corresponds to unique values of "Total Population Estimate"
+heatmap_data <- dcast(data = heatmap_data,
+                      formula = yob ~ totalpopulation_estimate,
+                      fun = mean)
+
+# Remove "Year of Birth" column and format as matrix
+heatmap_data <- as.matrix(heatmap_data[, !(names(heatmap_data) %in% c("yob"))])
+
+# Construct and plot heatmap using native function heatmap()
+heatmap(x = heatmap_data,
+        Rowv = NA,
+        Colv = NA,
+        scale = "column",
+        margins = c(2, 2),
+        labRow = FALSE,
+        labCol = FALSE,
+        xlab = "Total Population Estimate",
+        ylab = "Year of Birth",
+        main = "Heatmap of CATE",
+        col = cm.colors(256))
+```
+
+In the code, we demonstrate the options to produce the heat map. The first uses the package _ggplot2_, whereas the second uses the native R function _heatmap()_. As expected, the results are very similar. Both heat maps indicate that the total population effect does not play a central role for the treatment effect due to the lack of horizontal variation. However, the year of birth plays a role, indicated by the vertical variation in colors.
+
+Finally, we compare the results across methods. We address the question, which methods give more heterogeneity? How well do they match heterogeneous treatment effects?
+
+---
+
+To compare the heterogeneity across methods, we plot the distributions of treatment effects on the same scale. 
+```{r}
+## Compare Heterogeneity
+het_effects <- cbind(lasso = c(pred_lasso_C), 
+                     post_selec_ols = c(pred_post_selec_ols_C), 
+                     honest_tree = c(honest_tree_pred_C), 
+                     causal_forest_2 = c(cf_2_pred_C$predictions))
+
+# Set the margins (two rows, three columns)
+par(mfrow = c(2, 3))
+
+# Set range of the x-axis
+xrange <- range( c(het_effects[, 1], het_effects[, 2], het_effects[, 3], het_effects[, 4]))
+
+# Lasso
+hist(het_effects[, 1], main = "LASSO", xlim = xrange, xaxt="n", 
+     xlab = "Treatment effects of social pressure", ylim=c(0,500))
+axis(1, at = round(seq(xrange[1], xrange[2], by=0.1), 1), labels = round(seq(xrange[1], xrange[2], by=0.1), 1) )
+
+# Post-selection OLS
+hist(het_effects[, 2], main = "Post-selection OLS", xlim = xrange, xaxt="n", 
+     xlab = "Treatment effects of social pressure", ylim=c(0,500))
+axis(1, at = round(seq(xrange[1], xrange[2], by=0.1), 1), labels = round(seq(xrange[1], xrange[2], by=0.1), 1) )
+
+# Honest tree
+hist(het_effects[, 3], main = "Honest tree", xlim = xrange, xaxt="n", 
+     xlab = "Treatment effects of social pressure", ylim=c(0,500))
+axis(1, at = round(seq(xrange[1], xrange[2], by=0.1), 1), labels = round(seq(xrange[1], xrange[2], by=0.1), 1) )
+
+# Causal forest (grf)
+hist(het_effects[, 4], main = "Causal forest", xlim = xrange, xaxt="n", 
+     xlab = "Treatment effects of social pressure", ylim=c(0,500))
+axis(1, at = round(seq(xrange[1], xrange[2], by=0.1), 1), labels = round(seq(xrange[1], xrange[2], by=0.1), 1) )
+
+# Summary statistics
+summary_stats <- do.call(data.frame, 
+                         list(mean = apply(het_effects, 2, mean),
+                              sd = apply(het_effects, 2, sd),
+                              median = apply(het_effects, 2, median),
+                              min = apply(het_effects, 2, min),
+                              max = apply(het_effects, 2, max)))
+
+summary_stats
+```
+
+As apparent from both the plots and the summary statistics, the causal forest from the _grf_ package appears to yield most heterogeneity. 
+
+
+Another way to compare the methods is to look at the MSE on a test set using Y_star (the transformed outcome) as a proxy for the true treatment effect. Define Y_star in the test set, and compare the MSE across methods. We do this on the test set, which in our case is the sub-sample C. We use the transformed outcome as a proxy for the true treatment effect.
+```{r}
+# Construct propensity score from randomized experiment
+prop_score <- mean(W_C) # Randomized experiment
+
+# Construct Y_star in test sample
+Y_star <- W_C * (Y_C / prop_score) - (1 - W_C) * (Y_C / (1 - prop_score))
+
+## LASSO
+# Construct model matrix for sample C
+train_C_W0 <- model.matrix(object = linear_het, data = data_C_W0)[, -1]
+train_C_W1 <- model.matrix(object = linear_het, data = data_C_W1)[, -1]
+
+# Make predictions for W = 0 and W = 1 using sample C
+pred_lasso_C_W0 <- predict(lasso_linear_A, newx = train_C_W0, s = lasso_linear_A$lambda.1se)
+pred_lasso_C_W1 <- predict(lasso_linear_A, newx = train_C_W1, s = lasso_linear_A$lambda.1se)
+
+# Compute individual treatment effect
+pred_lasso_C <- pred_lasso_C_W1 - pred_lasso_C_W0
+
+# Calculate MSE based on Y_star
+MSE_lasso <- mean((Y_star - pred_lasso_C)^2)
+
+## Post selection OLS
+# Make predictions for W = 0 and W = 1
+pred_ols_W0_C <- predict(post_selec_ols_A, newdata = data_C_W0)
+pred_ols_W1_C <- predict(post_selec_ols_A, newdata = data_C_W1)
+
+# Compute individual treatment effect
+pred_post_selec_ols_C <- pred_ols_W1_C - pred_ols_W0_C
+
+# Calculate MSE based on Y_star
+MSE_post_selec_ols <- mean((Y_star - pred_post_selec_ols_C)^2)
+
+## Honest tree
+# Calculate MSE based on Y_star
+MSE_honest_tree <- mean((Y_star - honest_tree_pred_C)^2)
+
+## Causal forest (from package grf)
+# Calculate MSE based on Y_star
+MSE_cf_2 <- mean((Y_star - cf_2_pred_C$predictions)^2)
+
+## MSE
+# Create data frame
+performance_MSE <- data.frame(matrix(rep(NA, 1), nrow = 1, ncol = 1))
+rownames(performance_MSE) <- c("LASSO")
+colnames(performance_MSE) <- c("MSE")
+
+# Load in results
+performance_MSE["LASSO", "MSE"] <- MSE_lasso
+performance_MSE["Post-selection OLS", "MSE"] <- MSE_post_selec_ols
+performance_MSE["Honest Tree", "MSE"] <- MSE_honest_tree
+performance_MSE["Causal forest", "MSE"] <- MSE_cf_2
+
+# Setting the range
+xrange2 <- range(performance_MSE$MSE - 2*sd(performance_MSE$MSE), 
+                 performance_MSE$MSE,
+                 performance_MSE$MSE + 2*sd(performance_MSE$MSE))
+
+# Create plot
+MSEplot <- ggplot(performance_MSE) + 
+  geom_bar(mapping = aes(x = factor(rownames(performance_MSE), 
+                                    levels = rownames(performance_MSE)), 
+                         y = MSE),
+           stat = "identity", fill = "gray44", width=0.7, 
+           position = position_dodge(width=0.2)) + 
+  theme_bw() + 
+  coord_cartesian(ylim=c(xrange2[1], xrange2[2])) +
+  theme(axis.ticks.x = element_blank(), axis.title.x = element_blank(),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        plot.background = element_blank(),
+        axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5)) +
+  ylab("MSE out-of-sample") + 
+  ggtitle("Comparing performance based on MSE") +
+  theme(plot.title = element_text(hjust = 0.5, face ="bold", 
+                                  colour = "black", size = 14))
+
+# Plot
+MSEplot
+```
+
+Plot shows causal forest does worse.  This may be because there is little real heterogeneity in the model and simpler models do better in that environment.  The causal forest can be ``tuned'' for example forcing larger leaf sizes which can improve performance substantially.
+
+We should also add error bars to these in future versions.  
+
+There are many other exercises to do for CATE's, including testing differences in characteristics for high and low treatment effect groups, and looking at partial effects, e.g. what is the effect of one covariate holding others constant.  The fully nonparametric models like causal forest are appropriate for that exercise, while the models that choose simpler representations like LASSO and CausalTree are not appropriate because they don't attempt to control for all covariates.
+
+
+```{r}
+# Stop timer
+proc.time() - ptm
+```

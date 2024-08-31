@@ -1,0 +1,538 @@
+\newcommand{\htau}{\widehat{\tau}}
+\newcommand{\hmu}{\widehat{\mu}}
+\newcommand{\hGamma}{\widehat{\Gamma}}
+\newcommand{\he}{\widehat{e}}
+\DeclareMathOperator{\E}{E}
+\DeclareMathOperator{\PP}{P}
+\newcommand{\p}[1]{\left( #1 \right)}
+\newcommand{\hpi}{\hat{\pi}}
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, include=FALSE, results='hide'}
+# Deleting all current variables
+rm(list=ls())
+
+# Ensuring consistent random values in the bookdown version (this can be ignored).
+set.seed(1, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rejection")
+
+# Note: bookdown seems to require explicitly calling these packages.
+library(reshape2)
+library(DiagrammeR)
+```
+
+# Policy Evaluation I - Binary Treatment
+
+Source RMD file: [link](https://docs.google.com/uc?export=download&id=1DVxfQpX6hWfIghBOrhXQ4daHF79_cVAc)
+
+
+In previous chapters, you learned how to estimate the effect of a binary treatment on an outcome variable. We saw how to estimate the average treatment effect for the entire population $\E[Y_i(1) - Y_i(0)]$, for specific subgroups $\E[Y_i(1) - Y_i(0) | G_i]$, and at specific covariate values $\E[Y_i(1) - Y_i(0)|X_i = x]$. One common feature of these quantities is that they compare the average effect of treating everyone (in the population, subgroup, etc) to the average effect of treating no one. But what if we had a _treatment rule_ that dictated who should be treated, and who should not? Would treating some people according to this rule be better than treating no one? Can we compare two possible treatment rules? Questions like these abound in applied work, so here we'll learn how to answer them using experimental and observational data (with appropriate assumptions).
+
+Treatment rules that dictate which groups should be treatment are called **policies**. Formally, we'll define a policy (for a binary treatment) to be a mapping from a vector of observable covariates to a number in the unit interval, i.e., $\pi: x \mapsto [0,1]$. Given some vector of covariates $x$, the expression $\pi(x) = 1$ indicates a unit with this covariate value should be treated, $\pi(x) = 0$ indicates no treatment, and  $\pi(x) = p \in (0, 1)$ indicates randomization between treatment and control with probability $p$. 
+
+There are two main objects of interest in this chapter. The first is the **value** of a policy $\pi$, defined as the average outcome attained if we assign individuals to treatments according to the policy $\pi$,
+\begin{equation}
+  \E[Y_i(\pi(X_i))].
+\end{equation}
+The second object of interest is the **difference in values** between two policies $\pi$ and $\pi'$,
+\begin{equation}
+  \E[Y_i(\pi(X_i)) - Y_i(\pi'(X_i))].
+\end{equation}
+Note how the average treatment effect (ATE) we saw in previous chapters is a difference in values taking $\pi(x) \equiv 1$ (a policy that treats everyone) and $\pi(x) \equiv 0$ (a policy that treats no one).
+
+Importantly, in this chapter we'll be working with policies that are _pre-specified_ --- that is, that were created or decided _before_ looking at the data. In the next chapter, we'll see how to estimate a policy with desirable properties from the data.
+
+
+```{r, warning=FALSE, message=FALSE}
+# use e.g., install.packages("grf") to install any of the following packages.
+library(grf)
+library(glmnet)
+library(splines)
+library(ggplot2)
+```
+
+
+
+## Via sample means
+
+To fix ideas, we will begin assuming that we are evaluating policies using data generated from a _randomized_ setting. For concreteness, let's work with the following toy setting with two uniformly-distributed covariates and a continuous outcome.
+
+```{r}
+n <- 1000
+p <- 4
+X <- matrix(runif(n*p), n, p)
+W <- rbinom(n, prob = .5, size = 1)  # independent from X and Y
+Y <- .5*(X[,1] - .5) + (X[,2] - .5)*W + .1 * rnorm(n) 
+```
+
+Figure \@ref(fig:scatterplot) is a scatterplot of the data. Each data point is represented by a square if untreated or by a circle if treated in the experiment. The shade of the point indicates the strength of the outcome, with more negative values being lighter and more positive values being darker. 
+
+```{r scatterplot, fig.align = 'center', fig.cap= "Simulated data (randomized setting)"}
+y.norm <- 1-(Y - min(Y))/(max(Y)-min(Y)) # just for plotting
+plot(X[,1], X[,2], pch=ifelse(W, 21, 23), cex=1.5, bg=gray(y.norm), xlab="X1", ylab="X2", las=1)
+```
+
+Figure \@ref(fig:scatterplot-treatments) is a graph of each treated and untreated population separately. Remark two things about this plot. First, the covariate distribution between the two plots is the same --- which is what we should expect in a randomized setting. Second, observations with higher values of $X_2$ react positively to treatment (their blobs are darker than the untreated counterparts), and observations with lower values of $X_2$ react negatively (their blobs are lighter).
+
+```{r scatterplot-treatments, fig.align = 'center', fig.cap= "Simulated data by treated and untreated (randomized setting)"}
+par(mfrow=c(1,2))
+for (w in c(0, 1)) {
+  plot(X[W==w,1], X[W==w,2], pch=ifelse(W[W==w], 21, 23), cex=1.5,
+       bg=gray(y.norm[W==w]), main=ifelse(w, "Treated", "Untreated"),
+       xlab="X1", ylab="X2", las=1)
+}
+```
+
+
+As a first example, let's estimate the value of the following policy (assuming that it was given to or decided by us prior to looking at the data):
+\begin{equation}
+  (\#eq:pol)
+  \pi(x) =
+    \begin{cases}
+     1 \quad \text{if } x_1 > .5 \text{ and } x_2 > .5 \\
+     0 \quad \text{otherwise}
+    \end{cases}
+\end{equation}
+
+This policy divides the plane into a "treatment" region $A$ and a complementary "no treatment" region $A^c$,
+\begin{equation*}
+  A := \{ x : \pi(x) = 1 \} = \{x: x_{1} > .5, x_{2} > .5\}.
+\end{equation*}
+
+Figure \@ref(fig:policy) illustrates the policy.
+
+```{r policy, fig.align = 'center', fig.cap= "Illustration of the policy"}
+col2 <- rgb(0.250980, 0.690196, 0.650980, .35)
+col1 <- rgb(0.9960938, 0.7539062, 0.0273438, .35)
+plot(X[,1], X[,2], pch=ifelse(W, 21, 23), cex=1.5, bg=gray(y.norm), xlab="X1", ylab="X2", las=1)
+rect(-.1, -.1, .5, 1.1, density = 250, angle = 45, col = col1, border = NA)
+rect(.5, -.1, 1.1, .5, density = 250, angle = 45, col = col1, border = NA)
+rect(.5, .5, 1.1, 1.1, density = 250, angle = 45, col = col2, border = NA)
+text(.75, .75, labels = "TREAT (A)", cex = 1.8)
+text(.25, .25, labels = expression(DO ~ NOT ~ TREAT ~ (A^C)), cex = 1.8, adj = .25)
+```
+
+We'll consider the behavior of the policy $\pi$ separately within each region. In the "treatment" region $A$, its average outcome is the same as the average outcome for the treated population.
+\begin{equation*}
+  \begin{aligned}
+    \E[Y_i(\pi(X_i)) \ | \ A] 
+      &= \E[Y_i(1)|A]  \quad &&\text{because $\pi(x) = 1$ for all $x \in A$,} \\
+      &= \E[Y_i|A, W_{i}=1]  \quad &&\text{randomized setting.} \\
+  \end{aligned}
+\end{equation*}
+
+In the remaining region $A^c$, its average outcome is the same as the average outcome for the untreated population.
+\begin{equation*}
+  \begin{aligned}
+    \E[Y_i(\pi(X_i)) \ | \ A^c] 
+      &= \E[Y_i(0)|A^c]  \quad &&\text{because $\pi(x) = 0$ for all $x \in A^c$,} \\
+      &= \E[Y_i|A, W_{i}=0]  \quad &&\text{randomized setting.} \\
+  \end{aligned}
+\end{equation*}
+
+The expected value of $\pi$ is a weighted average of value within each region:
+\begin{align}
+  (\#eq:pi-pop-value)
+    \E[Y(\pi(X_i))] &= \E[Y_i | A, W_i = 1] \PP(A) +  \E[Y_i | A^c, W_i = 0] \PP(A^c), \\
+\end{align}
+where we denote the probability of drawing a set of covariates from $A$ as $\PP(A)$. In a randomized setting, we can estimate \@ref(eq:pi-pop-value) by replacing population quantities by simple empirical counterparts based on sample averages; i.e., estimating $\E[Y_i | A, W_i = 1]$ by the sample average of outcomes among treated individuals in region $A$, $\E[Y_i | A^c, W_i = 0]$ by the sample average of outcomes among untreated individuals not in region $A$, and $\PP(A)$ and $\PP(A^c)$ by the proportions of individuals inside and outside of region $A$.
+
+```{r}
+# Only valid in randomized setting.
+A <- (X[,1] > .5) & (X[,2] > .5)
+value.estimate <- mean(Y[A & (W==1)]) * mean(A) + mean(Y[!A & (W==0)]) * mean(!A)
+value.stderr <- sqrt(var(Y[A & (W==1)]) / sum(A & (W==1)) * mean(A)^2 + var(Y[!A & (W==0)]) / sum(!A & W==0) * mean(!A)^2)
+print(paste("Value estimate:", value.estimate, "Std. Error:", value.stderr))
+```
+
+For another example, let's consider the value of a  _random_ policy $\pi'$ that would assign observations to treatment and control with probability $p$:
+\begin{equation*}
+  \pi'(X_i) = Z_i \qquad Z_i \sim^{iid} \text{Binomial}(p).
+\end{equation*}
+
+To identify the value of this policy, follow the same argument as above. However, instead of thinking in terms of "regions", consider the output of the random variable $Z_i$:
+\begin{equation*}
+  \begin{aligned}
+    \E[Y_i(\pi'(X_i)) \ | \ Z_i = 1]
+      &= \E[Y_i(1)| Z_i = 1] \quad &&\text{because $\pi'(\cdot) = 1$ when $Z_i = 1$,} \\ 
+      &= \E[Y_i(1)]          \quad &&\text{$Z_i$ is drawn independently,} \\
+      &= \E[Y_i| W_{i}=1]  \quad &&\text{randomized setting.} \\
+  \end{aligned}
+\end{equation*}
+
+We can proceed similarly for the case of $Z_i = 0$. Finally, since $\PP(Z_i = 1) = p$,
+\begin{equation}
+  (\#eq:pip-pop-value)
+  \E[Y_i(\pi'(X_i))] = p\E[Y_i | W_i=1] + (1-p)\E[Y_i | W_i = 0],
+\end{equation}
+
+which in a randomized setting can be estimated in a manner analogous to the previous example.
+
+```{r}
+# Only valid in randomized setting.
+p <- .75 # for example
+value.estimate <- p * mean(Y[(W==1)]) + (1 - p) * mean(Y[(W==0)])
+value.stderr <- sqrt(var(Y[(W==1)]) / sum(W==1) * p^2 + var(Y[(W==0)]) / sum(W==0) * (1-p)^2)
+print(paste("Value estimate:", value.estimate, "Std. Error:", value.stderr))
+```
+
+
+
+### Estimating difference in values
+
+Next, let's estimate the difference in value between two given policies. For a concrete example, let’s consider the gain from switching to $\pi$ defined in \@ref(eq:pol) from a policy $\pi''$ that never treats, i.e., $\pi''(X_i) \equiv 0$. That is, 
+\begin{equation}
+  (\#eq:diff-0)
+  \E[Y(\pi(X_i)) - Y(\pi''(X_i))].
+\end{equation}
+
+We already derived the value of $\pi$ in \@ref(eq:pi-pop-value). To derive the value of the second policy,
+\begin{align}
+  (\#eq:ey0-expand)
+  &\E[Y(\pi''(X_i))] \\ 
+    &= \E[Y_i(0)] && \text{$\pi''(x) = 0$ for all $x$,}  \\
+    &= \E[Y_i(0)|A]\PP(A) + \E[Y_i(0)|A^c]\PP(A^c) && \text{law of total expectation,} \\
+    &= \E[Y|A,W=0]\PP(A) + \E[Y|A^c,W=0]\PP(A^c) &&\text{randomized setting.} 
+\end{align}
+
+Substituting \@ref(eq:pi-pop-value) and \@ref(eq:ey0-expand) into \@ref(eq:diff-0) and simplifying,
+\begin{equation}
+  (\#eq:diff-0-result)
+  \E[Y(\pi(X_i)) - Y(\pi''(X_i))]
+    = \left( \E[Y_i|A, W_i=1] - \E[Y_i|A,W_i=0] \right) \cdot \PP(A) + 0 \cdot \PP(A^c) 
+\end{equation}
+
+Expression \@ref(eq:diff-0-result) has the following intepretation. In region $A$, the policy  $\pi$ treats, and the "never treat" policy does not; thus the gain in region $A$ is the average treatment effect in that region, $\E[Y_i(1) - Y_i(0)|A]$, which in a randomized setting equals the first term in parentheses. In region $A^{c}$, the policy $\pi$ does not treat, but neither does the "never treat" policy. Therefore, there the different is exactly zero. The expected difference in values equals the weighted average of the difference in values within each region.
+
+```{r}
+# Only valid in a randomized setting.
+A <- (X[,1] > .5) & (X[,2] > .5)
+diff.estimate <- (mean(Y[A & (W==1)]) - mean(Y[A & (W==0)])) * mean(A)
+diff.stderr <- sqrt(var(Y[A & (W==1)]) / sum(A & (W==1)) + var(Y[A & (W==0)]) / sum(A & W==0)) * mean(A)^2
+print(paste("Difference estimate:", diff.estimate, "Std. Error:", diff.stderr))
+```
+
+For another example, let's consider the difference in value between $\pi$ and a _random_ policy $\pi'$ that assigns observations to treatment and control with equal probability $p = 1/2$. We have already derived an expression for value of the random policy in \@ref(eq:pip-pop-value). Subtracting it from the value of the policy $\pi$ derived in \@ref(eq:pi-pop-value) and simplifying,
+\begin{align}
+  (\#eq:pi-pip-diff-results)
+  \E[Y(\pi) - Y(\pi'(X_i))] 
+    &= \frac{P(A)}{2} \left( \E[Y_i(1) - Y_i(0) | A] \right) +
+      \frac{P(A^c)}{2} \left( \E[Y_i(0) - Y_i(1) | A^c] \right) 
+\end{align}
+
+Here's how to interpret \@ref(eq:pi-pip-diff-results). In region $A$, policy $\pi$ treats everyone, obtaining average value $\E[Y_i(1)|A]$; meanwhile, policy $\pi'$ treats half the observations (i.e., it treats each individual with one-half probability), obtaining average value $(\E[Y_i(1) + Y_i(0)|A])/2$. Subtracting the two gives the term multiplying $\PP(A)$ in \@ref(eq:pi-pip-diff-results). In region $A^c$, policy $\pi$ treats no one, obtaining average value $\E[Y_i(0)|A]$; meanwhile, policy $\pi'$ still obtains $(\E[Y_i(1) + Y_i(0)|A^c])/2$ for the same reasons as above. Subtracting the two gives the term multiplying $\PP(A^c)$ \@ref(eq:pi-pip-diff-results). Expression \@ref(eq:pi-pip-diff-results) is the average of these two terms weighted by the size of each region. 
+
+Finally, in a randomized setting, \@ref(eq:pi-pip-diff-results) is equivalent to
+\begin{align}
+\frac{P(A)}{2} \left( \E[Y|A,W=1] - \E[Y|A,W=0] \right) + 
+        \frac{P(A^c)}{2} \left( \E[Y|A^c,W=0] - \E[Y|A^c,W=1] \right),
+\end{align}
+which suggests an estimator based on sample averages as above.
+
+```{r}
+# Only valid in a randomized setting.
+A <- (X[,1] > .5) & (X[,2] > .5)
+diff.estimate <- (mean(Y[A & (W==1)]) - mean(Y[A & (W==0)])) * mean(A) / 2 +
+                 (mean(Y[!A & (W==0)]) - mean(Y[!A & (W==1)])) * mean(!A) / 2
+diff.stderr <- sqrt((mean(A)/2)^2 * (var(Y[A & (W==1)])/sum(A & W==1) + var(Y[A & (W==0)])/sum(A & W==0)) + 
+                    (mean(!A)/2)^2 * (var(Y[!A & (W==1)])/sum(!A & W==1) + var(Y[!A & (W==0)])/sum(!A & W==0)))
+print(paste("Difference estimate:", diff.estimate, "Std. Error:", diff.stderr))
+```
+
+
+
+## Via AIPW scores
+
+In this section, we will use the following simulated _observational_ setting. Note how the probability of receiving treatment varies by individual, but it depends only on observable characteristics (ensuring unconfoundedness) and it is bounded away from zero and one (ensuring overlap). We assume that assignment probabilities are not known to the researcher.
+
+```{r}
+# An "observational" dataset satisfying unconfoundedness and overlap.
+n <- 1000
+p <- 4
+X <- matrix(runif(n*p), n, p)
+e <- 1/(1+exp(-2*(X[,1]-.5)-2*(X[,2]-.5)))  # not observed by the analyst.
+W <- rbinom(n, prob = e, size = 1)
+Y <- .5*(X[,1] - .5) + (X[,2] - .5)*W + .1 * rnorm(n) 
+```
+
+Figure \@ref(fig:scatterplot-obs) illustrates how treatment assignment isn’t independent from observed covariates. Individuals with high values of $X_{i,1}$ and $X_{i,2}$ are more likely to be treated and to have lower outcomes. 
+
+```{r scatterplot-obs, fig.align = 'center', fig.cap= "Simulated data by treated and untreated (observational setting)"}
+y.norm <- (Y - min(Y))/(max(Y)-min(Y))
+par(mfrow=c(1,2))
+for (w in c(0, 1)) {
+  plot(X[W==w,1], X[W==w,2], pch=ifelse(W[W==w], 21, 23), cex=1.5,
+       bg=gray(y.norm[W==w]), main=ifelse(w, "Treated", "Untreated"),
+       xlab="X1", ylab="X2", las=1)
+}
+```
+
+<font size=2>
+If we "naively" used the estimators based on sample averages above, the policy value estimate would be biased. Would the bias be upward or downward?
+</font>
+
+In a randomized setting and observational settings with unconfoundedness and overlap, there exists estimates of policy values and differences that are more efficient (i.e., they have smaller variance in large samples) than their counterparts based on sample averages. These are based on the _AIPW scores_ that we studied in previous chapters. For example, to estimate the $\E[Y_i(1)]$
+\begin{align}
+  (\#eq:gamma-1)
+  \hGamma_{i,1} 
+    &= \hat{\mu}^{-i}(X_i, 1) + \frac{W_i}{\hat{e}^{-i}(X_i)} \left(Y_i -\hat{\mu}^{-i}(X_i, 1)\right) 
+\end{align}
+
+As we discussed in the chapter on ATE, averaging over AIPW scores \@ref(eq:gamma-1) across individuals yields an unbiased / consistent estimator of $\E[Y_i(1)]$ provided that at least one of $\hat{\mu}^{-i}(x, 1)$ or $\hat{e}^{-i}(x)$ is an unbiased / consistent estimator of the outcome model $\mu(x,w) := E[Y_i(w)|X_i=x]$ or propensity model $e(x) := \PP[W_i=1|X_i=x]$. Provided that these are estimates using non-parametric methods like forests or neural networks, consistency should be guaranteed, and in addition the resulting estimates should have smaller asymptotic variance. Therefore, barring computational issues, AIPW-based estimates are usually superior to estimates based on sample means, even in a randomized setting (though, for completeness, the latter should still be reported when valid).
+
+For the control, we have the following estimator based on AIPW scores,
+\begin{align}
+  (\#eq:gamma-0)
+  \hGamma_{i,0} 
+    &= \hat{\mu}^{-i}(X_i, 0) + \frac{1-W_i}{1-\hat{e}^{-i}(X_i)} \left(Y_i -\hat{\mu}^{-i}(X_i, 0)\right).
+\end{align}
+
+To estimate the value of a binary policy $\pi$, we average over AIPW scores, selecting \@ref(eq:gamma-1) or \@ref(eq:gamma-0) for each individual depending on whether the policy dictates that the individual should be treated or not. That is, we estimate the value of a policy $\pi$ via the following average,
+\begin{align}
+  \frac{1}{n} \sum_{i=1}^n \hGamma_{i,\pi(X_i)} 
+  \qquad  
+  \hGamma_{i,\pi(X_i)} := \pi(X_i) \hGamma_{i,1} + (1 - \pi(X_i)) \hGamma_{i,0}.
+\end{align}
+
+The next snippet construct AIPW scores via causal forests. 
+
+```{r}
+# Valid in observational and randomized settings
+
+# Randomized settings: use the true assignment probability:
+# forest <- causal_forest(X, Y, W, W.hat=.5, num.trees=100)  # replace .5 with true assign prob
+# Observational settings with unconfoundedness + overlap:
+forest <- causal_forest(X, Y, W)
+
+# Estimate a causal forest
+tau.hat <- predict(forest)$predictions
+
+# Estimate outcome model for treated and propen
+mu.hat.1 <- forest$Y.hat + (1 - forest$W.hat) * tau.hat # E[Y|X,W=1] = E[Y|X] + (1-e(X))tau(X)
+mu.hat.0 <- forest$Y.hat - forest$W.hat * tau.hat  # E[Y|X,W=0] = E[Y|X] - e(X)tau(X)
+
+# Compute AIPW scores
+gamma.hat.1 <- mu.hat.1 + W/forest$W.hat * (Y - mu.hat.1)
+gamma.hat.0 <- mu.hat.0 + (1-W)/(1-forest$W.hat) * (Y - mu.hat.0)
+
+# If you have the package policytree installed, the following is equivalent
+# gamma.hat.matrix <- policytree::double_robust_scores(forest)
+# gamma.hat.1 <- gamma.hat.matrix[,2]
+# gamma.hat.0 <- gamma.hat.matrix[,1]
+```
+
+Of course, we could have constructed the AIPW scores using any other appropriate non-parametric estimator, provided that we take care to use adequate sample-splitting. The next snippet (commented out) shows how to do the same with `glmnet`. 
+
+```{r}
+# # Valid randomized data and observational data with unconfoundedness+overlap.
+# # Note: read the comments below carefully. 
+# # In a randomized setting, do not estimate forest.e and e.hat; use known assignment probs.
+#  data <- data.frame(x=X, w=W, y=Y)
+# covariates <- paste0("x.", seq(ncol(X)))
+# treatment <- "w"
+# outcome <- "y"
+# 
+# fmla.xw <- formula(paste0("~", paste0("bs(", covariates, ", df=3, degree=3) *", treatment, collapse="+")))
+# fmla.x <- formula(paste0("~", paste0("bs(", covariates, ", df=3, degree=3)", collapse="+")))
+# XW <- model.matrix(fmla.xw, data)
+# XX <- model.matrix(fmla.x, data)
+# Y <- data[,outcome]
+# 
+# n.folds <- 5
+# indices <- split(seq(n), sort(seq(n) %% n.folds))
+# 
+# gamma.hat.1 <- rep(NA, n)
+# gamma.hat.0 <- rep(NA, n)
+# for (idx in indices) {
+# 
+#   # Fitting the outcome model on training folds
+#   model.m <- cv.glmnet(XW[-idx,], Y[-idx])  
+#   
+#   # Predict outcome E[Y|X,W=w] for w in {0, 1} on the held-out fold 
+#   data.0 <- data[idx,]
+#   data.0[,treatment] <- 0
+#   XW0 <- model.matrix(fmla.xw, data.0)
+#   mu.hat.0 <- predict(model.m, XW0, s="lambda.min")
+#   
+#   data.1 <- data[idx,]
+#   data.1[,treatment] <- 1
+#   XW1 <- model.matrix(fmla.xw, data.1)
+#   mu.hat.1 <- predict(model.m, XW1, s="lambda.min")
+#   
+#   # Fitting the propensity score model
+#   # Comment / uncomment the lines below as appropriate.
+#   # OBSERVATIONAL SETTING (with unconfoundedness+overlap):
+#   # model.e <- cv.glmnet(XX[-idx,], W[-idx], family="binomial")  
+#   # e.hat <- predict(model.e, XX[idx,], s="lambda.min", type="response")
+#   # RANDOMIZED SETTING
+#   e.hat <- rep(0.5, length(idx))    # assuming 0.5 is known assignment prob.
+#   
+#   # Compute AIPW scores
+#   gamma.hat.1[idx] <- mu.hat.1 +  W[idx] / e.hat * (Y[idx] -  mu.hat.1)
+#   gamma.hat.0[idx] <- mu.hat.0 + (1 - W[idx]) / (1 - e.hat) * (Y[idx] -  mu.hat.0)
+# }
+```
+
+
+Once we have computed AIPW scores, we can compute the value of any policy. Here's how to estimate the value of \@ref(eq:pol).
+
+```{r}
+# Valid in observational and randomized settings
+pi <- (X[,1] > .5) & (X[,2] > .5)
+gamma.hat.pi <- pi * gamma.hat.1 + (1 - pi) * gamma.hat.0
+value.estimate <- mean(gamma.hat.pi)
+value.stderr <- sd(gamma.hat.pi) / sqrt(length(gamma.hat.pi))
+print(paste("Value estimate:", value.estimate, "Std. Error:", value.stderr))
+```
+
+The next snippet estimates the value of a random policy that treats with 75\% probability.
+
+```{r}
+# Valid in observational and randomized settings
+pi.random <- .75
+gamma.hat.pi<- pi.random * gamma.hat.1 + (1 - pi.random) * gamma.hat.0
+value.estimate <- mean(gamma.hat.pi)
+value.stderr <- sd(gamma.hat.pi) / sqrt(length(gamma.hat.pi))
+print(paste("Value estimate:", value.estimate, "Std. Error:", value.stderr))
+```
+
+To estimate the difference in value between two policies $\pi$ and $\tilde{\pi}$, simply subtract the scores,
+\begin{align}
+  \frac{1}{n} \sum_{i=1}^n \hGamma_{i,\pi(X_i)} - \hGamma_{i,\tilde{\pi}(X_i)}.
+\end{align}
+
+For example, here we estimate the difference between policy and the "never treat" policy.
+
+```{r}
+# Valid in a randomized setting and observational settings with unconfoundedness + overlap
+
+# AIPW scores associated with first policy
+pi <- (X[,1] > .5) & (X[,2] > .5)
+gamma.hat.pi <- pi * gamma.hat.1 + (1 - pi) * gamma.hat.0
+
+# AIPW scores associated with second policy
+pi.never <- 0
+gamma.hat.pi.never <- pi.never * gamma.hat.1 + (1 - pi.never) * gamma.hat.0
+
+# Difference
+diff.scores <- gamma.hat.pi - gamma.hat.pi.never 
+diff.estimate <- mean(diff.scores)
+diff.stderr <- sd(diff.scores) / sqrt(length(diff.scores))
+print(paste("diff estimate:", diff.estimate, "Std. Error:", diff.stderr))
+```
+
+## Case study
+
+For completeness we'll close out this section by estimating policy values using real data. Again, we'll use an abridged version of the General Social Survey (GSS) [(Smith, 2016)](https://gss.norc.org/Documents/reports/project-reports/GSSProject%20report32.pdf) dataset that was introduced in the previous chapter. In this dataset, individuals were sent to treatment or control with equal probability, so we are in a randomized setting. 
+
+<font size=2>
+(Please note that we have inverted the definitions of treatment and control)
+</font>
+
+```{r, message=FALSE, warning=FALSE}
+# Read in data
+data <- read.csv("https://docs.google.com/uc?id=1AQva5-vDlgBcM_Tv9yrO8yMYRfQJgqo_&export=download")
+n <- nrow(data)
+
+# NOTE: We'll invert treatment and control, compared to previous chapters
+data$w <- 1 - data$w
+
+# Treatment is the wording of the question:
+# 'does the the gov't spend too much on 'assistance to the poor' (control: 0)
+# 'does the the gov't spend too much on "welfare"?' (treatment: 1)
+treatment <- "w"
+
+# Outcome: 1 for 'yes', 0 for 'no'
+outcome <- "y"
+
+# Additional covariates
+covariates <- c("age", "polviews", "income", "educ", "marital", "sex")
+```
+
+We'll take the following policy as an example. It asks individuals who are older (age > 50) or more conservative (`polviews` $\leq$ 4) if they think the government spends to much on "welfare" (treatment group), and it asks younger and more liberal individuals if they think the government spends too much on "assistance to the poor" (control group).
+\begin{equation}
+  (\#eq:polage)
+  \pi(x) =
+    \begin{cases}
+      1 \qquad \text{if }\texttt{polviews} \leq 4 \text{ or } \texttt{age } > 50  \\
+      0 \qquad \text{otherwise}
+    \end{cases}
+\end{equation}
+
+We should expect that a higher number of individuals will answer 'yes' because, presumably, older and more conservative individuals in this sample may be more likely to be against welfare in the United States. 
+
+We selected policy \@ref(eq:polage) purely for illustrative purposes, but it's not hard to come up with examples where understanding how to word certain questions and prompts can be useful. For example, a non-profit that champions assistance to the poor may be able to obtain more donations if they advertise themselves as champions of "welfare" or "assistance to the poor" to different segments of the population.
+
+Since this is a randomized setting, we can estimate its value via sample averages.
+
+```{r}
+# Only valid in a randomized setting
+X <- data[,covariates]
+Y <- data[,outcome]
+W <- data[,treatment]
+  
+pi <- (X[,"polviews"] <= 4) | (X[,"age"] > 50)
+A <- pi == 1
+value.estimate <- mean(Y[A & (W==1)]) * mean(A) + mean(Y[!A & (W==0)]) * mean(!A)
+value.stderr <- sqrt(var(Y[A & (W==1)]) / sum(A & (W==1)) * mean(A)^2 + var(Y[!A & (W==0)]) / sum(!A & W==0) * mean(!A)^2)
+print(paste("Value estimate:", value.estimate, "Std. Error:", value.stderr))
+```
+
+The result above suggests that if we assign older and more conservative individuals about "welfare", and other individuals about "assistance to the poor", then on average about 34.6% of individuals respond 'yes.'  
+
+The next snippet uses AIPW-based estimates, which would also have been valid had the data been collected in an observational setting with unconfoundedness and overlap.
+
+```{r}
+# Valid in a randomized setting and observational settings with unconfoundedness + overlap
+fmla <- formula(paste0("~", paste(covariates, collapse="+")))
+X <- model.matrix(fmla, data)
+Y <- data[,outcome]
+W <- data[,treatment]
+  
+# Estimate a causal forest
+# Important: comment/uncomment as appropriate.
+# Randomized setting (known, fixed assignment probability):
+forest <- causal_forest(X, Y, W, W.hat=.5)
+# Observational setting with unknown probability:
+# forest <- causal_forest(X, Y, W)
+
+# Estimate a causal forest
+tau.hat <- predict(forest)$predictions
+
+# Estimate outcome model for treated and propensity scores
+mu.hat.1 <- forest$Y.hat + (1 - forest$W.hat) * tau.hat  # E[Y|X,W=1] = E[Y|X] + (1-e(X))tau(X)
+mu.hat.0 <- forest$Y.hat - forest$W.hat * tau.hat  # E[Y|X,W=0] = E[Y|X] - e(X)tau(X)
+
+# Compute AIPW scores
+gamma.hat.1 <- mu.hat.1 + W / forest$W.hat * (Y - mu.hat.1)
+gamma.hat.0 <- mu.hat.0 + (1-W) / (1-forest$W.hat) * (Y - mu.hat.0)
+```
+
+As expected, the results are very similar (as they should be since they are both valid in a randomized seting).
+
+```{r}
+# Valid in a randomized setting and observational settings with unconfoundedness + overlap
+gamma.hat.pi <- pi * gamma.hat.1 + (1 - pi) * gamma.hat.0
+value.estimate <- mean(gamma.hat.pi)
+value.stderr <- sd(gamma.hat.pi) / sqrt(length(gamma.hat.pi))
+print(paste("Value estimate:", value.estimate, "Std. Error:", value.stderr))
+```
+
+The next snippet estimates the value of policy \@ref(eq:polage) and a random policy that assigns to treatment and control with equal probability. 
+
+```{r}
+# Valid in a randomized setting and observational settings with unconfoundedness + overlap
+pi.2 <- .5
+gamma.hat.pi.1 <- pi * gamma.hat.1 + (1 - pi) * gamma.hat.0
+gamma.hat.pi.2 <- pi.2 * gamma.hat.1 + (1 - pi.2) * gamma.hat.0
+gamma.hat.pi.diff <- gamma.hat.pi.1 - gamma.hat.pi.2
+diff.estimate <- mean(gamma.hat.pi.diff)
+diff.stderr <- sd(gamma.hat.pi.diff) / sqrt(length(gamma.hat.pi.diff))
+print(paste("Difference estimate:", diff.estimate, "Std. Error:", diff.stderr))
+```
+
+The result suggests that assigning observations to treatment as in \@ref(eq:polage) produces 8 percentage points more positive responses than assigning individuals uniformly at random. 
+
+
+## Further reading
+
+[Athey and Wager (2021, Econometrica)](https://onlinelibrary.wiley.com/doi/abs/10.3982/ECTA15732) has a good review of the literature on policy learning and evaluation. For a more accessible introduction to the theory, see
+[Stefan Wager's lecture notes](https://web.stanford.edu/~swager/stats361.pdf), lecture 7. However, both references focus heavily on policy learning, which will be the topic of the next chapter.

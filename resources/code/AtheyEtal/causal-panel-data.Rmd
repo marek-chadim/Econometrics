@@ -1,0 +1,683 @@
+\DeclareMathOperator{\E}{E}
+\DeclareMathOperator{\PP}{P}
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, include=FALSE, results='hide'}
+# Deleting all current variables
+rm(list=ls())
+
+# Ensuring consistent random values in the bookdown version (this can be ignored).
+set.seed(1, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rejection")
+
+# Note: bookdown seems to require explicitly calling these packages. 
+library(reshape2)
+library(DiagrammeR)
+```
+
+# Causal Panel Data
+
+Source RMD file: [link](https://drive.google.com/uc?id=1zmuCb4pJpJq61zEHC5JmPvB-Ma4U9SC2&export=download)
+
+
+In this chapter, we consider a balanced panel data with $N$ units and $T$ time periods, where the outcome for unit $i$ in period $t$ is denoted by $Y_{it}$ and the exposure to binary treatment is denoted by $W_{it}\in \{0,1\}$.
+
+
+```{r, warning=FALSE, message=FALSE}
+# To install synthdid package, uncomment the next lines as appropriate.
+# install.packages("devtools")  # if you don't have this installed yet.
+# devtools::install_github("synth-inference/synthdid")
+
+library(RCurl)
+library(did) # DID
+library(Synth) # SC
+library(synthdid) # SDID
+library(cowplot) # summary stats grids
+library(ggplot2) # plots
+library(R.matlab) # data for SDID
+library(dplyr) # piping
+library(tinytex) # knitting the file
+library(bookdown) # knitting
+library(tidyr) # converting from long to wide dataset
+library(estimatr) # for lm_robust
+library(fBasics) # summary stats table
+library(knitr) # kable
+library(plm) # linear panel data
+library(tidyverse) 
+library(broom)
+library(magrittr)
+library(lmtest) # for coef_test() and robust std error calculation
+library(multiwayvcov) #calculate std error TWFE
+```
+
+
+
+## Data Setup
+
+As a running example, we'll be using the California smoking cessation program example of [Abadie, Diamond, & Hainmueller (2010)](https://web.stanford.edu/~jhain/Paper/JASA2010.pdf) throughout this chapter. The goal of their analysis was to estimate the effect of increased cigarette taxes on smoking in California. The panel contains data from 39 states (including California) from 1970 through 2000. California passed Proposition 99 increasing cigarette taxes from 1989 onwards. Thus, we have 1 state (California) that is exposed to the treatment (increased cigarette taxes) and 38 states that were not exposed to the treatment; 19 pre-treatment periods (1970-1988) and 12 post-treatment periods (1989-2000). First, let's set up the data. 
+
+The columns in our data are:
+
+- `state`: 39 states
+- `year`: annual panel data from 1970 to 2000 
+- `cigsale`: per-capita cigarette sales in packs
+- `lnincome`: per-capita state personal income (logged)
+- `beer`: per-capita beer consumption
+- `age15to24`: the percentage of the population age 15-24
+- `retprice`: average retail price of cigarettes
+
+Other things to note about our data is: 
+
+- The outcome variable of interest is `cigsale`.
+- Our predictors are `lnincome`, `beer`, `age15to24`, and `retprice`.
+- The states excluded are: Massachusetts, Arizona, Oregon, Florida, Alaska, Hawaii, Maryland, Michigan, New Jersey, New York, Washington, and the District of Columbia. 
+
+```{r warning=FALSE, message=FALSE}
+# Data Setup for Diff-In-Diff and Synthetic Control
+
+# read in data
+data <- read.csv("https://drive.google.com/uc?id=1wD8h8pjCLDy1RbuPDZBSa3zH45TZL7ha&export=download") 
+data$X <- NULL  # removing X column
+
+# fill out these by hand
+# these variables are important for summary plots and analysis
+outcome.var <- "cigsale"
+predictors <- c("lnincome", "beer", "age15to24", "retprice") # if any
+time.var <- c("year")
+unit.var <- c("state")
+treatment.year <- 1989
+treated.unit <- 3
+pretreat.period <- c(1970:1988)
+time.period <- c(1970:2000)
+control.units <- c(1, 2, 4:39)
+
+# if using special predictors which are
+# certain pretreatment years of the outcome variable used to 
+# more accurately predict the synthetic unit
+special.years <- c(1975, 1980, treatment.year)
+special.predictors <- list(        
+    list("outcome", special.years[1], c("mean")), 
+    list("outcome", special.years[2], c("mean")),
+    list("outcome", special.years[3], c("mean"))
+    )
+
+# rename variables in the dataset
+data <- data %>% rename(outcome = !!sym(outcome.var),
+                time = !!sym(time.var),
+                unit = !!sym(unit.var))
+# now the outcome, time, and unit variables are:
+outcome.var <- "outcome"
+time.var <- c("time")
+unit.var <- c("unit")
+
+allvars <- c("outcome", predictors)
+```
+
+
+```{r }
+# Data Setup for Synthetic Diff-in-Diff (synthdid package requires us to change the data structure)
+# set up empty dataframe
+data.sdid <- data.frame()
+
+# first row = numbers for each unit
+data.sdid <- data.frame(unit.no = unique(data$unit))
+
+# next is covariate data = predictors and special predictors
+# predictors
+# will save each dataset later
+for (i in 1:length(predictors)){
+  covariate_column <- data %>% 
+  group_by(unit) %>%
+  summarize(predictor_mean = mean(!!sym(predictors[i]), na.rm = T)) %>% 
+  dplyr::select(predictor_mean)
+  data.sdid <- cbind(data.sdid, covariate_column)
+}
+
+# special.predictors
+special_predictors_data <- data %>%
+  dplyr::filter(time %in% special.years) %>%
+  dplyr::select(unit, time, outcome)
+# convert from long to wide dataset
+special_predictors_data <- spread(special_predictors_data, time, outcome)[,-1]
+data.sdid <- cbind(data.sdid, special_predictors_data)
+
+# next is the outcome variable for each state in the time period
+outcome_data <- data %>% dplyr::select(unit, time, outcome)
+outcome_data <- spread(outcome_data, time, outcome)[,-1]
+data.sdid <- cbind(data.sdid, outcome_data)
+
+# transpose data
+data.sdid <- t(data.sdid)
+
+# add other data setup variables for SDID
+UNIT <- data.sdid[1,] # unit numbers
+X.attr <- t(data.sdid[2:8,]) # covariate data
+Y <- t(data.sdid[9:39,]) # outcome variable data
+colnames(Y) <- time.period # colname = year
+rownames(Y) <- UNIT # rowname = unit number
+units <- function(...) { which(UNIT %in% c(...)) }
+Y <- Y[c(setdiff(1:nrow(Y), units(treated.unit)), units(treated.unit)), ] # make sure treated unit is in the last row
+T0 <- length(pretreat.period) # number of pre-treatment years
+N0 <- nrow(Y)-1
+```
+
+
+### Summary Statistics
+Here are some quick summary stats about our panel data:
+
+```{r }
+# To create this summary statistics table, we use fBasics, knitr
+# Make a data.frame containing summary statistics of interest
+summ_stats <- fBasics::basicStats(within(data, rm(unit, time)))
+summ_stats <- as.data.frame(t(summ_stats))
+
+# Rename some of the columns for convenience
+summ_stats <- summ_stats[c("Mean", "Stdev", "Minimum", "1. Quartile", "Median",  "3. Quartile", "Maximum")] %>% 
+  rename("Lower quartile" = '1. Quartile', "Upper quartile" = "3. Quartile")
+
+# Print table
+summ_stats
+```
+
+Before moving further, we need to check if our panel data is properly balanced. Panel data can be balanced or unbalanced. Balanced panel data means that each unit is observed every time period such that: 
+
+\[n=N \times T\]
+
+where $n$ is the total number of observations, $N$ is the number of units, and $T$ is the number of time periods. We need to test this before moving forward with our analysis. 
+
+```{r warning=FALSE, message=FALSE}
+# number of observations
+n <- dim(data)[1]
+# number of units
+N <- length(unique(data$unit))
+# number of time periods
+T <- length(unique(data$time))
+
+# check that n = N x T
+# if TRUE, then the data is balanced
+# if FALSE, then the data is unbalanced
+n == N*T
+```
+
+To further verify this, we can check that our data contains N units for T time periods. Let us start with the time periods. We should have N units for each year, which in this case would be `r N` units.
+
+```{r warning=FALSE, message=FALSE}
+table(data$time) 
+```
+
+Then let us check the units. We should have T time periods for each unit, which would be `r T` periods in this case.
+
+```{r warning=FALSE, message=FALSE}
+table(data$unit)
+```
+
+We can also use a function in the `plm` package to check whether the data is balanced as well.
+
+```{r warning=FALSE, message=FALSE}
+# This functions comes from the plm package.
+# If TRUE, then the data is balanced.
+# If FALSE, then the data is unbalanced. 
+is.pbalanced(data)
+```
+
+If TRUE, then we can proceed with our analysis. If FALSE, then the data needs to be examined for duplicates, missing unit or time observations, or other issues.
+
+Since we confirmed that our panel data is balanced, we can now look at the distributions of the outcome variable and the covariates.
+
+```{r dist, fig.align = 'center', fig.cap= "Distributions of the outcome and the covariates", warning=FALSE, message=FALSE, fig.width=10,fig.height=10}
+distributions <- list()
+
+for (i in 1:length(allvars)) {
+  distributions[[i]] <- ggplot(data) +
+  aes(x = !!sym(allvars[i])) +
+  geom_histogram(fill = "#D55E00") + 
+  labs(title = paste0("Distribution of \n ", allvars[i])) + 
+  theme(plot.title = element_text(size=20, hjust = 0.5, face="bold"),
+         axis.text=element_text(size=20),
+         axis.title=element_text(size=20,face="bold"))
+}
+
+plot_grid(distributions[[1]], distributions[[2]],
+          distributions[[3]],distributions[[4]],
+          distributions[[5]])
+```
+
+
+And here are some additional plots of each covariate vs the outcome variable.
+
+```{r add-dist, fig.align = 'center', fig.cap= "Distributions of each covariate vs outcome",  warning=FALSE, message=FALSE, fig.width=10, fig.height=10}
+pred.vs.outcome <- list()
+
+for (i in 1:length(predictors)){
+  pred.vs.outcome[[i]] <- 
+    ggplot(data, 
+           aes(x = !!sym(predictors[i]), 
+               y = outcome)) +
+    geom_point(aes(color = time)) +
+    geom_smooth() + 
+  labs(title = paste0("Outcome vs ", predictors[i])) + 
+  theme(plot.title = element_text(size=20, hjust = 0.5, face="bold"),
+         axis.text=element_text(size=20),
+         axis.title=element_text(size=20,face="bold"))
+}
+
+plot_grid(pred.vs.outcome[[1]], pred.vs.outcome[[2]], 
+          pred.vs.outcome[[3]], pred.vs.outcome[[4]] )
+```
+
+And here we show how the outcome variable changes over time for the treated unit, an average of the control units, and each of the control units with the red line representing the time the treatment started.
+
+```{r outcome-change, fig.align = 'center', fig.cap= "Outcome variable over time", warning=FALSE, message=FALSE, fig.width=10,fig.height=10}
+# Treated Unit
+p1 <- data %>% dplyr::filter(unit == treated.unit) %>%
+  ggplot(.,aes(x = time, y = outcome)) + 
+  geom_line() + 
+  geom_vline(xintercept = treatment.year, color = "red") + 
+  labs(title = "Outcome of Treated Unit \n Over Time") + 
+  theme(plot.title = element_text(size=20, hjust = 0.5, face="bold"),
+         axis.text=element_text(size=20),
+         axis.title=element_text(size=20,face="bold"))
+
+# Average of Control Units
+p2 <- data %>% group_by(time) %>% dplyr::filter(unit != treated.unit) %>%
+  mutate(avg.outcome.var = mean(outcome)) %>%
+  ggplot(., aes(x = time, y = avg.outcome.var)) + 
+  geom_line() +
+  geom_vline(xintercept = treatment.year, color = "red") + 
+  labs(title = "Average Outcome of Control Units \n Over Time") + 
+  theme(plot.title = element_text(size=20, hjust = 0.5, face="bold"),
+         axis.text=element_text(size=20),
+         axis.title=element_text(size=20,face="bold"))
+  
+# Control Units
+p3 <- data %>% dplyr::filter(unit != treated.unit) %>%
+  ggplot(., aes(x = time, y = outcome, 
+                      color = unit, group = unit)) + 
+  geom_line() +
+  geom_vline(xintercept = treatment.year, color = "red") + 
+  labs(title = "Outcome of All Control Units \n over Time") + 
+  theme(plot.title = element_text(size=20, hjust = 0.5, face="bold"),
+         axis.text=element_text(size=20),
+         axis.title=element_text(size=20,face="bold"))
+
+plot_grid(p1, p2, p3)
+```
+
+
+
+## Alternative methods
+###  Methods designed for cross-sectional data with unconfoundedness
+
+In Chapter 3.1, we discussed an assumption that is used for ATE estimation. That assumption was called **unconfoundedness**. 
+
+\begin{equation}
+  Y_i(1), Y_i(0) \perp W_i \ | \ X_i.
+\end{equation}
+
+Unconfoundedness, also known as **no unmeasured confounders**, **ignorability** or **selection on observables**, says that all possible sources of self-selection, etc., can be explained by the observable covariates $X_i$. This has become a big part of the causal effects literature since Rosenbaum and Rubin (1983) which looked at the role of the propensity score in observation studies for causal effects.
+
+The most common methods for estimation under unconfoundedness are matching (Rosenbaum, 1995; Abadie and Imbens, 2002), inverse propensity score weighting (Hirano, Imbens, & Ridder, 2003), and double robust methods. For surveys of these methods, see Imbens (2004) and Rubin (2006).
+
+
+### Difference-in-Differences
+
+Difference-in-differences (DID) is one of the most common methods in causal inference. Under the **parallel trends** assumption, it estimates the *Average Treatment Effect on the Treated (ATT)*, which is the difference between the change in an outcome before and after a treatment using a treatment group and a control group:
+
+\[ \hat{\delta}_{tC} = (\bar{y}_t^{post(t)} - \bar{y}_t^{pre(t)}) - (\bar{y}_C^{post(t)} - \bar{y}_C^{pre(t)}) \]
+
+where 
+
+- $\hat{\delta}_{tC}$ is estimated average treatment effect for the treatment group, `t`
+- $\bar{y}$ is the sample mean for the treatment group, `t`, or the control group, `C`, in a particular time period.
+
+The **parallel trends** assumption says that the path of outcomes the units in the treated group would have been experienced if they hadn't been treated is the same as the path of outcomes the units in the control group actually experienced. In its simplest form, DID can be estimated with the interaction of a treatment group indicator variable and a post-treatment period indicator variable in the following equation: 
+
+\begin{equation}
+Y_{it} = \gamma + \gamma_{i.}TREAT_i + \gamma_{.t}POST_t + \beta TREAT_i \times POST_t + \varepsilon_{it}
+\end{equation}
+
+First, we have to create the indicator variables for the treated unit and for the post treatment period. The coefficient for 'treat:post' is an estimate of average treatment effect for the treated group.
+
+```{r warning=FALSE, message=FALSE}
+# add an indicator variable to identify the unit exposed to the treatment
+data$treat <- ifelse(data$unit == treated.unit, 1, 0)
+# add an indicator to identify the post treatment period
+data$post <-  ifelse(data$time >= treatment.year, 1, 0)
+
+# running the regression
+# the independent variables are treat, post, and treat*post
+did.reg <- lm_robust(outcome ~ treat*post, data = data)
+
+# print the regression
+did.reg
+```
+
+
+And here we create a plot to observe the DID estimate:
+
+```{r did, fig.align = 'center', fig.cap= "DID estimate", warning=FALSE, message=FALSE}
+# use the regression cofficients to calculate the means of the outcome
+# source: https://mixtape.scunning.com/difference-in-differences.html
+# mean outcome for treated unit in the pre-treatment period
+before_treatment <- as.numeric(did.reg$coefficients['(Intercept)'] + did.reg$coefficients['treat']) # preperiod for treated
+# mean outcome for treated unit in the post-treatment period
+after_treatment <- as.numeric(sum(did.reg$coefficients))
+# diff-in-diff estimate
+diff_diff <- as.numeric(did.reg$coefficients['treat:post'])
+
+
+# creating 2x2 DID table for the plot
+data_diff <- data %>% 
+  group_by(post, treat) %>% 
+  summarize(mean_outcome = mean(outcome))
+
+# plot the means of the outcome for pre-treatments and post-treatment periods and for the treated and control group
+# then use annotate() to create a dashed line parallel to the control group, 
+# a dotted blue line for the size of the treatment effect, 
+# and the treatment estimate label ATT
+# source: https://api.rpubs.com/andrewheiss/did
+ggplot(data_diff, aes(x = post, y = mean_outcome, color = as.factor(treat))) +
+  geom_point() + 
+  geom_line(aes(group = as.factor(treat))) +
+  annotate(geom = "segment", x = 0, xend = 1,
+           y = before_treatment, yend = after_treatment - diff_diff,
+           linetype = "dashed", color = "grey50") +
+  annotate(geom = "segment", x = 1, xend = 1,
+           y = after_treatment, yend = after_treatment - diff_diff,
+           linetype = "dotted", color = "blue") +
+  annotate(geom = "label", x = 1, y = after_treatment - (diff_diff / 2), 
+           label = "ATT", size = 3)
+  
+```
+
+We can also compute the difference-in-differences using the [did package](https://cran.r-project.org/web/packages/did/)
+
+```{r warning=FALSE, message=FALSE}
+# added a column to identify when the treatment first started
+data$first.treat <- ifelse(data$unit == treated.unit, treatment.year, 0)
+
+# estimating group-time average treatment effects without covariates
+out <- att_gt(yname = "outcome", # outcome variable
+              gname = "first.treat", # year treatment was first applied aka the group identifier
+              idname = "unit", # unit identifier
+              tname = "time", # time variable
+              xformla = ~1,
+              data = data, # data set
+              est_method = "reg")
+
+# summarize the results
+# shows the average treatment effect by group and time
+summary(out)
+```
+
+
+Then we can show the group-time treatment effect by plotting it.
+
+```{r group-time, fig.align = 'center', fig.cap= "Group-time treatment effect"}
+# plot the results
+# set ylim so that it is equidistant from zero
+ggdid(out, ylim = c(-40, 40), xgap =3)
+```
+
+The red dots are the pre-treatment group-time average treatment effects while the blue dots are the post-treatment group-time average treatment effects. Both have 95% confidence intervals. This plot shows the effect of the sale of cigarette packs due to increasing the price of those packs.
+
+Now, estimate the treatment effect with covariates. Since there should be no missing data with the variables in `xformla`, we will be using `retprice`.
+
+```{r  group-time-cov, fig.align = 'center', fig.cap= "Group-time treatment effect with covariates"}
+# estimating group-time average treatment effects with covariates
+out.X <- att_gt(yname = "outcome", # outcome variable
+              gname = "first.treat", # year treatment was first applied aka the group identifier
+              idname = "unit", # unit identifier
+              tname = "time", # time variable
+              xformla = ~retprice, # can use another covariate if needed
+              data = data, # data set
+              est_method = "reg")
+
+# plot the results
+ggdid(out.X, ylim = c(-40, 40), xgap =3)
+```
+
+Simple Aggregation
+
+```{r }
+# calculates a weighted average of all group-time average treatment effects
+# with the weights proportional to the group size
+out.simple <- aggte(out.X, type = "simple")
+summary(out.simple)
+```
+
+Dynamic Effects and Event Study Plot
+
+```{r dynamic, fig.align = 'center', fig.cap= "Dynamic"}
+# averages the group-time average treatment effects
+# into average treatment effects at different lengths of exposure to the treatment
+out.dynamic <- aggte(out.X, type = "dynamic")
+summary(out.dynamic)
+
+ggdid(out.dynamic)
+```
+
+### Synthetic Control
+
+Synthetic Control is also a method that has become important in causal inference. It is especially important in policy evaluation literature not only in economics but in other fields such as the biomedical industry and engineering. 
+
+This method estimates the treatment effect of an intervention by using a synthetic control unit to compute the counterfactual of an outcome. We create a synthetic counterfactual unit for the treatment unit, which is a weighted combination of the control units. The control units would be states in this case, but could be cities, regions, or countries. Letting $Y_{NT}$ be the outcome the treated unit (unit $N$) at time $T$, we will try to predict $Y_{NT}(0)$ based on observed values $Y_{it}(0)$ for $(i,t) \neq (N, T)$.
+
+
+[Abadie, Diamond, & Hainmueller (ADH)](https://web.stanford.edu/~jhain/Paper/JASA2010.pdf) suggest using a weighted average of outcomes for other states:
+
+\[ \hat{Y}_{NT}(0)= \sum_{j=1}^{N-1} \omega_j Y_{jT}.\]
+
+They restrict the weights $\omega_j$ to be **non-negative** and restrict them to **sum to one**.
+
+So **how do we find the optimal weights?** Let $Z_i$ be the vector of functions of covariates $X_{it}$, including possible some lagged outcomes $Y_{it}$ for pre-$T$ periods. Let the norm be $||a||_V = a'V^{-1}a$. ADH first solve
+
+\[\omega(V) = \arg\min_\omega ||Z_N - \sum_{i=1}^{N-1} \omega_i \cdot Z_i||_V.\]
+
+This finds, for a given weight matrix $V$, the optimal weights. But, **how do we choose V?** 
+
+ADH find positive semi-definite $V$ that minimizes
+
+\[\hat{V} = \arg \min_V || Y_{N,L} -\sum_{i=1}^{N-1} \omega_i(V)\cdot Y_{i,L} ||\] 
+
+where $Y_{i,L}$ is the lagged values $Y_{i,t}$ for $t<T$.
+
+Then
+
+\[\omega^*= \omega(\hat{V}) = \arg\min_\omega||Z_N - \sum_{i=1}^{N-1} \omega_i \cdot Z_i||_{\hat{V}}.\]
+
+Now, suppose $Z_i=Y_{i,L}$ simply the lagged outcomes, then:
+
+\[\omega = \arg\min_\omega ||Y_{N,L} - \sum_{i=1}^{N-1} \omega_i \cdot Y_{i,L}||= \arg\min_{\omega} \sum_{t=1}^{T-1} (Y_{N,t}- \sum_{i=1}^{N-1}\omega_i \cdot Y_{i,t} )^2\]
+
+subject to
+
+\[\omega_i \geq 0, \sum_{i}^{N-1} \omega_i =1.\]
+
+
+
+#### Synthetic Control Estimates
+To get synthetic control estimates, we can use the following functions from [synth package](https://cran.r-project.org/web/packages/Synth/):
+
+1. `dataprep()` for matrix-extraction
+2. `synth()` for the construction of the synthetic control group
+3. `synth.tab()`, `gaps.plot()`, and `path.plot()` to summarize the results
+
+
+
+```{r results='hide'}
+# Create the X0, X1, Z0, Z1, Y0plot, Y1plot matrices from panel data 
+# Provide the inputs needed for synth()
+dataprep.out <-
+  dataprep(
+  foo = data,                  # dataframe with the data
+  predictors = predictors, 
+  predictors.op = c("mean"),        # method to be used on predictors
+  dependent = "outcome",         # outcome variable
+  unit.variable = "unit",       # variable associated with the units
+  time.variable = "time",        # variable associated with time
+  special.predictors = special.predictors,  # additional predictors
+  treatment.identifier = treated.unit,         # the treated unit
+  controls.identifier = control.units, # other states as the control units
+  time.predictors.prior = pretreat.period, # pre-treatment period
+  time.optimize.ssr = pretreat.period, # MSPE minimized for pre-treatment period
+  time.plot = time.period       # span of years for gaps.plot and path.plot
+  )
+
+```
+
+Now we can see the weights for the predictors and units.
+
+```{r }
+# identify the weights that create the 
+# best synthetic control unit for California 
+synth.out <- synth(dataprep.out)
+
+# Unit weights for the 39 states rounded to 4 digits
+round(synth.out$solution.w, 4)
+
+# Predictor weights for the predictors rounded to 4 digits
+round(synth.out$solution.v, 4)
+
+# uncomment if you want to see all the results from synth.out
+# synth.tables <- synth.tab(
+#       dataprep.res = dataprep.out,
+#       synth.res = synth.out)
+# print(synth.tables)
+```
+
+Now here is what the synthetic unit looks like in comparison to the treated unit. 
+
+```{r  synthetic-unit, fig.align = 'center', fig.cap= "Synthetic unit"}
+## plot in levels (treated and synthetic)
+# dataprep.res is a list from the output of dataprep call
+# synth.res is a list from the output of the synth call
+path.plot(dataprep.res = dataprep.out, 
+          synth.res = synth.out,
+          tr.intake = treatment.year,      # time of treatment
+          Ylab = c("per-capita cigarette sales (in packs)"), 
+          Xlab = c("Year"),
+          Ylim = c(0, 140),
+          Legend = c("Treated Unit", "Synthetic Unit"))
+```
+
+
+
+
+### Synthetic Differences-in-Differences
+
+In this subsection, we look at Synthetic Difference-in-Differences (SDID) which is proposed by [Arkhangelsky et al. (2021)](https://arxiv.org/pdf/1812.09970.pdf). SDID can be seen as a combination of the Synthetic Control and Difference-in-Differences methods.
+
+Like with Synthetic Control methods, we start by finding weights $\hat{\omega}^{sdid}$ that align pre-exposure trends in the outcome of unexposed units with those for the exposed units. Then we find time weights $\hat{\lambda}^{sdid}$ that balance pre-exposure time periods with post-exposure ones. Then we use these weights in a basic two-way fixed effects regression to estimate the average causal effect of exposure (denoted by $\tau$):
+
+\[ (\hat{\mu}, \hat{\alpha}, \hat{\beta}, \hat{\tau}^{sdid}) = arg min_{\mu, \alpha, \beta, \tau} \sum_{i=1}^{N} \sum_{t=1}^{T} (Y_{it} - \mu - \alpha_i - \beta_t - W_{it}\tau)^2 \hat{\omega}_i^{sdid} \hat{\lambda}_t^{sdid}  \]
+
+where 
+
+- $\omega_i$ – unit weight
+- $\lambda_t$ – time weight
+- $\alpha_i$ – unit fixed effect
+- $\beta_t$ – time fixed effect
+- $W_{it}$ - treatment indicator
+
+Time weights $\hat{\lambda}_t$ satisfy
+
+\[\hat{\lambda}= \arg \min _{\lambda} \sum_{i=1}^{N-1} (Y_{iT} - \sum_{t=1}^{T-1}\lambda_t Y_{it})^2 + \text{regularization term},\]
+
+subject to
+
+\[\lambda_t \geq 0, \sum_{t=1}^{T-1} \lambda_t =1.\]
+
+
+In comparison, the DID estimates the effect of treatment exposure by solving the same two-way fixed effect regression problem without either time or unit weights:
+
+\[ (\hat{\mu}, \hat{\alpha}, \hat{\beta}, \hat{\tau}^{did}) = arg min_{\mu, \alpha, \beta, \tau} \sum_{i=1}^{N} \sum_{t=1}^{T} (Y_{it} - \mu - \alpha_i - \beta_t - W_{it}\tau)^2.\]
+
+On the other hand, the Synthetic Control estimator omits the unit fixed effect and the time weights from the regression function: 
+
+\[ (\hat{\mu}, \hat{\beta}, \hat{\tau}^{sc}) = arg min_{\mu, \beta, \tau} \sum_{i=1}^{N} \sum_{t=1}^{T} (Y_{it} - \mu - \beta_t - W_{it}\tau)^2 \hat{\omega}_i^{sc}.\]
+        
+
+#### SDID Estimates
+
+Now we use the same data to compute the SDID using `synthdid_estimate()` function from [synthdid package](https://synth-inference.github.io/synthdid/). From this we can get the estimate of the treatment effect, standard error, time weights, and unit weights.
+
+```{r }
+# SDID estimate
+sdid = synthdid_estimate(Y, N0, T0)
+
+#summary
+summary(sdid)
+```
+
+
+Alternatively, we can print out the time and unit weights separately. The following command will give us the weights for years with non-zero values in descending order.
+
+```{r}
+# time weights
+round(summary(sdid)$periods, digits = 3) # for years with non-zero values
+```
+
+The following command can be used to print the weights for all pre-treatment years.
+
+```{r}
+attr(sdid, 'weights')$lambda # for all pre-treatment years
+```
+
+Next, we print out the unit weights. Similarly to above, the following command will give us the unit weights with non-zero values in descending order. 
+```{r}
+# unit weights
+round(summary(sdid)$controls, digits = 3) # for all units with non-zero values
+```
+
+Again similarly, the following command can be used to print weights for all units.
+
+```{r}
+attr(sdid, 'weights')$omega # for all units
+```
+
+We use those estimates to create the following plots. Figure \@ref(fig:unit-control) is the Unit Control Plot which shows the state-by-state outcome differences with the weights indicated by dot size. Observations with zero weight are donated an x-symbol. The weighted average of these differences, the estimated effect, is indicated by a horizontal line. 
+
+```{r unit-control, fig.align = 'center', fig.cap= "Unit control"}
+# Unit Control Plot
+synthdid_units_plot(sdid)
+``` 
+
+Figure \@ref(fig:sdid-treated) is a plot comparing the synthetic unit to the treated unit. The vertical line at 1989 indicates the onset of treatment. At the bottom of the graph, we can see the time weights on pre-treatment years that were used to create the synthetic unit. As we saw earlier, the only non-zero values are in 1986, 1987, and 1988. The blue segment shows the change from the weighted pre-treatment average to the post-treatment average California. The red segment shows the same for the synthetic control group. Absent treatment, California would change like the synthetic control. So from California's pre-treatment average, we draw a dashed segment parallel to the control's red segment. Where it ends is our estimate of what we would have observed in California had it not been treated. Comparing this counterfactual estimate to what we observed in the real world, we get a treatment effect. We show it with a black arrow. 
+
+```{r sdid-treated, fig.align = 'center', fig.cap= "Synthetic unit and treated unit"}
+# Synthetic Unit vs Treated Unit Plot
+synthdid_plot(list(sdid=sdid), facet.vertical=FALSE, control.name='sdid control', treated.name='treated unit', lambda.comparable=TRUE, 
+    trajectory.linetype = 1, trajectory.alpha=.8, effect.alpha=1, diagram.alpha=1, effect.curvature=-.4, onset.alpha=.7) + 
+    theme(legend.position=c(.90,.90), legend.direction='vertical', legend.key=element_blank(), legend.background=element_blank())
+```
+
+```{r}
+# Simply using plot() function will give a similar plot to above
+# Uncomment to check
+# plot(sdid)
+```
+
+####  Comparing SDID to DID and Synthetic Control
+
+We can also compare this estimator to the DID and Synthetic Control estimators. For this we use `did_estimate()` and `sc_estimate()` functions from [synthdid package](https://synth-inference.github.io/synthdid/reference/). Figure \@ref(fig:sdid-comparison) reproduces Figure 1 of [Arkhangelsky et al. (2021)](https://arxiv.org/pdf/1812.09970.pdf). On top of the SDID graph in Figure \@ref(fig:sdid-treated), we plot DID and Synthethic Control estimates. We can see that the time weight for pre-treatment years is constant for the DID and that there is no time weight for the Synthetic Control.
+
+
+```{r}
+tau.did <- did_estimate(attr(sdid, 'setup')$Y, attr(sdid, 'setup')$N0, attr(sdid, 'setup')$T0)
+tau.sc <- sc_estimate(attr(sdid, 'setup')$Y, attr(sdid, 'setup')$N0, attr(sdid, 'setup')$T0)
+estimates <- list(tau.did, tau.sc, sdid)
+names(estimates) <- c('Diff-in-Diff', 'Synthetic Control', 'Synthetic Diff-in-Diff')
+```
+
+
+```{r sdid-comparison, fig.align = 'center', fig.cap= "Comparing SDID to DID and Synthetic Control", fig.width=7, fig.height=7}
+synthdid_plot(estimates, se.method='placebo')
+```
+
+## Further reading
+There are many excellent online resources on panel data methods such as the following:
+
+- [Causal Inference: The Mixtape](https://mixtape.scunning.com)
+- [Liu, L., Wang, Y., & Xu, Y. (2022). A Practical Guide to Counterfactual Estimators for Causal Inference with Time‐Series Cross‐Sectional Data. American Journal of Political Science.](https://onlinelibrary.wiley.com/doi/pdf/10.1111/ajps.12723)
+- [Roth, J., Sant'Anna, P. H., Bilinski, A., & Poe, J. (2022). What's trending in difference-in-differences? A synthesis of the recent econometrics literature. arXiv preprint arXiv:2201.01194.](https://arxiv.org/abs/2201.01194)
+- [De Chaisemartin, C., & d'Haultfoeuille, X. (2022). Two-way fixed effects and differences-in-differences with heterogeneous treatment effects: A survey ](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3980758)
+

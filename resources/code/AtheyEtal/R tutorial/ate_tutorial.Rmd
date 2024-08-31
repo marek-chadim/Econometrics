@@ -1,0 +1,722 @@
+---
+title: "Exploring Causal Inference in Experimental and Observational Studies"
+author:
+- name: Prof. Susan Athey[^1]
+  affiliation: Stanford University
+date: "November 2019"
+output:
+  html_document:
+    number_sections: no
+    toc: yes
+    toc_depth: 2
+  pdf_document:
+    toc: yes
+keywords: average treatment effect; machine learning; microeconometrics
+abstract: | 
+  In this tutorial, you will learn how to apply several new methods for the estimation of causal effects from observational data. In order to know when our methods give correct answers, we will start with data from a randomized trial, where we can unbiasedly estimate the average treatment effect via a simple difference in means. We then modify this dataset by aggressively introducing sampling bias so that the answer given to us by the difference in means is incorrect. Then, on this modified dataset, we will use several econometric and machine learning techniques to retrieve the original correct answer. At the end of the tutorial, you will have experimented with a new set of tools to use in causal inference problems, and have idea of which methods give more reliable answers.
+---
+
+[^1]: Contributors to this tutorial: Susan Athey, Stefan Wager, Nicolaj Nørgaard Mühlbach, Xinkun Nie, Vitor Hadad, Matthew Schaelling, Kaleb Javier, Niall Keleher.
+  
+```{r setup, include = TRUE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load all packages needed to execute the job
+# If the packages are not installed, write
+# install.packages("<name of package>")
+
+library(ggplot2)   # plot
+library(glmnet)    # lasso
+library(grf)       # generalized random forests
+library(sandwich)  # for robust CIs
+library(devtools)  # install from GitHub 
+#install_github("swager/balanceHD") #Run this if you have not installed balanceHD before
+library(balanceHD) # approximate residual balancing
+```
+
+# Introduction and Setup
+
+---
+
+The economic context in which we will be working is inspired by Gerber, Green, and Larimer (2008)'s paper "Social Pressure and Voter Turnout: Evidence from a Large-Scale Field Experiment" ([see article](http://isps.yale.edu/sites/default/files/publication/2012/12/ISPS08-001.pdf)). This paper begins by noting that voter turnout is hard to explain via theories based on rational self-interest behavior, because the observable payoff to voting seems so small that voter turnout should be much smaller than what we see in reality. It could be the case, then, that voters receive some unobserved utility from voting -- they have fulfilled their civic duty -- or it could be that voters feel pressured by their peers to exercise their voting duty. The authors are interested in understanding the latter effect. They pose the question: to what extent do *social norms* cause voter turnout? In other words, we would like to quantify the effect of social pressure on voter participation.
+
+For this experiment, a large number of voters were randomly divided in several groups, but for our purposes, we only need to know that there was a “control” group that did not receive anything, and a specific “treatment” group that received a message stating that, after the election, the recent voting record of everyone on their households would be sent to all their neighbors -- we will call this the *Neighbors* mailing. This mailing had the effect of maximizing social pressure on potential voters, since their peers would be able to know whether they voted or not.
+
+The outcome dataset is publicly available [here](https://github.com/gsbDBI/ExperimentData/tree/master/Social). In this tutorial, we will use the following variables from it.
+
+* Response variable
++ *outcome_voted*: Indicator variable where $= 1$ indicates voted in the August 2006 primary
+* Treatment variable
++ *treat_neighbors*: Indicator variable where $= 1$ indicates _Neighbors mailing_ treatment
+* Covariates,
++ *sex*: Indicator variable where $= 1$ indicates male
++ *yob*: Year of birth
++ *g2000*: Indicator variable where $= 1$ indicates voted in the 2000 general
++ *g2002*: Indicator variable where $= 1$ indicates voted in the 2002 general
++ *p2000*: Indicator variable where $= 1$ indicates voted in the 2000 primary
++ *p2002*: Indicator variable where $= 1$ indicates voted in the 2002 primary
++ *p2004*: Indicator variable where $= 1$ indicates voted in the 2004 primary
++ *city*: City index
++ *hh_size*: Household size
++ *totalpopulation_estimate*: Estimate of city population
++ *percent_male*: Percentage males in household
++ *median_age*: Median age in household
++ *median_income*: Median income in household
++ *percent_62yearsandover*: Percentage of subjects of age higher than 62 yo
++ *percent_white*: Percentage white in household
++ *percent_black*: Percentage black in household
++ *percent_asian*: Percentage asian in household
++ *percent_hispanicorlatino*: Percentage hispanic or latino in household
++ *employ_20to64*: Percentage of employed subjects of age 20 to 64 yo 
++ *highschool*: Percentage having only high school degree
++ *bach_orhigher*: Percentage having bachelor degree or higher
+
+Below, we load the data as a .csv file, rename the response and the treatment variable to $Y$ and $W$, respectively, and extract the relevant covariates outlined above. Then, we standardize the continuous covariates to have zero mean and unit variance and omit observations with _NA_ entries.
+
+---
+
+```{r, message=FALSE, include=TRUE}
+# Clear any existing variables
+rm(list = ls())
+
+# Set seed for reproducibility
+set.seed(20191111)
+
+# Load data
+data_raw <- read.csv('socialneighbor.csv')
+
+# These are the covariates we'll use
+cts_variables_names <- c("yob", "city", "hh_size", "totalpopulation_estimate",
+                         "percent_male", "median_age",
+                         "percent_62yearsandover",
+                         "percent_white", "percent_black",
+                         "percent_asian", "median_income",
+                         "employ_20to64", "highschool", "bach_orhigher",
+                         "percent_hispanicorlatino")
+binary_variables_names <- c("sex","g2000", "g2002", "p2000", "p2002", "p2004")
+covariates <- c(cts_variables_names, binary_variables_names)
+all_variables_names <- c(covariates, "outcome_voted", "treat_neighbors")
+
+# We will not use all observations -- it would take too long to run all the methods below
+# Instead, keep 9000 controls and 6000 treated samples
+keep <- c(base::sample(which(data_raw$treat_neighbors == 0), 9000),
+          base::sample(which(data_raw$treat_neighbors == 1), 6000))
+data_subset <- data_raw[keep, names(data_raw) %in% all_variables_names]
+
+# Extracting and scaling continuous variables
+scaled_cts_covariates <- scale(data_subset[,cts_variables_names])
+
+# Extracting indicator variables
+binary_covariates <- data_subset[,binary_variables_names]
+
+# Extracting outcome and treatment
+outcome <- data_subset$outcome_voted
+treatment <- data_subset$treat_neighbors
+
+# Setting up the data, renaming columns
+df <- data.frame(scaled_cts_covariates, binary_covariates, W=treatment, Y=outcome)
+
+# Discard rows with na (if any)
+df <- na.omit(df)
+```
+
+---
+
+## Average Treatment Effect (ATE)
+
+Let us briefly formalize our goal. We observe a sequence of triples $\{(W_i, Y_i, X_i)\}_{i}^{N}$, where $W_i$ represents whether subject $i$ was "treated" with the *Neighbors* mailing, $Y_i$ is a binary variable representing whether they voted in that election, and $X_i$ is a vector of other observable characteristics. Moreover, in the Neyman-Rubin potential-outcomes framework, we will denote by $Y_i(1)$ the *random variable* that represents the **potential outcome** of subject $i$ had they received the treatment, and $Y_i(0)$ will represent the same potential outcome had they not received anything. The **individual treatment effect** for subject $i$ can then be written as 
+
+$$Y_i(1) - Y_i(0)$$
+
+Unfortunately, in our data we can only observe one of these two potential outcomes. Computing this difference for each individual is impossible. But we will try to use the information we have about the distribution of the data to say something about its average, called the **average treatment effect (ATE)** and denoted here by $\tau$:
+  
+  $$\tau := E[Y_i(1) - Y_i(0)]$$
+  
+Now, what method will work here depends on our assumptions about the data-generating process. In this tutorial, we will always assume for simplicity that the data is independently and identically distributed (*iid*). And for this part only, we will also assume that the potential outcome is independent of the treatment:
+  
+  $$Y_i(1), Y_i(0) \ \perp \ W_i $$
+  
+In plain English, we are assuming that whether or not a subject received the *Neighbors* mailing has nothing to do with how they would respond to this "treatment". This assumption would be violated, for example, if people who are more sensitive to social pressure were more likely to receive the treatment. We get away with assuming this because in Gerber, Green, and Larimer (2008)'s work the treatment assignment is random.
+
+
+The independence assumption above allows us to produce a simple estimator for the ATE:
+
+\begin{align}
+\tau &= E[\tau_{i}] \\
+    &= E[Y_i(1) - Y_i(0)] \\
+    &= E[Y_i(1)] - E[Y_i(0)]  \qquad \qquad \because \text{Linearity of expectations}\\
+    &= E[Y_i(1)|W_i = 1] - E[Y_i(0)|W_i = 0] \qquad \because \text{Independence assumption} 
+\end{align}
+
+In words, the math above states that if we want to know the estimate of the average treatment effect we just need to know the average voter turnouts for treated and control subjects and compute their difference. 
+
+The implied estimator is:
+
+$$\hat{\tau} = \frac{1}{n_1}\sum_{i | W_i = 1} y_i  - \frac{1}{n_0}\sum_{i | W_i = 0} y_{i}$$
+
+where $n_1$ and $n_0$ are the numbers of subjects in the treatment and control groups, respectively. The following snippet estimates the average treatment effect and its confidence interval. 
+
+---
+
+```{r RCT_analysis, results = FALSE}
+difference_in_means <- function(dataset) {
+  treated_idx <- which(dataset$W == 1)
+  control_idx <- which(dataset$W == 0)
+  
+  # Filter treatment / control observations, pulls outcome variable as a vector
+  y1 <- dataset[treated_idx, "Y"] # Outcome in treatment grp
+  y0 <- dataset[control_idx, "Y"] # Outcome in control group
+  
+  n1 <- sum(df[,"W"])     # Number of obs in treatment
+  n0 <- sum(1 - df[,"W"]) # Number of obs in control
+  
+  # Difference in means is ATE
+  tauhat <- mean(y1) - mean(y0)
+  
+  # 95% Confidence intervals
+  se_hat <- sqrt( var(y0)/(n0-1) + var(y1)/(n1-1) )
+  lower_ci <- tauhat - 1.96 * se_hat
+  upper_ci <- tauhat + 1.96 * se_hat
+  
+  return(c(ATE = tauhat, lower_ci = lower_ci, upper_ci = upper_ci))
+}
+
+tauhat_rct <- difference_in_means(df)
+
+```
+
+Look at the output:
+
+```{r}
+print(tauhat_rct)
+```
+
+---
+
+## Introducing sampling bias
+
+Since we are using data coming from a randomized experiment, the estimate we got above is unbiased and, for our purposes, it is the correct answer. But next let's drop specific observations and introduce bias to our data until we get a wrong answer. There are myriad ways of going about this, but let's try the following. We will drop a fraction of voters in order to create an *under*estimate of the true value. To do so, we'll take a fraction of our observations and analyze whether they are likely to vote or not. If they are, we will drop them from the treatment group; otherwise we will drop them from the control group.
+
+In practice, we will drop from the treatment individuals who voted in previous elections, and from the control group we will remove some who didn't. This depresses the correlation between treatment and outcome, and has the effect of attenuating our estimates of the true causal effect.
+
+Voters who voted in the 2004 primary are more likely to vote in the
+in the 2006 primary. We are going to remove some treated people who
+voted in the 2004 primary, and some control people who didn't vote,
+such as to remove each sample with probably 35% conditionally on X.
+Because 2004 participation is correlated with Y, this will depress
+empirical correlation, and the simple difference-in-means estimator
+will be biased.
+
+
+---
+
+```{r add_confounding}
+
+likely_voter = ((df$p2004 == 1) & (df$yob < -1)) |
+  ((df$g2002 == 1) & (df$sex == 0)) |
+  (df$p2004 == 1)
+
+```
+
+Proportion in 'likely voter' category: `r round(mean(likely_voter), digits = 3)`.
+Mean voting rate for 'likely voter' category: `r round(mean(df$Y[likely_voter]), digits = 3)`.
+Mean voting rate for non-'likely voter' category: `r round(mean(df$Y[!likely_voter]), digits = 3)`.
+
+```{r confounded_ate}
+prob = 0.35
+drop_from_treat <- base::sample(which(likely_voter & df$W == 1), round(prob * sum(likely_voter)))
+drop_from_control <- base::sample(which(!likely_voter & df$W == 0), round(prob * sum(!likely_voter)))
+df_mod <- df[-c(drop_from_treat, drop_from_control),]
+
+# The difference in means is now biased!
+tauhat_confounded <- difference_in_means(df_mod)
+tauhat_confounded
+```
+
+As we apply these helper functions to our data and recompute ATE on the modified dataset, we end up with an underestimate, just as we had predicted.
+
+---
+
+## Assumptions
+
+The methods we will present in this tutorial make use of the features $X_i$ that we observe for each individual, and there are two assumptions that allows these features to be useful for us.
+
+The first one is known as **unconfoundedness**, and it is formalized as a conditional independence assumption as follows.
+
+$$Y_i(1), Y_i(0) \perp W_i \ | \ X_i$$
+
+Unconfoundedness implies that the treatment is randomly assigned within each subpopulation indexed by $X_i = x$. Alternatively, it means that once we know all observable characteristics of individual $i$, then knowing about his or her treatment status gives us no extra information about their potential outcomes.
+
+In the next two subsections, we will see how this assumption allows us to retrieve the original ATE.
+
+The second assumption will be called here the **overlap assumption**. It is formally stated like as follows.
+
+$$\forall x \in \text{supp}(X), \qquad 0 < P(W = 1 \ | \ X = x)  < 1$$
+
+Effectively, this assumption guarantees that no subpopulation indexed by $X=x$ is entirely located in only one of control or treatment groups. It is necessary to ensure that we are able to compare individuals in control and treatment for every subpopulation.
+
+Finally, the conditional probability of treatment given controls $P(W=1|X=x)$ is called the **propensity score**. In the next sections, it will play a central role in estimation and inference of causal effects. The propensity score can be estimated by any methods you prefer, and it's always a good idea to check that the estimated propensity score satisfies the overlap assumption. For example, let's estimate it using a logistic regression.
+
+Also, we can visually check the overlap assumption by remarking that
+the probability density stays bounded away from zero and one.
+Notice that, in this example, propensities get quite close to 0 -- so caution is needed.
+
+---
+
+```{r fit_propensity_score_with_logistic_regression}
+
+Xmod = df_mod[,!names(df_mod) %in% c("Y", "W")]
+Ymod = df_mod$Y
+Wmod = df_mod$W
+
+# Computing the propensity score by logistic regression of W on X.
+p_logistic.fit <- glm(Wmod ~ as.matrix(Xmod), family = "binomial")
+p_logistic <- predict(p_logistic.fit, type = "response")
+
+hist(p_logistic, main = "Histogram: Logistic Regression Propensity Scores"
+     , xlab = "Propensity Score", col = "cornflowerblue", las = 1)
+
+```
+
+---
+
+Also check whether the logistic regression predictions are well calibrated.
+Depending on the actual missingness pattern, the calibration may be better or worse...
+
+```{r}
+plot(smooth.spline(x = p_logistic, y = Wmod, df = 4)
+     , xlab = "Propensity Score (Logistic Regression)", ylab = "Prob. Treated (W)"
+     , col = adjustcolor("black", alpha.f=0.4), pch=19, las = 1)
+abline(0, 1, lty="dashed")
+```
+
+
+---
+
+# OLS and logistic regression
+
+Now, we will compare 3 traditional methods for ATE estimation under unconfoundedness:
+OLS regression adjustment, inverse-propensity weighting via logistic regression,
+and double robust estimation, which combines both.
+
+## I Direct conditional mean estimation 
+
+We begin by defining the **conditional average treatment effect (CATE)**, which we denote analogously to the ATE.
+
+$$\tau(x) := E[Y_i(1) - Y_i(0) | X_i = x]$$
+
+If we had access to estimates of $CATE(x)$ for each $x$, then we could also retrieve the population ATE, by simply averaging out over the regressors.
+
+$$\tau = E[\tau(X)]$$
+
+To find straightforward estimate of CATE, we follow a familiar reasoning, except this time we are conditioning on the observable features.
+
+\begin{align}
+\tau(x) &= E[\tau_{i} \ | \ X_i = x] \\
+    &= E[Y_i(1) - Y_i(0) \ | \ X_i = x] \\
+    &= E[Y_i(1)|X] - E[Y_i(0) \ | \ X_i = x]  \qquad \qquad \because \text{Linearity of expectations}\\
+    &= E[Y_i(1) \ | \ W_i = 1, X_i = x] - E[Y_i(0) \ | \ W_i = 0, X_i = x] \qquad \because \text{Unconfoundedness} \\
+    &=: \mu(1,x) - \mu(0,x)
+\end{align}
+
+The objects $\mu(1,x)$ and $\mu(0,x)$ are conditional expectations of the outcome variable for treatment and control groups. They can be estimated from observables as soon as we assume a functional form for $\mu(w,x)$. Below, we use a linear model, and can use OLS.
+
+---
+
+```{r ols_regression}
+ate_condmean_ols <- function(dataset) {
+  df_mod_centered = data.frame(scale(dataset, center = TRUE, scale = FALSE))
+  
+  # Running OLS with full interactions is like running OLS separately on
+  # the treated and controls. If the design matrix has been pre-centered,
+  # then the W-coefficient corresponds to the ATE.
+  lm.interact = lm(Y ~ . * W, data = df_mod_centered)
+  tau.hat = as.numeric(coef(lm.interact)["W"])
+  se.hat = as.numeric(sqrt(vcovHC(lm.interact)["W", "W"]))
+  c(ATE=tau.hat, lower_ci = tau.hat - 1.96 * se.hat, upper_ci = tau.hat + 1.96 * se.hat)
+}
+
+tauhat_ols <- ate_condmean_ols(df_mod)
+print(tauhat_ols)
+```
+
+---
+
+## II: Inverse-propensity score weighting
+
+Rosenbaum and Rubin (1983) have shown that whenever unconfoundedness holds, it is sufficient to control for the **propensity score**. The propensity score serves a single-dimensional variable that summarizes how observables affect the treatment probability. 
+
+$$e(x) = P(W_i = 1 \ |\ X_i = x)$$
+In terms of conditional independence, one can prove that if unconfoundedness holds, then
+
+$$Y_i(1), Y_i(0) \perp W_i \ | \ e(X_i)$$
+That is, a comparison of two people with the same propensity score, one of whom received the treatment and one who did not, should in principle adjust for confounding variables. 
+
+Here, let's compute the propensity score by running a logistic regression of $W$ on covariates $X$. Later, we will try different methods.
+
+Propensity score weighting (PSW) provides our starting point as a method to reduce the effects of confounding in observational studies. The basic idea is to weight the observations to obtain similar baseline characteristics. The following results can be shown to hold
+
+$$\mathbb{E}\left[Y_i{(1)}\right] = \mathbb{E}\left[\frac{Y_iW_i}{e(X_i)} \right] \quad \textrm{and} \quad \mathbb{E}\left[Y_i{(0)}\right] = \mathbb{E}\left[\frac{Y_i(1-W_i)}{1-e(X_i)} \right]$$
+
+These expressions give us two estimators of the ATE. The first one is the sample analog of the difference between the two quantities above.
+$$\tau =\mathbb{E} \left[ \frac{Y_iW_i}{e(X_i)} - \frac{Y_i(1-W_i)}{1-e(X_i)} \right] = \mathbb{E} \left[ \frac{(W_i-e(X_i))}{e(X_i)(1-e(X_i))}Y_i \right]$$
+Using the propensity score that we just estimated above:
+
+---
+
+```{r ipw_logistic}
+ipw <- function(dataset, p) {
+  W <- dataset$W
+  Y <- dataset$Y
+  G <- ((W - p) * Y) / (p * (1 - p))
+  tau.hat <- mean(G)
+  se.hat <- sqrt(var(G) / (length(G) - 1))
+  c(ATE=tau.hat, lower_ci = tau.hat - 1.96 * se.hat, upper_ci = tau.hat + 1.96 * se.hat)
+}
+
+tauhat_logistic_ipw <- ipw(df_mod, p_logistic)
+print(tauhat_logistic_ipw)
+```
+
+---
+
+## IIb: Weighted OLS on W
+The second option is to simply run an ordinary least squares (OLS) regression of $Y$ on $W$ on a weighted sample using weights
+$$w = \frac{W}{e(X)}+\frac{(1-W)}{1-e(X)}$$
+We apply both the formula and the estimation below.
+
+---
+
+```{r prop_score_ols}
+prop_score_ols <- function(dataset, p) {
+  # Pulling relevant columns
+  W <- dataset$W
+  Y <- dataset$Y
+  # Computing weights
+  weights <- (W / p) + ((1 - W) / (1 - p))
+  # OLS
+  lm.fit <- lm(Y ~ W, data = dataset, weights = weights)
+  tau.hat = as.numeric(coef(lm.fit)["W"])
+  se.hat = as.numeric(sqrt(vcovHC(lm.fit)["W", "W"]))
+  c(ATE=tau.hat, lower_ci = tau.hat - 1.96 * se.hat, upper_ci = tau.hat + 1.96 * se.hat)
+}
+
+tauhat_pscore_ols <- prop_score_ols(df_mod, p_logistic)
+print(tauhat_pscore_ols)
+```
+
+---
+
+## III: Doubly robust methods 
+
+We have just seen to different methods for estimating causal effects. One modeled the conditional mean of outcomes given covariates and treatment, while the other rebalanced the sample using the propensity score. When our model is correctly specified, either of these two approaches can give very strong performance guarantees. When there might be a risk of misspecification, however, this is not true anymore and, in fact, the performance of any of these methods, by themselves, can be severely compromised.
+
+The literature on **doubly robust methods** combines both regression and weighting in an attempt to ameliorate this sensitivity to misspecification. As it turns out, a result of Scharfstein, Robins and Rotznitzky (1999) has shown that combining regression and weighting can lead to much more robust estimators: we only need one of the models for the conditional mean or propensity score to be correctly specified, the other one can be misspecified.
+
+One such estimator is given below. Note how we are using both the information about the conditional means and propensity score.
+
+$$\tau = \mathbb{E} \left[  W_i \frac{Y_i-\tau(1,X_i)}{e(X_i)} + (1-W_i) \frac{Y_i-\tau(0,X_i)}{(1-e(X_i))} + \tau(1,X_i) - \tau(0,X_i)\right]$$
+
+In the example snippet below, we use combine the OLS and logistic regression ideas from above,
+to form an **augmented inverse-propensity weighted** estimator.
+
+---
+
+```{r aipw}
+aipw_ols <- function(dataset, p) {
+  
+  ols.fit = lm(Y ~ W * ., data = dataset)
+  
+  dataset.treatall = dataset
+  dataset.treatall$W = 1
+  treated_pred = predict(ols.fit, dataset.treatall)
+  
+  dataset.treatnone = dataset
+  dataset.treatnone$W = 0
+  control_pred = predict(ols.fit, dataset.treatnone)
+  
+  actual_pred = predict(ols.fit, dataset)
+  
+  G <- treated_pred - control_pred +
+    ((dataset$W - p) * (dataset$Y - actual_pred)) / (p * (1 - p))
+  tau.hat <- mean(G)
+  se.hat <- sqrt(var(G) / (length(G) - 1))
+  c(ATE=tau.hat, lower_ci = tau.hat - 1.96 * se.hat, upper_ci = tau.hat + 1.96 * se.hat)
+}
+
+tauhat_lin_logistic_aipw <- aipw_ols(df_mod, p_logistic)
+print(tauhat_lin_logistic_aipw)
+```
+
+---
+
+# Random forests
+
+We will now re-implement the same estimators as before (IPW and AIPW),
+except we now use random forests to estimate the regression adjustment
+and propensity score.
+
+In this part of the tutorial, we rely more heavily on the grf package,
+which already has built-in support for what we want to do.
+We start by training a causal forest. This will take a little bit of time.
+
+Note that forests automatically do out-of-bag prediction when asked to
+predict on the training set, so we do not need to worry about
+cross-fitting here.
+
+---
+```{r run_causal_forest}
+cf <- causal_forest(Xmod, Ymod, Wmod, num.trees = 500)
+```
+
+---
+
+The causal forest object includes propensity score estimates
+(estimated via a separate regression forest, as a sub-routine).
+
+Compare them to the logistic regression p-score estimates.
+
+---
+
+```{r}
+p_rf = cf$W.hat
+
+hist(p_rf, main = "Histogram: Regression Forest Propensity Scores"
+     , xlab = "Propensity Score", col = "cornflowerblue", las = 1)
+
+```
+
+---
+
+Good propensity estimates should have calibration that are close to the diagonal.
+
+---
+
+```{r}
+plot(smooth.spline(x = p_rf, y = Wmod, df = 4)
+     , xlab = "Propensity Score (Random Forest)", ylab = "Prob. Treated (W)"
+     , col = adjustcolor("black", alpha.f=0.4), pch=19, las = 1)
+abline(0, 1, lty="dashed")
+```
+
+```{r}
+# these in fact look pretty different...
+plot(x = p_rf, y = p_logistic
+     , xlab = "Propensity Score (Random Forest)", ylab = "Propensity Score (Logistic Regression)"
+     , col = adjustcolor("black", alpha.f=0.4), pch=19, las = 1)
+abline(0, 1, lty = "dashed")
+```
+
+```{r}
+# compare the log likelihoods (bigger is better)
+loglik = c(LR=mean(Wmod * log(p_logistic) + (1 - Wmod) * log(1 - p_logistic)),
+           RF=mean(Wmod * log(p_rf) + (1 - Wmod) * log(1 - p_rf)))
+loglik
+```
+
+----
+
+Now estimate ATEs both using IPW, and the doubly robust method (AIPW).
+The grf package has built-in support for AIPW.
+
+---
+
+```{r random_forest_ipw}
+# This approach does not use orthogonal moments, and so is not recommended
+tauhat_rf_ipw <- ipw(df_mod, p_rf)
+tauhat_rf_ipw
+```
+
+```{r random_forest_aipw}
+# This approach is justified via the orthogonal moments argument (as seen in class)
+ate_cf_aipw <- average_treatment_effect(cf)
+tauhat_rf_aipw <- c(ATE=ate_cf_aipw["estimate"],
+                   lower_ci=ate_cf_aipw["estimate"] - 1.96 * ate_cf_aipw["std.err"],
+                   upper_ci=ate_cf_aipw["estimate"] + 1.96 * ate_cf_aipw["std.err"])
+tauhat_rf_aipw
+```
+
+---
+
+We can also mix and match, and use OLS regression adjustments with
+random forest propensity weights. This approach is can also be justified
+by orthogonal moments (because the argument works for any pairing
+of fast-enough converging regression adjustments).
+
+---
+
+
+```{r}
+tauhat_ols_rf_aipw <- aipw_ols(df_mod, p_rf)
+tauhat_ols_rf_aipw
+```
+
+----
+
+# High-dimensional analysis with interactions
+
+Random forest present one approach to non-parameteric ATE estimation,
+where we let the forest automatically learn interactions, non-linearities,
+etc. Another approach is to create a large dictionary of potential basis
+functions by hand, and then use sparse estimation to fit the model.
+
+Here, we start by expanding out all interactions of the X-matrix,
+and then fit a lasso on it.
+
+---
+
+## Lasso-based methods
+
+We are now ready to fit a propensity model using a cross-fit
+logistic lasso on interactions, and check the quality of the
+fit.
+
+---
+
+```{r lasso_pscore}
+# Use cross-fitted predictions for each observation.
+# Argument keep=TRUE ensures that the out-of-fold predictions are saved.
+Xmod.int <- model.matrix(~ . * ., data = Xmod)
+glmnet.fit.propensity <- cv.glmnet(Xmod.int, Wmod, family = "binomial", keep=TRUE)
+lambda.min.index <- which(glmnet.fit.propensity$lambda == glmnet.fit.propensity$lambda.min)
+p_lasso <- glmnet.fit.propensity$fit.preval[, lambda.min.index]
+
+plot(smooth.spline(x = p_lasso, y = Wmod, df = 4)
+     , xlab = "Propensity Score (lasso)", ylab = "Prob. Treated (W)"
+     , col = adjustcolor("black", alpha.f=0.4), pch=19, las = 1)
+abline(0, 1, lty="dashed")
+```
+
+----
+
+For the outcome model, rather than fitting two separate lassos
+on the treated and controls, we instead run a single lasso with
+separate baseline and treatment components:
+$$ \text{argmin}\left \{\sum_{i = 1}^n \left(Y_i - X_i \beta + (2W_i - 1) X_i \zeta\right)^2 + \lambda (||\beta||_1 + ||\zeta||_1)\right\}. $$
+
+---
+
+
+```{r lasso_outcome_fit}
+# Predict counterfactual outcome for all observations.
+# This time, because we will be using the "newdata" argument when predicting, 
+#   we can't just use keep=TRUE, and have to fit different models in a for loop.
+Xmod.for.lasso <- cbind(Wmod, Xmod.int, (2 * Wmod - 1) * Xmod.int)
+Xmod.for.lasso.control <- cbind(0, Xmod.int, -Xmod.int)
+Xmod.for.lasso.treated <- cbind(1, Xmod.int, Xmod.int)
+n = dim(Xmod.for.lasso)[1]
+
+penalty.factor <- c(0, rep(1, ncol(Xmod.for.lasso) - 1))
+num.folds <- 4
+foldids <- sample.int(num.folds, replace=TRUE, size=n)
+lasso.yhat.control <- rep(0, n)
+lasso.yhat.treated <- rep(0, n)
+
+# Use cross-fitted predictions
+for (foldid in seq(num.folds)) {
+  idx_train = which(foldids != foldid)
+  idx_test = which(foldids == foldid)
+  glmnet.fit.outcome = cv.glmnet(Xmod.for.lasso[idx_train,], Ymod[idx_train], 
+                                 penalty.factor = penalty.factor)
+  lasso.yhat.control[idx_test] = predict(glmnet.fit.outcome, Xmod.for.lasso.control[idx_test,])
+  lasso.yhat.treated[idx_test] = predict(glmnet.fit.outcome, Xmod.for.lasso.treated[idx_test,])
+}
+```
+
+---
+
+We now use the resulting lasso fits to estimate the ATE.
+
+---
+
+```{r}
+
+# The lasso regression adjustment estimator. No confidence
+#why
+# intervals are available for this.
+mean(lasso.yhat.treated - lasso.yhat.control)
+```
+
+```{r lasso_ipw}
+# The lasso IPW estimator. The confidence intervals here are not valid.
+#why
+tauhat_lasso_ipw <- ipw(df_mod, p_lasso)
+tauhat_lasso_ipw
+```
+
+```{r lasso_aipw}
+# The lasso AIPW estimator. Here, the inference is justified via
+# orthogonal moments.
+G <- lasso.yhat.treated - lasso.yhat.control +
+  Wmod / p_lasso * (Ymod - lasso.yhat.treated) -
+  (1 - Wmod) / (1 - p_lasso) * (Ymod - lasso.yhat.control)
+tau.hat <- mean(G)
+se.hat <- sqrt(var(G) / length(G))
+tauhat_lasso_aipw <- c(ATE=tau.hat,
+                      lower_ci=tau.hat-1.96*se.hat,
+                      upper_ci=tau.hat+1.96*se.hat)
+tauhat_lasso_aipw
+```
+
+---
+
+## Approximate residual balancing
+
+Instead of fitting a propensity model and inverting it, we can
+also run an AIPW-like estimator but with balancing weights, as
+seen in class. The resulting method is an instance of approximate
+residual balancing.
+
+---
+
+```{r balancing, warning=FALSE}
+
+treated.arb.weights <- balanceHD::approx.balance(M=Xmod.int[Wmod==1,], 
+                                                 balance.target = colMeans(Xmod.int))
+control.arb.weights <- balanceHD::approx.balance(M=Xmod.int[Wmod==0,],
+                                                 balance.target = colMeans(Xmod.int))
+arb.weights = rep(0, n)
+arb.weights[Wmod==1] <- treated.arb.weights * n
+arb.weights[Wmod==0] <- control.arb.weights * n
+
+G.balance <- lasso.yhat.treated - lasso.yhat.control +
+             Wmod * arb.weights * (Ymod - lasso.yhat.treated) -
+             (1 - Wmod) * arb.weights * (Ymod - lasso.yhat.control)
+tau.hat <- mean(G.balance)
+se.hat <- sqrt(var(G.balance) / length(G.balance))
+tauhat_lasso_balance = c(ATE=tau.hat,
+                      lower_ci=tau.hat-1.96*se.hat,
+                      upper_ci=tau.hat+1.96*se.hat)
+tauhat_lasso_balance
+
+```
+---
+
+# Summary
+
+Finally, let's review all our estimators. Recall that tauhat_rct is the gold standard from the RCT.
+
+---
+```{r summary}
+all_estimators <- rbind(
+  RCT = tauhat_rct,
+  naive_observational = tauhat_confounded,
+  linear_regression = tauhat_ols,
+  propensity_weighted_regression = tauhat_pscore_ols,
+  IPW_logistic = tauhat_logistic_ipw,
+  AIPW_linear_plus_logistic = tauhat_lin_logistic_aipw,
+  IPW_forest = tauhat_rf_ipw,
+  AIPW_forest = tauhat_rf_aipw,
+  AIPW_linear_plus_forest = tauhat_ols_rf_aipw,
+  IPW_lasso = tauhat_lasso_ipw,
+  AIPW_lasso = tauhat_lasso_aipw,
+  approx_residual_balance = tauhat_lasso_balance)
+all_estimators <- data.frame(all_estimators)
+all_estimators$ci_length <- all_estimators$upper_ci - all_estimators$lower_ci
+print(round(as.matrix(all_estimators), 3))
+```
+
+---
+# Closing thoughts
+
+Based on this excercise, what method do you trust / not trust? How do the results vary if you re-run everything with a different seed? How do the results vary if you change the sample size? How do the results vary if you change the mechanism for biasing the data? Why is IPW with logistic regression so unstable here?

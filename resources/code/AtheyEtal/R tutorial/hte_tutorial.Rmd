@@ -1,0 +1,1937 @@
+---
+title: "Estimation of Heterogeneous Treatment Effects and Optimal Treatment Policies"
+author:
+- name: Prof. Susan Athey[^1]
+  affiliation: Stanford University
+date: "November 2019"
+output:
+  html_document:
+    number_sections: no
+    toc: yes
+    toc_float: true
+    toc_depth: 2
+    self_contained: yes
+  pdf_document:
+    toc: yes
+keywords: conditional average treatment effect; machine learning; econometrics
+theme: null
+abstract: "In this tutorial, you will learn about machine learning (ML) methods for the estimation of heterogeneous treatment effects in randomized experiments and observational data, using  causal trees, causal forests and X-learners. Also, you will  be introduced to the problem of estimation of treatment policies. This tutorial also serves as a template for analyses using other datasets."
+editor_options:
+  chunk_output_type: console
+---
+
+[^1]: Contributors to this tutorial: Susan Athey, Stefan Wager, Nicolaj Nørgaard Mühlbach, Xinkun Nie, Vitor Hadad, Matthew Schaelling, Kaleb Javier, Niall Keleher.
+
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, comment=NA)
+
+# Clear workspace
+rm(list = ls())
+
+# Set seed for reproducibility
+set.seed(201911) 
+```
+
+# Introduction
+
+This tutorial contains two parts.
+
+#### Part I: Heterogeneous treatment effects
+
++ **Causal Tree (Athey and Imbens, 2016):** A data-driven approach to partition the data into subpopulations that differ in the magnitude of their treatment effects. The approach enables the construction of valid confidence intervals for treatment effects.
+
++ **Causal Forests (Athey, Tibshrani and Wager, 2018) and the R-learner (Nie and Wager, 2017):** Causal forests is a specialization of the *generalized random forests* algorithm to estimate conditional average treatment effects, with its implementation motivated by the R-learner. The R-learner is a meta-algorithm used to combine different supervised learning algorithm to produce better estimates of conditional average treatment effects.
+
++ **X-Learners (Künzel et al, 2018):** Like the R-learner, X-learner is another meta-algorithm for estimating conditional average treatment effects.
+
+#### Part II: Estimating optimal policies
+
+An illustrative application of the **efficient policy learning** methods of Athey and Wager (2018).
+
+
+## Loading packages
+
+Before beginning the tutorial, let's make sure all necessary packages are installed. Try running the cell below and, if any issues arise, follow the instructions within it.
+
+**CRAN packages:** If any of these packages are not installed, write `install.packages("<name of package>")`. For example, to install the package `fBasics`, use `install.packages("fBasics")`. The number in parenthesis in the comments the package version that was used when this was tutorial was compiled. If you find yourself having issues, please consider upgrading or downgrading to the same package version.
+
+```{r cran_packages, include=TRUE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(tidyselect)
+library(dplyr)       # Data manipulation (0.8.0.1)
+library(fBasics)     # Summary statistics (3042.89)
+library(corrplot)    # Correlations (0.84)
+library(psych)       # Correlation p-values (1.8.12)
+library(grf)         # Generalized random forests (0.10.2)
+library(rpart)       # Classification and regression trees, or CART (4.1-13)
+library(rpart.plot)  # Plotting trees (3.0.6)
+library(treeClust)   # Predicting leaf position for causal trees (1.1-7)
+library(car)         # linear hypothesis testing for causal tree (3.0-2)
+library(devtools)    # Install packages from github (2.0.1)
+library(readr)       # Reading csv files (1.3.1)
+library(tidyr)       # Database operations (0.8.3)
+library(tibble)      # Modern alternative to data frames (2.1.1)
+library(knitr)       # RMarkdown (1.21)
+library(kableExtra)  # Prettier RMarkdown (1.0.1)
+library(ggplot2)     # general plotting tool (3.1.0)
+library(haven)       # read stata files (2.0.0)
+library(aod)         # hypothesis testing (1.3.1)
+library(evtree)      # evolutionary learning of globally optimal trees (1.0-7)
+library(purrr)
+```
+
+**Non-CRAN packages:** The packages below have not yet been uploaded to CRAN or any other major package repository, but we can grab them from their authors' github webpages. If you don't have these packages installed already, uncomment the relevant line below to install it.
+
+```{r noncran_packages, include=TRUE, message=FALSE, warning=FALSE}
+
+# For causal trees (Athey and Imbens, 2016)  version 0.0
+# install_github('susanathey/causalTree') # Uncomment this to install the causalTree package
+library(causalTree)
+
+```
+
+
+## Loading the data
+
+We will be working with the `welfare` dataset, from "Modeling Heterogeneous Treatment Effects in Survey Experiments with Baysian Additive Regression Trees" (Green and Kern, 2012) ([link](https://watermark.silverchair.com/nfs036.pdf?token=AQECAHi208BE49Ooan9kkhW_Ercy7Dm3ZL_9Cf3qfKAc485ysgAAAk4wggJKBgkqhkiG9w0BBwagggI7MIICNwIBADCCAjAGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQM3RX6a6U86Z6filpPAgEQgIICAQEBVSrcs9e_z1iPQ0uSsA7gloMFhd5tq_UAZCrZYkOcMvW4If8OcQxXmnK-dtZhKyRj4Q3nYGI8Nrih2iKFXEnxLBh3Eql6USdRHfWRzkV2zIe9SRGynC7aw7DNCaiBDwPVWUJ1ldaXa-WFglb9D0mllmV6SglZfi8mnm4GL42iTIC_gOG27Cj-rCKi83key5Egxpt8SYp_KpnFDH6v2uWrHneDE-YQ1UghZfM6jZVZFG0bSQGB_3QejgxiaL2Cey7oYAvpgs3D4cpXsUxp7cr7kFIU4hOVVz-lR6Aj2-BaRAa2y7aKigtOTFPWMTrZScUCoinnDsGA1RzLL5e5LxKV9gQ5z9cIX2kECJhV8lN5w5maiCq3ZOcZnhyCD5w_1NjmGdmZk4eVBTlhDwsipAAWCo2C3Eo3w1Jc3VvikcoOKn7I2ocWw9qRtB9XWr-qg5ex_gOdc7v7bDMd-vwbbYr5iOYdc7P9lWZK5ngfDWNH6oTwF9MDwbPj8-bMlDkUvmOMpkWBqneueLj1nDDBaL2iTGD8gCy8Mgl4Qzzp82vN4wsRa3ufMl-WDAcynTWgEn0-GLgds1dCQ81HP-CpM_9t6rZblZsVi9V2iapi57vSLabk5DHA_lGtY0fizUjAgwitDtZCWCeLZxPcSkilpcDbV9Dz-24gIpeOPQbkFFvdtQ)). However, by changing the dataset name below, you can see how the estimates would differ. You can select from the following list of datasets from our [github webpage](https://github.com/gsbDBI/ExperimentData/):
+
++ `charitable`: from "Does Price Matter in Charitable Giving?" (Karlan and List, 2007)
++ `secrecy`: from "Ballot Secrecy Concerns and Voter Mobilization" (Gerber, Hubers, Biggers, and Henry, 2014)
++ `social`: from "Social Pressure and Voter Turnout" (Gerber, Green, and Larimer, 2008)
++ `criteo`: A public benchmark dataset for measuring effect of digital advertising.
++ `mobilization`: from "Comparing Experimental and Matching Methods Using a Large-Scale Voter Mobilization Experiment" (Arceneaux, Gerber, and Green, 2006)
+Next, we load in the raw data and perform some data cleaning.
+
+```{r}
+# R script for reading data from github repository, set path to where you have the tutorial files saved.
+source('load_data.R') 
+
+```
+
+
+```{r select_dataset}
+# Pick a dataset from the list above for parts I and II of the tutorial
+df_experiment <- select_dataset("welfare")
+
+```
+
+## Cleaning the data
+
+The datasets in our [github webpage](https://github.com/gsbDBI/ExperimentData/) have been prepared for analysis so they will not require a lot of cleaning and manipulation, but let's do some minimal housekeeping. First, we will drop the columns that aren't outcomes, treatments or (pre-treatment) covariates, since we won't be using those.
+
+
+```{r drop_irrelevant_cols}
+# Combine all names
+all_variables_names <- c(outcome_variable_name, treatment_variable_name, covariate_names)
+df <- df_experiment %>% select(all_variables_names)
+```
+
+Next, let's drop any row that has missing values in them.
+
+```{r data_cleaning}
+# Drop rows containing missing values
+df <- df %>% drop_na()
+```
+
+For convenience, let's also change the names of the treatment and outcome variables. This is just to make our analysis code below simpler, because we won't have to care about variable names. The treatment will be denoted `W`, and the outcome will be denoted `Y` (we'll have more to say about notation in the next section).
+
+```{r column_renaming}
+# Rename variables
+
+df <- df %>% rename(Y=outcome_variable_name,W=treatment_variable_name)
+
+```
+
+Some of our methods below don't accept `factor` variables, so let's change their type to `numeric` here. **Note:** If you are modifying this tutorial for your own application, make sure this is a valid step!
+
+```{r convert_to_numeric}
+# Converting all columns to numerical and add row id
+df <- data.frame(lapply(df, function(x) as.numeric(as.character(x))))
+
+df <- df %>% mutate_if(is.character,as.numeric)
+df <- df %>% rowid_to_column( "ID")
+```
+
+Finally, let's separate a portion of our dataset as a test set. Later we will use this subset to evaluate the performance of each method described below.
+
+```{r train_test}
+train_fraction <- 0.80  # Use train_fraction % of the dataset to train our models
+
+df_train <- sample_frac(df, replace=F, size=train_fraction)
+df_test <- anti_join(df,df_train, by = "ID")#need to check on larger datasets
+```
+
+
+## Notation
+
+Let's establish some common notation and definitions. Each unit in our data set will be represented by:
+
++ $X_{i}$: is a $p$-dimensional vector of observable pre-treatment characteristics
++ $W_{i} \in \{0, 1\}$: is a binary variable indicating whether the individual was treated ($1$) or not ($0$)
++ $Y_{i}^{obs} \in \mathbb{R}$: a real variable indicating the observed outcome for that individual
+
+Throughout our analysis, we will often be talking in terms of _counterfactuals_ questions, e.g. "what _would have_ happened if we had assigned the treatment to certain control units?" In order to express this mathematically, we will make use of the _potential outcome_ framework of Rubin (1974). Let's define the following random variables:
+
++ $Y_{i}(1)$: the outcome unit $i$ would attain if they received the treatment
++ $Y_{i}(0)$: the outcome unit $i$ would attain if they were part of the control group
+
+Naturally, we only ever get to observe one of these two for each unit, but it's convenient to define so that we can think about counterfactuals. In fact, we can think of much of causal inference as a "missing value" problem: there exists an underlying data process generating random variables $(X_{i}, Y_{i}(0), Y_{i}(1))$, but we can only observe the realization of $(X_{i}, Y_{i}(0))$ (for control units) or $(X_{i}, Y_{i}(1))$ (for treated units), with the remaining outcome being missing.
+
+| $X_{i}$ | $Y_{i}(0)$ | $Y_{i}(1)$
+|:----:|:----:|:----:|
+| $X_{1}$  | <font color="lightgray">$Y_{1}(0)$</font> | $Y_{1}(1)$ |
+| $X_{2}$  | $Y_{2}(0)$                                | <font color="lightgray">$Y_{2}(1)$</font> |
+| $X_{3}$  | <font color="lightgray">$Y_{3}(0)$</font> | $Y_{3}(1)$ |
+| $\cdots$ | $\cdots$   | $\cdots$ |
+| $X_{n}$  | <font color="lightgray">$Y_{n}(0)$</font> | $Y_{n}(1)$ |
+
+Using the potential outcome notation above, the observed outcome can also be written as
+
+$$Y_{i}^{obs} = W_{i}Y_{i}(1) + (1-W_{i})Y_{i}(0)$$
+
+In order to avoid clutter, we'll from now own denote $Y_{i}^{obs}$ simply by $Y_{i}$.
+
+
+## Assumptions
+
+We will be making two identification assumptions that will allow us to use the methods below.
+
+
+#### Assumption 1: Unconfoundedness
+
+The _unconfoundedness_ assumption states that, once we condition on observable characteristics, the treatment assignment is independent to how each person would respond to the treatment. In other words, the rule that determines whether or not a person is treated is determined completely by their observable characteristics. This allows, for example, for experiments where people from different genders get treated with different probabilities, but it rules out experiments where people self-select into treatment due to some characteristic that is not observed in our data.
+
+$$Y_i(1), Y_i(0) \perp W_i \ | \ X_i$$
+
+
+#### Assumption 2: Overlap
+
+In order to estimate the treatment effect for a person with particular characteristics $X_{i} = x$, we need to ensure that we are able to observe treated and untreated people with those same characteristics so that we can compare their outcomes. The _overlap_ assumption states that at every point of the covariate space we can always find treated and control individuals.
+
+$$\forall \ x \in \text{supp}\ (X), \qquad 0 < P\ (W = 1 \ | \ X = x)  < 1$$
+
+
+*Note:* Some of the datasets the [github webpage](https://github.com/gsbDBI/ExperimentData/) are completely randomized experiments. This assumption holds for those as well.
+
+
+---
+
+
+# Part I: HTE (binary treatment)
+
+Let's see how to analyze the data set selected above for heterogeneous treatment effects.
+
+
+## Descriptive statistics
+
+It's often useful to begin data analysis by simply looking at simple summary statistics. We use the function `basicStats` from the package `fBasics` to calculate them.
+
+```{r summary_stats, results="asis", message=FALSE, echo=TRUE}
+# Make a data.frame containing summary statistics of interest
+summ_stats <- fBasics::basicStats(df)
+summ_stats <- as.data.frame(t(summ_stats))
+# Rename some of the columns for convenience
+summ_stats <- summ_stats %>% select("Mean", "Stdev", "Minimum", "1. Quartile", "Median",  "3. Quartile", "Maximum")
+summ_stats <- summ_stats %>% rename('Lower quartile'= '1. Quartile', 'Upper quartile' ='3. Quartile')
+```
+
+```{r summary_stats_table, results="asis", message=FALSE, echo=FALSE}
+# Pretty-printing in HTML
+summ_stats_table <- kable(summ_stats, "html", digits = 2)
+kable_styling(summ_stats_table,
+              bootstrap_options=c("striped", "hover", "condensed", "responsive"),
+              full_width=FALSE)
+```
+
+Presenting pairwise correlations is easy with the `corrplot` function from the `corrplot` package. On the table below, if the (unadjusted) p-value for a pair of variables is less than 0.05, its square is not colored.
+
+```{r cor plot, echo=FALSE, fig.width=5, fig.height=5, warning=FALSE}
+# Note: if the plot looks too cramped, try increasing fig.width and fig.height in the line above
+pairwise_pvalues <- psych::corr.test(df, df)$p
+corrplot(cor(df),
+        type="upper",
+        tl.col="black",
+        order="hclust",
+        tl.cex=1,
+        addgrid.col = "black",
+        p.mat=pairwise_pvalues,
+        sig.level=0.05,
+        number.font=10,
+        insig="blank")
+```
+
+
+<!-- Now we are ready to delve into modern methods in more detail. -->
+
+---
+
+## HTE 1: Causal Trees
+
+**Reference:** [Athey and Imbens (PNAS, 2016)](https://www.pnas.org/content/pnas/113/27/7353.full.pdf)
+
+Detecting heterogeneous treatment effects, i.e., differential effects of an intervention for certain subgroups of the population, can be very valuable in many areas of research. In medicine, for example, researchers might be interested in finding which subgroup of patients benefits most from getting a certain drug. At the same time, one might be worried about finding spurious effects just by estimating many different specifications, and this is why many scientific fields require pre-analysis plans for publications. However, researchers may find these plans restrictive since they cannot publish results for subgroups they did not anticipate before running the experiment.
+
+Athey and Imbens (2016)'s **causal trees** provide a data-driven approach to partitioning the data into subgroups that differ by the magnitude of their treatment effects. Much like decision trees, which partition the covariate space by finding subgroups with similar *outcomes*, causal trees find subgroups with *similar treatment effects*. Moreover, even though this is an adaptive method, these subgroups do not need to be specified prior to the experiment.
+
+In order to ensure valid estimates of the treatment effect within each subgroup, Athey and Imbens propose a sample-splitting approach that they refer to as **honesty**: a method is honest if it uses one subset of the data to estimate the model parameters, and a different subset to produce estimates given these estimated parameters. In the context of causal trees, honesty implies that the asymptotic properties of treatment effect estimates within leaves are the same as if the tree partition had been exogenously given, and it is one of the assumptions required to produce unbiased and asymptotically normal estimates of the treatment effect.
+
+#### Step 1: Split the dataset
+
+As we just explained, honesty requires us to separate different subsets of our training data for model selection and prediction.
+
++ `df_split`: the *splitting sample*, used to build the tree
++ `df_est`: the *estimation sample*, used to compute the average treatment effect in each leaf
+
+```{r causal_tree_split, results="hide"}
+# Diving the data 40%-40%-20% into splitting, estimation and validation samples
+split_size <- floor(nrow(df_train) * 0.5)
+df_split <- sample_n(df_train, replace=FALSE, size=split_size)
+
+# Make the splits
+df_est <- anti_join(df_train,df_split, by ="ID")
+```
+
+#### Step 2: Fit the tree
+
+Begin by defining a formula containing only the outcome and the covariates.
+
+```{r causal_tree_formula}
+fmla_ct <- paste("factor(Y) ~", paste(covariate_names, collapse = " + "))
+
+print('This is our regression model')
+print( fmla_ct)
+```
+
+Next, we use the `honest.causalTree` function from the `causalTree` package. To ensure that honesty is enabled, the parameters for splitting and cross-validation below should not be changed. However, if your tree is not splitting at all, try decreasing the parameter `minsize` that controls the minimum size of each leaf.
+
+For more details on other parameters, please take a look at this extended [documentation](https://github.com/susanathey/causalTree/blob/master/briefintro.pdf) for the `causalTree` paper.
+
+
+```{r causal_tree_estimation, results='hide'}
+ct_unpruned <- honest.causalTree(
+  formula = fmla_ct,            # Define the model
+  data = df_split,              # Subset used to create tree structure
+  est_data = df_est,            # Which data set to use to estimate effects
+
+  treatment = df_split$W,       # Splitting sample treatment variable
+  est_treatment = df_est$W,     # Estimation sample treatment variable
+
+  split.Rule = "CT",            # Define the splitting option
+  cv.option = "TOT",            # Cross validation options
+  cp = 0,                       # Complexity parameter
+
+  split.Honest = TRUE,          # Use honesty when splitting
+  cv.Honest = TRUE,             # Use honesty when performing cross-validation
+
+  minsize = 10,                 # Min. number of treatment and control cases in each leaf
+  HonestSampleSize = nrow(df_est)) # Num obs used in estimation after building the tree
+```
+
+The resulting object will be `rpart` objects, so `rpart` methods for cross-validation and plotting can be used.
+
+#### Step 3: Cross-validate
+
+We must prune the tree by cross-validation to avoid overfitting. The honest cross-validation method selected above (and recommended) penalizes an estimate of the variance in the treatment effects estimates across leaves, and this estimate is computed using the estimation sample. The `cv.option` selected above ($TOT$) uses an unbiased estimate of the test mean-squared error.
+
+
+```{r causal_tree_cv}
+# Table of cross-validated values by tuning parameter.
+ct_cptable <- as.data.frame(ct_unpruned$cptable)
+
+# Obtain optimal complexity parameter to prune tree.
+selected_cp <- which.min(ct_cptable$xerror)
+optim_cp_ct <- ct_cptable[selected_cp, "CP"]
+
+# Prune the tree at optimal complexity parameter.
+ct_pruned <- prune(tree = ct_unpruned, cp = optim_cp_ct)
+```
+
+
+
+#### Step 4: Predict point estimates (on estimation sample)
+
+To predict the treatment effect on the estimation sample, use the function `predict` as below.
+
+```{r causal_tree_predict_est}
+tauhat_ct_est <- predict(ct_pruned, newdata = df_est)
+```
+
+#### Step 5: Compute standard errors
+
+The `causalTree` package does not compute standard errors by default, but we can compute them using the following trick. First, define $L_{\ell}$ to indicate assignment to leaf $\ell$ and consider the following linear model.
+
+\begin{align}
+Y = \sum_{\ell} L_{\ell}\alpha_{\ell} + W \cdot L_{\ell} \beta_{\ell}
+\end{align}
+
+```{r causal_tree_se}
+# Create a factor column 'leaf' indicating leaf assignment
+num_leaves <- length(unique(tauhat_ct_est))  #There are as many leaves as there are predictions
+
+df_est$leaf <- factor(tauhat_ct_est, labels = seq(num_leaves))
+
+# Run the regression
+ols_ct <- lm(as.formula("Y ~ 0 + leaf + W:leaf"), data= df_est) #Warning: the tree won't split for charitable dataset
+print(as.formula("Y ~ 0 + leaf + W:leaf"))
+```
+
+The interaction coefficients in this regression recover the average treatment effects in each leaf, since
+
+\begin{align}
+  E[Y|W=1, L=1] - E[Y|W=0, L=1] = (\alpha_{1} + \beta_{1}) - (\alpha_{1}) = \beta_{1}
+\end{align}
+
+Therefore, the standard error around the coefficients is also the standard error around the treatment effects. In the next subsection, we will also use these statistics to test hypothesis about leaf estimates.
+
+```{r causal_tree_summary}
+ols_ct_summary <- summary(ols_ct)
+te_summary <- coef(ols_ct_summary)[(num_leaves+1):(2*num_leaves), c("Estimate", "Std. Error")]
+```
+
+```{r causal_tree_summary_tabke, results="asis", message=FALSE, echo=FALSE}
+kable_styling(kable(te_summary, "html", digits = 4, caption="Average treatment effects per leaf"),
+                    bootstrap_options=c("striped", "hover", "condensed", "responsive"),
+                    full_width=FALSE)
+```
+
+#### Step 6: Predict point estimates (on test set)
+
+To predict the treatment effect on a new, entirely unseen data, use the function `predict` as below.
+
+```{r causal_tree_predict_test}
+tauhat_ct_test <- predict(ct_pruned, newdata = df_test)
+```
+
+
+### Assessing heterogeneity
+
+A natural place to begin is by ploting the (pruned) tree. We can use the `rpart.plot` function from the `rpart.plot` package.
+
+```{r causal_tree_plot_rpart}
+rpart.plot(
+  x = ct_pruned,        # Pruned tree
+  type = 3,             # Draw separate split labels for the left and right directions
+  fallen = TRUE,        # Position the leaf nodes at the bottom of the graph
+  leaf.round = 1,       # Rounding of the corners of the leaf node boxes
+  extra = 100,          # Display the percentage of observations in the node
+  branch = 0.1,          # Shape of the branch lines
+  box.palette = "RdBu") # Palette for coloring the node
+```
+
+#### Treatment effect heterogeneity
+
+We may want to test the treatment effect is different across leaves. That is, to test the null hypothesis that
+
+$$
+ E[Y|W=1, L=1] - E[Y|W=0, L=1] =  E[Y|W=1, L=\ell] - E[Y|W=0, L=\ell] \quad \text{for all } \ell > 1
+$$
+
+Following the linear model setup described in Step 5 in the previous subsection, we can use the function `linearHypothesis` from the `car` package to test this hypothesis.
+
+```{r causal_tree_test_hypothesis_all_leaves}
+# Null hypothesis: all leaf values are the same
+hypothesis <- paste0("leaf1:W = leaf", seq(2, num_leaves), ":W")
+ftest <- linearHypothesis(ols_ct, hypothesis, test="F")
+```
+
+
+```{r causal_tree_test_hypothesis_all_leaves_table, results='asis', echo=FALSE}
+kable_styling(kable(data.frame(ftest, check.names = FALSE, row.names = NULL)[2,],
+              "html", digits = 4,
+              caption="Testing null hypothesis:<br> Average treatment effect is same across leaves"),
+              bootstrap_options=c("striped", "hover", "condensed", "responsive"),
+              full_width=FALSE)
+```
+
+Next, we test if the average treatment effect is different between all two pairs of leaves. Note that here we are not performing any type of multiple hypothesis testing correction.
+
+```{r causal_tree_test_hypothesis_leaf_by_leaf, results='hide', message=FALSE, echo=TRUE, warning=FALSE, error=FALSE}
+# Null hypothesis: leaf i = leaf k for all i != k
+p_values_leaf_by_leaf <- matrix(nrow = num_leaves, ncol = num_leaves)
+differences_leaf_by_leaf <- matrix(nrow = num_leaves, ncol = num_leaves)
+stderror_leaf_by_leaf <- matrix(nrow = num_leaves, ncol = num_leaves)
+hypotheses_grid <- combn(1:num_leaves, 2)
+summ <- coef(summary(ols_ct))
+
+invisible(apply(hypotheses_grid, 2, function(x) {
+  leafi <- paste0("leaf", x[1], ":W")
+  leafj <- paste0("leaf", x[2], ":W")
+  hypothesis <- paste0(leafi, " = ", leafj)
+
+  differences_leaf_by_leaf[x[2], x[1]] <<- summ[leafj, 1] - summ[leafi, 1]
+  stderror_leaf_by_leaf[x[2], x[1]] <<- sqrt(summ[leafj, 2]^2 + summ[leafi, 2]^2)
+  p_values_leaf_by_leaf[x[2], x[1]] <<- linearHypothesis(ols_ct, hypothesis)[2, "Pr(>F)"]
+}))
+```
+
+
+```{r echo=FALSE, results='asis'}
+# Little trick to display p-values under mean difference values in HTML
+diffs <- matrix(nrow = num_leaves, ncol = num_leaves)
+invisible(apply(hypotheses_grid, 2, function(x) {
+  d <- differences_leaf_by_leaf[x[2], x[1]]
+  s <- stderror_leaf_by_leaf[x[2], x[1]]
+  p <- p_values_leaf_by_leaf[x[2], x[1]]
+  top <- cell_spec(round(d, 3), "html",
+            background=ifelse(is.na(p) || (p > 0.1), "white", "gray"),
+            color=ifelse(is.na(p), "white", ifelse(p < 0.1, "white", "gray")))
+  value <- ifelse(is.na(p), "", paste0(top, " <br> ", "(", round(s, 3), ")"))
+  diffs[x[2], x[1]] <<- value
+}))
+
+diffs <- as.data.frame(diffs) %>% mutate_all(as.character)
+rownames(diffs) <- paste0("leaf", 1:num_leaves)
+colnames(diffs) <- paste0("leaf", 1:num_leaves)
+
+# Title of table
+caption <- "Pairwise leaf differences:<br>
+Average treatment effect differences between leaf i and leaf j"
+
+# Styling color and background
+color <-function(x) ifelse(is.na(x), "white", "gray")
+
+diffs %>%
+  rownames_to_column() %>%
+  mutate_all(function(x) cell_spec(x, "html", escape=FALSE, color=color(x))) %>%
+  kable(format="html", caption=caption, escape = FALSE) %>%
+  kable_styling(bootstrap_options=c("condensed", "responsive"), full_width=FALSE) %>%
+  footnote(general='Standard errors in parenthesis. Significance (not adjusted for multiple testing):
+<ul>
+  <li>No background color: p ≥ 0.1
+  <li><span style="color: white;border-radius: 4px; padding-right: 4px; padding-left: 4px; background-color: gray;">Gray</span> background: p < 0.1
+  <li><span style="color: white;border-radius: 4px; padding-right: 4px; padding-left: 4px; background-color: black;">Black</span> background: p < 0.05
+</ul>
+', escape=F)
+```
+
+
+#### Covariate heterogeneity
+
+Another measure of heterogeneity is how much the average level of each covariate changes across leaves. The following code summarizes that.
+
+**Important remark** We should NOT conclude that a particular covariate is unrelated to treatment effects simply because the tree did not split on it.  There can be many different ways to pick out a subgroup of individuals with high or low treatment effects.  By comparing the average characteristics of individuals with high treatment effects to those with low treatment effects, we can get a fuller picture of the differences between these groups across all covariates.
+
+```{r causal_tree_covariate_hypothesis}
+# Null hypothesis: the mean is equal across all leaves
+hypothesis <- paste0("leaf1 = leaf", seq(2, num_leaves))
+means_per_leaf <- matrix(nrow = num_leaves, ncol = num_leaves)
+significance <- matrix(nrow = 2, ncol=length(covariate_names))
+
+# Regress each covariate on leaf assignment to means p
+cov_means <- lapply(covariate_names, function(covariate) {
+  lm(paste0(covariate, ' ~ 0 + leaf'), data = df_est)
+})
+
+# Extract the mean and standard deviation of each covariate per leaf
+cov_table <- lapply(cov_means, function(cov_mean) {
+  as.data.frame(t(coef(summary(cov_mean))[,c("Estimate", "Std. Error")]))
+})
+
+# Test if means are the same across leaves
+cov_ftests <- sapply(cov_means, function(cov_mean) {
+  # Sometimes the regression has no residual (SSE = 0), 
+  # so we cannot perform an F-test
+  tryCatch({
+    linearHypothesis(cov_mean, hypothesis)[2, c("F", "Pr(>F)")]
+  },
+    error = function(cond) {
+      message(paste0("Error message during F-test for`", cov_mean$terms[[2]], "`:"))
+      message(cond)
+      return(c("F" = NA, "Pr(>F)" = NA))
+    })
+})
+```
+
+
+```{r echo=FALSE, results='asis'}
+# Preparation to color the chart
+
+temp_standardized <- sapply(seq_along(covariate_names), function(j) {
+  covariate_name <- covariate_names[j]
+  .mean <-mean(df_train[[covariate_name]], na.rm = TRUE) 
+  .sd <- sd(df_train[[ covariate_name]], na.rm = TRUE)
+  m <- as.matrix(round(signif(cov_table[[j]], digits=4), 3))
+  .standardized <- (m["Estimate",] - .mean) / .sd
+})
+
+
+
+color_scale <- max(abs(c(max(temp_standardized, na.rm = TRUE), min(temp_standardized, na.rm = TRUE))))
+color_scale <- color_scale * c(-1,1)
+
+# Little trick to display the standard errors
+table <- lapply(seq_along(covariate_names), function(j){
+  covariate_name <- covariate_names[j]
+  .mean <- mean(df_train[[covariate_name]], na.rm = TRUE)
+  .sd <- sd(df_train[[covariate_name]], na.rm = TRUE)
+  m <- as.matrix(round(signif(cov_table[[j]], digits=4), 3))
+  .standardized <- (m["Estimate",] - .mean) / .sd
+  m["Estimate",] <- cell_spec(m["Estimate",],
+                              colo = "White",
+                              background = spec_color(.standardized,
+                                                      begin = 0.1,
+                                                      end = 0.9,
+                                                      scale_from = color_scale))
+  m["Std. Error",] <- paste0("(", m["Std. Error",], ")")
+  m
+})
+table <- do.call(rbind, table)
+
+# Covariate names
+covnames <- rep("", nrow(table))
+covnames[seq(1, length(covnames), 2)] <-
+  cell_spec(covariate_names, format = "html", escape = F, color = "black", bold = T)
+
+table <- cbind(covariates=covnames, table)
+
+# Title of table
+caption <- "Average covariate values in each leaf"
+
+table %>%
+  kable(format="html", digits=2, caption=caption, escape = FALSE, row.names = FALSE) %>%
+  kable_styling(bootstrap_options=c("condensed", "responsive"), full_width=FALSE) %>%
+  footnote(paste0("Colors are assigned according to where the subgroup's mean value lands on the standardized empirical distribution of it's variable: (x - mean(x))/sd(x)<br>Standardized distribution is colored from a scale of +/-", round(color_scale[2], 3)), escape = FALSE)
+```
+
+We can also estimate the following normalized measure of variation across leaves. A higher number indicates that there is higher variation in across leaf averages.
+
+$$
+\frac{Var \left( E[X_{i} | L_{i}] \right)}{Var(X_{i})}
+$$
+
+```{r, echo=FALSE}
+# Adding a factor column turns all columns into character
+df_est <- as.data.frame(apply(df_est, 2, as.numeric))
+```
+
+```{r}
+
+covariate_means_per_leaf <- aggregate(. ~ leaf, df_est, mean)[,covariate_names]
+covariate_means <- apply(df_est, 2, mean)[covariate_names]
+leaf_weights <- table(df_est$leaf) / dim(df_est)[1] 
+deviations <- t(apply(covariate_means_per_leaf, 1, function(x) x - covariate_means))
+covariate_means_weighted_var <- apply(deviations, 2, function(x) sum(leaf_weights * x^2))
+covariate_var <- apply(df_est, 2, var)[covariate_names]
+cov_variation <- covariate_means_weighted_var / covariate_var
+
+```
+
+
+```{r causal_tree_covariate_variation_table, echo=FALSE, results='asis'}
+sorted_cov_variation <- sort(cov_variation, decreasing = TRUE)
+table <- as.data.frame(sorted_cov_variation)
+colnames(table) <- NULL
+
+kable_styling(kable(table,  "html", digits = 4, row.names=TRUE,
+                    caption="Covariate variation across leaves"),
+              bootstrap_options=c("striped", "hover", "condensed", "responsive"),
+              full_width=FALSE)
+```
+
+
+----
+
+
+## HTE 2: Causal Forests and the R-Learner
+
+**Reference:** [Athey, Tibshrani and Wager (Annals of Statistics, 2019)](https://projecteuclid.org/download/pdfview_1/euclid.aos/1547197251)
+, [Nie and Wager,  2017](https://arxiv.org/abs/1712.04912)
+
+*Generalized random forests* are a flexible, computationally efficient adaptive method for estimating parameters that can be defined by local moment conditions. One important example of such parameters is the conditional average treatment effect (CATE). The specific application of this algorithm to estimate CATE is what the authors call *causal forests*.
+
+The paper makes two important points. First, it casts forests as a type of locally weighted estimator, meaning that when estimating the treatment effect at a target value $X_{i} = x$, we will give more weight to "close" observations in the data during estimates. This makes the algorithm akin to kernel-based estimations such as $k$-nearest neighbors. The novelty comes in replacing the kernel weighting function with *forest-based weights* in which a observation is said to be "close" to the point $x$ if it often falls in the same leaf as the target value across the trees in the forest.
+
+The benefit of using forest-based weighting is that it is more effective in choosing which dimensions are important in determining closeness. Meanwhile, in methods like $k$-nearest neighbors every dimension is given equal importance. This becomes crucial for mitigating the **curse of dimensionality** in high-dimensional cases, since if much of the variation in treatment effects is found among only a few dimensions, $k$-nn will do a poor job at giving more weight to important observations.
+
+The second point made in the paper is that, if each individual tree in the forest is estimated using **honesty**, then (under some more subtle assumptions regarding the size of the subsample used to grow each tree) causal forest estimates will be unbiased and have valid confidence intervals.
+
+Causal forest as implemented by the `grf` package can be seen as a forest-based method motivated by the R-learner. First, we describe the R-Learner in its general form. Let
+
+$$e(x) = P[W=1| X=x] \qquad \text{and} \qquad m(x) = E[Y|X=x]$$
+
+Then the R-learner consists of the following two steps:
+
+1. Use any method to estimate separate response functions $\hat{e}(x)$ and $\hat{m}(x)$.
+
+2. Minimize the squared loss motivated by Robinson (1988) using cross-fitting for the nuisance components $\hat{e}(x)$ and $\hat{m}(x)$,
+
+$$\hat{\tau}(\cdot) = argmin_\tau \sum_{i = 1}^n ((Y_i - \hat{m}^{(-i)}(X_i)) - \tau(X_i)(W_i - \hat{e}^{(-i)}(X_i)))^2 + \Lambda_n(\tau(\cdot))$$
+where $\Lambda_n$ is some regularizer. We call the above the R-loss in recognition of Robinson and the role of residualization in the loss function.
+
+Robinson (1988) shows that when $\tau(x) = \tau$ is constant, running OLS to minimize the above loss achieves semiparametric efficiency when $\hat{e}$ and $\hat{m}$ are estimated at the 4-th root rate. Nie and Wager (2017) extends this result to nonparametric $\tau(\cdot)$ to estimate heterogeneous treatment effects. In general, we can plug in any black-box supervised learning software for learning both of the nuisance components and minimizing the R-loss above.
+
+Before we move on to explain how the R-learner is used in Causal Forests as in the implementation of `grf`, we would like to point out that the R-loss defined above can also be used for cross-validation and stacking given different off-the-shelf HTE estimators. For example, you could first compute an HTE estimate from a Causal Forest, and another HTE estimate from BART (Bayesian Additive Regression Trees; see [Hill 2011](https://www.tandfonline.com/doi/pdf/10.1198/jcgs.2010.08162), and the `BART` package is also available on CRAN), which is another popular method widely used in the community, and then stack the two estimates to form a new estimate that combines the two. Details see Section 2.2 in [Nie and Wager (2017)](https://arxiv.org/pdf/1712.04912.pdf).
+
+Causal forest as implemented by `grf` is motivated by the R-learner.
+Concretely, the `grf` implementation of causal forests starts by fitting two separate regression
+forests to estimate $\hat{m}(\cdot)$ and $\hat{e}(\cdot)$. It then makes out-of-bag
+predictions -- meaning that predictions are average outputs from trees whose training data did *not* include the $i^{th}$ observation -- using these two first-stage forests, and uses them to grow a causal forest via
+
+$$
+\hat{\tau}(x) = \frac{\sum_{i = 1}^n \alpha_i(x) \left(Y_i - \hat{m}^{(-i)}(X_i) \right)\left(W_i - \hat{e}^{(-i)}(X_i) \right)}{\sum_{i = 1}^n \alpha_i(x) \left(W_i - \hat{e}^{(-i)}(X_i)\right)^2}
+$$
+
+where $\alpha_i(x) =  \frac{1}{B} \sum_{b = 1}^B  \frac{1(\{X_i \in L_b(x), \, i \in B\})}{|\{i : X_i \in L_b(x), \, i \in B\}|}$ is the learned adaptive weights using random forests, with $B$ the total number of trees in the forest, $L_b(x)$ is the leaf where $x$ falls into in tree $b$.
+Causal forests have several tuning parameters (e.g., minimum node size for individual trees), and
+`grf` choose those tuning parameters by cross-validation on the R-loss, i.e., we train causal forests with different values of the tuning parameters, and choose the ones that make out-of-bag estimates of the objective minimized in R-loss as small as possible.
+
+
+#### Step 1: Fit the forest
+
+Use the command `causal_forest` from the `grf` package to fit the forest. The default parameters tend to provide reasonable performance, but the user can select several tuning parameters for more accuracy. For more information, please check out this extended [reference](https://github.com/grf-labs/grf/blob/master/REFERENCE.md) for the grf algorithm.
+
+```{r causal_forest_fit}
+
+cf <- causal_forest(
+  X = as.matrix(df_train[,covariate_names]),
+  Y = df_train$Y,
+  W = df_train$W,
+  num.trees=200) # This is just for speed. In a real application, remember increase this number!
+                # A good rule of thumb (for inference settings) is num.trees = number of individuals 
+                # (nrow in our case, but would be different if using a panel dataset)
+
+```
+
+#### Step 2(a): Predict point estimates and standard errors (training set, out-of-bag)
+
+To predict on the training set, follow the code below. Note that we are not passing the training set again -- this signals to the causal forest that we should be use out-of-bag predictions.
+
+```{r causal_forest_oob_pred}
+oob_pred <- predict(cf, estimate.variance=TRUE)
+```
+
+The first few rows of the output look like this.
+
+```{r causal_forest_oob_pred_table, results="asis", message=FALSE, echo=FALSE}
+kable_styling(kable(head(oob_pred, 3), "html", digits = 4),
+              bootstrap_options=c("striped", "hover", "condensed", "responsive"),
+              full_width=FALSE)
+```
+
+The column `predictions` and `variance.estimates` contains estimates of the CATE and its variance for each observation. In addition, when using out-of-bag predictions, the column `debiased.error` contains estimates of what the error on the CATE predictions. The word *debiased* here indicates that the error is only due to sample variability in the data, and the variability due to randomness in the construction of the random forest has been removed. In other words, `debiased.error` represents the error we should expect if we grew a forest containing an infinite number of trees.
+
+
+```{r causal_forest_oob_pred_grab}
+oob_tauhat_cf <- oob_pred$predictions
+oob_tauhat_cf_se <- sqrt(oob_pred$variance.estimates)
+```
+
+
+#### Step 2(b): Predict point estimates and standard errors (test set)
+
+To predict on a test set, pass it using the `newdata` argument.
+
+```{r causal_forest_test_pred}
+test_pred <- predict(cf, newdata=as.matrix(df_test[covariate_names]), estimate.variance=TRUE)
+tauhat_cf_test <- test_pred$predictions
+tauhat_cf_test_se <- sqrt(test_pred$variance.estimates)
+```
+
+This time, `test_pred` will not contain `debiased.error`, since we are not using out-of-bag estimates.
+
+```{r causal_forest_test_pred_table, results="asis", message=FALSE, echo=FALSE}
+kable_styling(kable(head(test_pred, 3), "html", digits = 4),
+                          bootstrap_options=c("striped", "hover", "condensed", "responsive"),
+                          full_width=FALSE)
+```
+
+
+**Note:** In experiments where we have additional information about the outcome model $E[Y|X]$ or the assignment model $E[W|X]$, we can pass them directly to the algorithm. For example, if we knew that the propensity score were constant and approximately equal to $\bar{W}$, we could fit the forest as follows.
+
+```{r causal_forest_fit_with_known_prop}
+cf_known_prop <- grf::causal_forest(
+  X = as.matrix(df_train[covariate_names]),
+  Y = df_train$Y,
+  W = df_train$W,
+  W.hat = rep(mean(df_train$W), times=nrow(df_train)), # Passing the known (approximate) propensity score
+  num.trees=200)  
+```
+
+We can similarly pass our own estimates of the outcome model using the argument `Y.hat`.
+
+
+### Assessing heterogeneity
+
+A good reference for this kind of analysis is [Athey and Wager (ArXiv, 2019)](https://arxiv.org/pdf/1902.07409.pdf)
+
+Assessing systematic variation in treatment effect heterogeneity is a difficult task. Let's begin by looking at some popular measures and see how they may lead to subtle pitfalls.
+
+First, having fit a causal forest, a researcher may like to start by looking at the distribution of its predictions. We should the histogram of (out-of-bag) CATE estimates for the `r dataset_name` dataset below. However, the histogram is not recommended as a definitive way to assess heterogeneity. One might be tempted to think: "if the histogram is concentrated at a point, then there is no heterogeneity; if the histogram is spread out, then our estimator has found interesting heterogeneity". In fact, both of these assertions may be false! Indeed, if the histogram is concentrated at a point, then the forests were not able to _detect_ any heterogeneity, but it may be that we are simply underpowered. On the other hand, if the histogram is spread out, it may be that the forests are simply overfitting and producing very noisy estimates. 
+
+
+```{r causal_forest_cate_historigram}
+hist(oob_tauhat_cf, main="Causal forests: out-of-bag CATE"
+    , col = "cornflowerblue", las = 1)
+```
+
+
+Next, the `grf` package also produces a measure of variable importance that indicates how often a variable was used in a tree split.  Again, much like the histogram aboove, this can be a rough diagnostic, but it should **not** be interpreted as indicating that, for example, variable with low importance is not related to heterogeneity.  The reasoning is the same as the one presented in the causal trees section: if two covariates are highly correlated, the trees might split on one covariate but not the other.  However, if one was removed, the trees might split on the one remaining, and the leaf definitions might be unchanged.  
+
+```{r causal_forest_varimp}
+var_imp <- c(variable_importance(cf))
+names(var_imp) <- covariate_names
+sorted_var_imp <- sort(var_imp, decreasing=TRUE)
+```
+
+```{r causal_forest_varimp_table, results="asis", message=FALSE, echo=FALSE}
+as.data.frame(sorted_var_imp, row.names = names(sorted_var_imp)) %>%
+  kable("html", digits = 4, row.names = T) %>%
+  kable_styling(bootstrap_options=c("striped", "hover", "condensed", "responsive"), full_width=FALSE)
+```
+
+
+Below we discuss some preferred ways to assess and test hypotheses about heterogeneity.
+
+#### Heterogeneity across subgroups
+
+One way to summarize the output of complex algorithms like causal forests is to create subpopulations based on predicted treatment effect strength. Here, we split the training data into groups based on n-tiles of the predicted treatment effect.
+
+```{r  causal_forest_subgroup_het1}
+# Manually creating subgroups
+num_tiles <- 4  # ntiles = CATE is above / below the median
+df_train$cate <- oob_tauhat_cf
+df_train$ntile <- factor(ntile(oob_tauhat_cf, n=num_tiles))
+```
+
+
+##### Average treatment effects within subgroups
+
+Next, we compute the average treatment effect within each subgroup. We will show two ways of doing this. First, by taking the average difference between "raw" outcomes for treated and control groups. Then, by constructing and average doubly robust scores for the treatment effect.
+
+A note of caution: in randomized control trials, both of these methods will yield unbiased estimates of the group-specific treatment effect. However, when dealing with *observational* data, only the second method is guaranteed to produce unbiased and efficient estimates.
+
+**Sample Average Treatment Effect:** Define $I_{q}$ to be the set of observations whose predicted treatment effect is in the $q^{th}$ n-tile. Then this estimator is simply a difference of the average outcome for treated and control observations within the subgroup.
+
+$$\frac{1}{|I_{1,q}|}\sum_{i \in I_{1,q}} Y_{i} - \frac{1}{|I_{0,q}|}\sum_{i \in I_{0,q}} Y_{i} \qquad \quad I_{w,q} := \{i \ |\  i \in W_{i}, \ i \in I_{q} \}$$
+
+```{r sample_ate}
+ols_sample_ate <- lm("Y ~ ntile + ntile:W", data=df_train)
+estimated_sample_ate <- coef(summary(ols_sample_ate))[(num_tiles+1):(2*num_tiles), c("Estimate", "Std. Error")]
+hypothesis_sample_ate <- paste0("ntile1:W = ", paste0("ntile", seq(2, num_tiles), ":W"))
+ftest_pvalue_sample_ate <- linearHypothesis(ols_sample_ate, hypothesis_sample_ate)[2,"Pr(>F)"]
+```
+
+**Augmented Inverse-Propensity Weighted (AIPW) Average Treatment Effect:** This is the recommended way to compute average treatment effects in observational data. It consists of averaging the doubly robust scores, where $\hat{\tau}^{-i}(X_i)$ and $\hat{e}^{-i}(X_i)$ are out-of-bag estimates.
+
+$$\frac{1}{|I_{q}|} \sum_{i \in I_{q}} \hat{\tau}^{-i}(X_{i}) + \frac{W_{i} - \hat{e}^{-i}(X_{i})}{\hat{e}^{-i}(X_{i})\left(1 - \hat{e}^{-i}(X_{i})\right)}\left( Y_{i} - \hat{\mu}_{W_{i}}(X_{i}) \right)$$
+
+The `grf` function `average_treatment_effect` computes the statistic above and its standard error. We can also test null hypothesis that the average CATE is the same across n-tiles using a Wald test via the function `wald.test` from the `aod` package.
+
+```{r aipw_ate}
+estimated_aipw_ate <- lapply(
+  seq(num_tiles), function(w) {
+  ate <- average_treatment_effect(cf, subset = df_train$ntile == w)
+})
+estimated_aipw_ate <- data.frame(do.call(rbind, estimated_aipw_ate))
+
+# Testing for equality using Wald test
+waldtest_pvalue_aipw_ate <- wald.test(Sigma = diag(estimated_aipw_ate$std.err^2),
+                                      b = estimated_aipw_ate$estimate,
+                                      Terms = 1:num_tiles)$result$chi2[3]
+```
+
+For your convenience, we display the sample ATE and AIPW ATE estimates side-by-side below in both a table and graph.
+
+```{r  ate_combined_table, results="asis", message=FALSE, echo=FALSE}
+# Round the estimates and standard errors before displaying them
+estimated_sample_ate_rounded <- round(signif(estimated_sample_ate, digits = 6), 6)
+estimated_aipw_ate_rounded <- round(signif(estimated_aipw_ate, digits = 6), 6)
+
+# Format Table: Parenthesis, row/column names
+sample_ate_w_se <- c(rbind(estimated_sample_ate_rounded[,"Estimate"], paste0("(", estimated_sample_ate_rounded[,"Std. Error"], ")")))
+aipw_ate_w_se <- c(rbind(estimated_aipw_ate_rounded[,"estimate"], paste0("(", estimated_aipw_ate_rounded[,"std.err"], ")")))
+table <- cbind("Sample ATE" = sample_ate_w_se, "AIPW ATE" = aipw_ate_w_se)
+table <- rbind(table, round(signif(c(ftest_pvalue_sample_ate, waldtest_pvalue_aipw_ate), digits = 5), 4)) # add p-value to table
+left_column <- rep('', nrow(table))
+left_column[seq(1, nrow(table), 2)] <-
+    cell_spec(c(paste0("ntile", seq(num_tiles)), "P-Value"),
+              format = "html", escape = FALSE, color = "black", bold = TRUE)
+table <- cbind(" " = left_column, table)
+
+# Output table
+table %>%
+  kable("html", escape = FALSE, row.names = FALSE) %>%
+  kable_styling(bootstrap_options=c("striped", "hover", "condensed", "responsive"), full_width=FALSE) %>%
+  footnote(general = "Average treatment effects per subgroup defined by out-of-bag CATE.<br>
+           P-value is testing <i>H<sub>0</sub>: ATE is constant across ntiles</i>.<br>
+           Sample ATE uses an F-test and AIPW uses a Wald test;<br>
+           see the code above for more details.",
+           escape=FALSE)
+```
+
+```{r ate_combined_plot, echo=FALSE, results='as_is', fig.height=4}
+# Transform to data tables with relevant columns
+estimated_sample_ate <- as.data.frame(estimated_sample_ate)
+estimated_sample_ate$Method <- "Sample ATE"
+estimated_sample_ate$Ntile <- as.numeric(sub(".*([0-9]+).*", "\\1", rownames(estimated_sample_ate)))
+
+estimated_aipw_ate <- as.data.frame(estimated_aipw_ate)
+estimated_aipw_ate$Method <- "AIPW ATE"
+estimated_aipw_ate$Ntile <- as.numeric(rownames(estimated_aipw_ate))
+
+# unify column names and combine
+colnames(estimated_sample_ate) <- c("Estimate", "SE", "Method", "Ntile")
+colnames(estimated_aipw_ate) <- c("Estimate", "SE", "Method", "Ntile")
+combined_ate_estimates <- rbind(estimated_sample_ate, estimated_aipw_ate)
+
+# plot
+ggplot(combined_ate_estimates) +
+  geom_pointrange(aes(x = Ntile, y = Estimate, ymax = Estimate + 1.96 * SE, ymin = Estimate - 1.96 * SE, color = Method), 
+                  size = 0.5,
+                  position = position_dodge(width = .5)) +
+  geom_errorbar(aes(x = Ntile, ymax = Estimate + 1.96 * SE, ymin = Estimate - 1.96 * SE, color = Method), 
+                width = 0.4,
+                size = 0.75,
+                position = position_dodge(width = .5)) +
+  theme_minimal() +
+  labs(x = "N-tile", y = "ATE Estimate", title = "ATE within N-tiles (as defined by predicted CATE)")
+```
+
+Note that the average estimates of the treatment effect that is obtained by averaging doubly-robust scores may not be monotonic. That is, the average estimate for group $I_{4}$ may end up being _smaller_ than the one for $I_{3}$. Asymptotically, these differences should disappear, but this is a common occurrence in small samples.
+
+Next, we test if the average treatment effect is different between all two pairs of n-tiles. Note that here we are not performing any type of multiple hypothesis testing correction.
+
+```{r pairwise_ntile_ate_test, results='hide', message=FALSE, echo=TRUE, warning=FALSE, error=FALSE}
+p_values_tile_by_tile <- matrix(nrow = num_tiles, ncol = num_tiles)
+differences_tile_by_tile <- matrix(nrow = num_tiles, ncol = num_tiles)
+stderror_tile_by_tile <- matrix(nrow = num_tiles, ncol = num_tiles)
+hypotheses_grid <- combn(1:num_tiles, 2)
+
+invisible(apply(hypotheses_grid, 2, function(x) {
+  .diff <- with(estimated_aipw_ate, Estimate[Ntile == x[2]] - Estimate[Ntile == x[1]])
+  .se <- with(estimated_aipw_ate, sqrt(SE[Ntile == x[2]]^2 + SE[Ntile == x[1]]^2))
+
+  differences_tile_by_tile[x[2], x[1]] <<- .diff
+  stderror_tile_by_tile[x[2], x[1]] <<- .se
+  p_values_tile_by_tile[x[2], x[1]] <<- 1 - pnorm(abs(.diff/.se)) + pnorm(-abs(.diff/.se))
+}))
+```
+
+```{r echo=FALSE, results='asis'}
+
+# Little trick to display p-values under mean difference values in HTML
+diffs <- matrix(nrow = num_tiles, ncol = num_tiles)
+invisible(apply(hypotheses_grid, 2, function(x) {
+  d <- differences_tile_by_tile[x[2], x[1]]
+  s <- stderror_tile_by_tile[x[2], x[1]]
+  p <- p_values_tile_by_tile[x[2], x[1]]
+  top <- cell_spec(round(d, 3), "html",
+            background=case_when(is.na(p) || (p > 0.05) ~ "white",
+                                 p > 0.01               ~ "gray",
+                                 TRUE                   ~ "black"),
+            color=ifelse(is.na(p), "white", ifelse(p < 0.1, "white", "gray")))
+  value <- ifelse(is.na(p), "", paste0(top, " <br> ", "(", round(s, 3), ")"))
+  diffs[x[2], x[1]] <<- value
+}))
+
+diffs <- as.data.frame(diffs) %>% mutate_all(as.character)
+rownames(diffs) <- paste0("tile", 1:num_tiles)
+colnames(diffs) <- paste0("tile", 1:num_tiles)
+
+# Title of table
+caption <- "Pairwise n-tile differences:<br>
+AIPW ATE differences between tile i and tile j"
+
+# Styling color and background
+color <-function(x) ifelse(is.na(x), "white", "gray")
+
+diffs %>%
+  rownames_to_column() %>%
+  mutate_all(function(x) cell_spec(x, "html", escape=FALSE, color=color(x))) %>%
+  kable(format="html", caption=caption, escape = FALSE) %>%
+  kable_styling(bootstrap_options=c("condensed", "responsive"), full_width=FALSE) %>%
+  footnote(general='Standard errors in parenthesis. Significance (not adjusted for multiple testing):
+<ul>
+  <li>No background color: p ≥ 0.05
+  <li><span style="color: white;border-radius: 4px; padding-right: 4px; padding-left: 4px; background-color: gray;">Gray</span> background: p < 0.05
+  <li><span style="color: white;border-radius: 4px; padding-right: 4px; padding-left: 4px; background-color: black;">Black</span> background: p < 0.01
+</ul>
+', escape=F)
+```
+
+
+
+#### Heterogeneity across covariates
+
+We can also check if different groups have different average covariate levels across n-tiles of estimated conditional treatment effects. The code here follows very closely what we did in the causal trees section.  Recalling the warning against using variable importance measures, it is possible that one covariate is not "important" in splitting, but yet it varies strongly with treatment effects.  The approach of comparing all covariates across n-tiles of treatment effects presents a fuller picture of how high-treatment-effect individuals differ fom low-treatment-effect individuals.
+
+
+```{r causal_forest_covariate_hypothesis}
+# Regress each covariate on ntile assignment to means p
+cov_means <- lapply(covariate_names, function(covariate) {
+  lm(paste0(covariate, ' ~ 0 + ntile'), data = df_train)
+})
+
+# Extract the mean and standard deviation of each covariate per ntile
+cov_table <- lapply(cov_means, function(cov_mean) {
+  as.data.frame(t(coef(summary(cov_mean))[,c("Estimate", "Std. Error")]))
+})
+```
+
+```{r echo=FALSE, results='asis'}
+# Preparation to color the chart
+temp_standardized <- sapply(seq_along(covariate_names), function(j) {
+  covariate_name <- covariate_names[j]
+  .mean <- mean(df_train[, covariate_name], na.rm = TRUE)
+
+  .sd <- sd(df_train[, covariate_name], na.rm = TRUE)
+  m <- as.matrix(round(signif(cov_table[[j]], digits=4), 3))
+  .standardized <- (m["Estimate",] - .mean) / .sd
+})
+
+color_scale <- max(abs(c(max(temp_standardized, na.rm = TRUE), min(temp_standardized, na.rm = TRUE))))
+color_scale <- color_scale * c(-1,1)
+
+# Little trick to display the standard errors
+table <- lapply(seq_along(covariate_names), function(j) {
+  covariate_name <- covariate_names[j]
+  .mean <- mean(df_train[, covariate_name], na.rm = TRUE)
+  .sd <- sd(df_train[, covariate_name], na.rm = TRUE)
+  m <- as.matrix(round(signif(cov_table[[j]], digits=4), 3))
+  .standardized <- (m["Estimate",] - .mean) / .sd
+  m["Estimate",] <- (cell_spec(m["Estimate",],
+                               color = "White",
+                               background = spec_color(.standardized,
+                                                  end = 0.9,
+                                                  begin = 0.1,
+                                                  scale_from = color_scale)
+                               ))
+  m["Std. Error",] <- paste0("(", m["Std. Error",], ")")
+  m
+})
+table <- do.call(rbind, table)
+
+# Covariate names
+covnames <- rep("", nrow(table))
+covnames[seq(1, length(covnames), 2)] <-
+  cell_spec(covariate_names, format = "html", escape = F, color = "black", bold = T)
+
+table <- cbind(covariates=covnames, table)
+
+# Title of table
+caption <- paste0("Average covariate values in each n-tile")
+
+table %>%
+  kable(format="html", digits=2, caption=caption, escape = FALSE, row.names = FALSE) %>%
+  kable_styling(bootstrap_options=c("condensed", "responsive"), full_width=FALSE) %>%
+  footnote(paste0("Colors are assigned according to where the subgroup's mean value lands on the standardized empirical distribution of it's variable: (x - mean(x))/sd(x)<br>Standardized distribution is colored from a scale of +/-", round(color_scale[2], 3)), escape = FALSE)
+```
+
+
+```{r}
+covariate_means_per_ntile<- df_train  %>% group_by(ntile)  %>% summarise_at(vars(covariate_names),mean)
+covariate_means <- df_train  %>% summarise_at(vars(covariate_names),mean)
+ntile_weights <- table(df_train$ntile) / dim(df_train)[1] 
+deviations <- transpose(covariate_means_per_ntile[,2:ncol(covariate_means_per_ntile)]) %>% lapply(function(x){x-transpose(covariate_means)}) %>% bind_cols()
+
+covariate_means_weighted_var <- (ntile_weights * deviations^2) %>% colSums()
+covariate_var <- df_train %>% summarise_at(vars(covariate_names),var)
+  
+cov_variation <- covariate_means_weighted_var / covariate_var
+
+```
+
+
+```{r causal_forest_covariate_variation_table, echo=FALSE, results='asis'}
+sorted_cov_variation <- sort(cov_variation, decreasing = TRUE)
+table <- t(as.data.frame(sorted_cov_variation))
+
+kable_styling(kable(table,  "html", digits = 4, row.names=TRUE,
+                    caption="Covariate variation across n-tiles"),
+              bootstrap_options=c("striped", "hover", "condensed", "responsive"),
+              full_width=FALSE)
+```
+
+
+
+#### Partial dependence plots
+
+It may also be interesting to examine how our CATE estimates behave when we change a single covariate, while keeping all the other covariates at a some fixed value. In the plot below we evaluate a variable of interest across quantiles, while keeping all other covariates at their median (see the RMarkdown source for code).  
+
+
+**Note:** It is important to recognize that in the following plots and tables, we may be evaluating the CATE at $x$ values in regions where there are few or no data points. Also, it may be the case that varying some particular variable while keeping others fixed may just not be very interesting. For example, in the _welfare_ dataset, we will not see a lot difference when we change `partyid` if we keep `polviews` fixed at their median value. It might be instructive to re-run this tutorial without using the variable `partyid`.
+
+```{r select_continuous_variables_for_var_of_interest, echo = FALSE}
+if (dataset_name == "welfare") {
+  var_of_interest = "polviews"
+  vars_of_interest = c("income", "polviews")
+} else {
+  # Selecting a continuous variable, if available, to make for a more interesting graph
+  continuous_variables <- sapply(covariate_names, function(x) length(unique(df_train[, x])) > 5)
+  
+  # Select variable for single variable plot
+  var_of_interest <- ifelse(sum(continuous_variables) > 0,
+                            covariate_names[continuous_variables][1],
+                            covariate_names[1])
+  
+  # Select variables for two variable plot
+  vars_of_interest <- c(var_of_interest,
+                        ifelse(sum(continuous_variables) > 1,
+                               covariate_names[continuous_variables][2],
+                               covariate_names[covariate_names != var_of_interest][1]))
+}
+```
+
+
+```{r causal_forest_single_variable_plot_prepare, echo=FALSE}
+# Create a grid of values: if continuous, quantiles; else, plot the actual values
+is_continuous <- (length(unique(df_train[,var_of_interest])) > 5) # crude rule for determining continuity
+if(is_continuous) {
+  x_grid <- quantile(df_train[[var_of_interest]], probs = seq(0, 1, length.out = 5))
+} else {
+  x_grid <- sort(unique(df_train[[var_of_interest]]))
+}
+df_grid <- setNames(data.frame(x_grid), var_of_interest)
+
+# For the other variables, keep them at their median
+other_covariates <- covariate_names[!covariate_names %in% var_of_interest]
+df_median <- df_train %>% select(other_covariates) %>% summarise_all(median) 
+df_eval <- crossing(df_median, df_grid)
+
+# Predict the treatment effect
+pred <- predict(cf, newdata=df_eval[,covariate_names], estimate.variance=TRUE)
+df_eval$tauhat <- pred$predictions
+df_eval$se <- sqrt(pred$variance.estimates)
+```
+
+```{r causal_forest_single_variable_plot, echo=FALSE, results='as_is', fig.height=4}
+# Change to factor so the plotted values are evenly spaced
+df_eval <- df_eval %>% 
+            mutate(var_of_interest = as.factor(var_of_interest))
+
+# Descriptive labeling
+label_description <- ifelse(is_continuous, '\n(Evaluated at quintiles)', '')
+
+# Plot
+df_eval %>%
+  mutate(ymin_val = tauhat-1.96*se) %>%
+  mutate(ymax_val = tauhat+1.96*se) %>%
+  ggplot() +
+    geom_line(aes_string(x=var_of_interest, y="tauhat", group = 1), color="red") +
+    geom_errorbar(aes_string(x=var_of_interest,ymin="ymin_val", ymax="ymax_val", width=.2),color="blue") +
+    xlab(paste0("Effect of ", var_of_interest, label_description)) +
+    ylab("Predicted Treatment Effect") +
+    theme_minimal() +
+    theme(axis.ticks = element_blank())
+```
+
+We may then repeat this for all covariates. Here, we display the results in a table below for selected values. If the variable is binary, we do the same but just evaluate the variable at 0 and 1.
+
+```{r causal_forest_partial_dependence_tables}
+# Split up continuous and binary variables
+binary_covariates <- sapply(covariate_names,
+                            function(x) length(unique(df_train[, x])) <= 2)
+var_of_interest= "childs" #delet me
+
+evaluate_partial_dependency <- function(var_of_interest, is_binary) {
+  if(is_binary){
+    # Get two unique values for the variable
+    x_grid <- sort(unique(df_train[,var_of_interest]))
+  } else {
+    # Get quartile values for the variable
+    x_grid <- quantile(df_train[,var_of_interest], probs = seq(0, 1, length.out = 5))
+  }
+  df_grid <- setNames(data.frame(x_grid), var_of_interest)
+
+  # For the other variables, keep them at their median
+ # other_covariates <- covariate_names[which(covariate_names != var_of_interest)]
+    other_covariates <- covariate_names[!(covariate_names %in% var_of_interest)]
+
+  df_median <- data.frame(lapply(df_train[,other_covariates], median))
+  df_eval <- crossing(df_median, df_grid)
+
+  # Predict the treatment effect
+  pred <- predict(cf, newdata=df_eval[,covariate_names], estimate.variance=TRUE)
+  rbind('Tau Hat' = pred$predictions,
+        'Std. Error' = sqrt(pred$variance.estimates))
+}
+evaluate_partial_dependency("childs",FALSE)
+
+# Make the table for non-binary variables
+nonbinary_partial_dependency_tauhats <- lapply(covariate_names[!binary_covariates],
+                                               function(variable) evaluate_partial_dependency(variable, FALSE))
+
+# Make the table for binary variables
+binary_partial_dependency_tauhats <- lapply(covariate_names[binary_covariates],
+                                            function(variable) evaluate_partial_dependency(variable, TRUE))                                            
+```
+
+
+```{r output_binary_causal_forest_partial_dependence_tables, echo=FALSE, results='asis'}
+if(sum(binary_covariates) > 0) {
+  # Little trick to display the standard errors
+  table <- lapply(seq_along(covariate_names[binary_covariates]), function(j) {
+    m <- round(signif(binary_partial_dependency_tauhats[[j]], digits=4), 3)
+    m["Tau Hat",] <- as.character(m["Tau Hat",])
+    m["Std. Error",] <- paste0("(", m["Std. Error",], ")")
+    m
+  })
+  table <- do.call(rbind, table)
+  colnames(table) <- paste0('X=',c('0', '1'))
+
+  # Covariate names
+  covnames <- rep("", nrow(table))
+  covnames[seq(1, length(covnames), 2)] <-
+    cell_spec(covariate_names[binary_covariates], format = "html", escape = F, color = "black", bold = T)
+
+  table <- cbind(covariates=covnames, table)
+
+  # Title of table
+  caption <- "The CATE function's value varying each binary covariate at 0 and 1, holding all other covariates at their medians."
+
+  table %>%
+    kable(format="html", digits=2, caption=caption, escape = FALSE, row.names = FALSE) %>%
+    kable_styling(bootstrap_options=c("condensed", "responsive"), full_width=FALSE)
+}
+```
+
+Also, we might be interested in the interaction of two variables and their relationship with the CATE. Here's an example where we look at how the CATE function varies in two dimensions, while holding other covariates fixed at their median values. The chosen variables here are `r vars_of_interest[1]` and  `r vars_of_interest[2]`.
+
+
+```{r causal_forest_two_variable_plot_prepare, echo=FALSE, fig.height=3}
+# Create a grid of values: if continuous, quantiles; else, plot the actual values
+x_grids <- list(NULL, NULL)
+is_continuous <- c(NULL, NULL)
+for(i in 1:2) {
+
+  is_continuous[i] <- (length(unique(df_train[[vars_of_interest[i]]])) > 5) # crude rule for determining continuity
+  if(is_continuous[i]) {
+    x_grids[[i]] <- quantile(df_train[[vars_of_interest[i]]], probs = seq(0, 1, length.out = 5))
+  } else {
+    x_grids[[i]] <- sort(unique(df_train[[vars_of_interest[i]]]))
+  }
+}
+x_grids <- setNames(x_grids, vars_of_interest)
+df_grid <- do.call(expand.grid, x_grids)
+
+# For the other variables, keep them at their median
+other_covariates <- covariate_names[!covariate_names %in% vars_of_interest]
+df_median <- data.frame(lapply(df_train[,other_covariates], median))
+df_eval <- crossing(df_median, df_grid)
+
+# Predict the treatment effect
+pred <- predict(cf, newdata=df_eval[,covariate_names], estimate.variance=TRUE)
+df_eval$tauhat <- pred$predictions
+df_eval$se <- sqrt(pred$variance.estimates)
+```
+
+
+```{r causal_forest_two_variable_plot, echo=FALSE, results='as_is', fig.height=3} 
+#check if i broke this graphic for welfare data
+# Change to factor so the plotted values are evenly spaced
+two_way_plot = df_eval[,c(vars_of_interest[1],vars_of_interest[2])]
+two_way_plot <- lapply(two_way_plot,function(x){ as.factor(round(x, digits = 4))}) %>% bind_rows %>% cbind(df_eval$tauhat)
+colnames(two_way_plot) <-c(vars_of_interest[1],vars_of_interest[2],"tauhat")
+
+# Descriptive labeling
+label_description1 <- ifelse(is_continuous[1], '\n(Evaluated at quintiles)', '')
+label_description2 <- ifelse(is_continuous[2], '\n(Evaluated at quintiles)', '')
+
+# Plot
+two_way_plot %>%
+    ggplot() +
+      geom_tile(aes_string(x=vars_of_interest[1], y=vars_of_interest[2], fill="tauhat")) +
+      theme_linedraw() +
+      scale_fill_distiller(direction = 1, palette = 'RdBu') +
+      xlab(paste0("Effect of ", vars_of_interest[1], label_description1)) +
+      ylab(paste0("Effect of ", vars_of_interest[2], label_description2)) +
+      theme(axis.ticks = element_blank())
+```
+
+Again, we put a similar analysis into table form by evaluating the CATE at four values for a given pair of covariates $x_1$ and $x_2$:
+
+1. **LL**: $x_1$ and $x_2$ are equal to the 20th percentile of their respective empirical distribution;
+2. **HL**: $x_1$ is at the 80th percentile, and $x_2$ is at its 20th percentile;
+3. **LH**: $x_1$ is at the 20th percentile, and $x_2$ is at its 80th percentile;
+4. **HH**: both $x_1$ and $x_2$ are held at their 80th percentiles.
+
+As always, other covariates are fixed at their medians. If the variable is not continuous, then the 20th and 80th percentiles are replaced with 0 and 1, respectively. We use the top 5 variables from the causal forest variable importance measure.
+
+```{r causal_forest_two_variable_partial_dependence}
+covariate_subset <- names(sorted_var_imp)[1:5]
+all_pairs <- combn(covariate_subset, m = 2)
+
+evaluate_twoway_partial_dependency <- function(vars_of_interest) {
+  # Create a grid of values: if continuous, quantiles; else, plot the actual values
+  x_grids <- list(NULL, NULL)
+  for(i in 1:2) {
+    is_binary <- (length(unique(df_train[,vars_of_interest[i]])) <= 2)
+    if(is_binary) {
+      x_grids[[i]] <- sort(unique(df_train[,vars_of_interest[i]]))
+    } else {
+      x_grids[[i]] <- quantile(df_train[,vars_of_interest[i]], probs = c(0.2, 0.8))
+    }
+  }
+  x_grids <- setNames(x_grids, vars_of_interest)
+  df_grid <- do.call(expand.grid, x_grids)
+
+  # For the other variables, keep them at their median
+  other_covariates <- covariate_names[which(!covariate_names %in% vars_of_interest)]
+  df_median <- data.frame(lapply(df_train[,other_covariates], median))
+  df_eval <- crossing(df_median, df_grid)
+
+  # Predict the treatment effect
+  pred <- predict(cf, newdata=df_eval[,covariate_names], estimate.variance=TRUE)
+  rbind('Tau Hat' = pred$predictions,
+        'Std. Error' = sqrt(pred$variance.estimates))
+}
+
+twoway_partial_dependency_tauhats <- lapply(1:ncol(all_pairs),
+                                            function(j) evaluate_twoway_partial_dependency(all_pairs[, j]))
+```
+
+
+
+
+```{r output_causal_forest_two_variable_partial_dependence_table, echo=FALSE, results='asis'}
+# Little trick to display the standard errors
+table <- lapply(1:ncol(all_pairs), function(j) {
+
+  m <- round(signif(twoway_partial_dependency_tauhats[[j]], digits=4), 3)
+  diff_in_diff <- round(signif(m["Tau Hat", 4] - m["Tau Hat", 2] - (m["Tau Hat", 3] - m["Tau Hat", 1]), digits=4), 3)
+  diff_in_diff_se <- round(signif(sqrt(sum(m["Std. Error", ]^2)), digits = 4), 3)
+  diff_in_diff_se <- paste0("(", diff_in_diff_se, ")")
+  m["Tau Hat",] <- as.character(m["Tau Hat",])
+  m["Std. Error",] <- paste0("(", m["Std. Error",], ")")
+  m <- cbind(m, c(diff_in_diff, diff_in_diff_se))
+  m
+})
+table <- do.call(rbind, table)
+colnames(table) <- c('LL', 'HL', 'LH', 'HH', ' (HH-HL)<br>- (LH-LL)')
+
+# Covariate names
+cov1names <- rep("", nrow(table))
+cov1names[seq(1, length(cov1names), 2)] <-
+  cell_spec(all_pairs[1,], format = "html", escape = F, color = "black", bold = T)
+cov2names <- rep("", nrow(table))
+cov2names[seq(1, length(cov2names), 2)] <-
+  cell_spec(all_pairs[2,], format = "html", escape = F, color = "black", bold = T)
+
+table <- cbind(x1 = cov1names, x2 = cov2names, table)
+
+# Title of table
+caption <- "The CATE function's value for x1 and x2 evaluated at combinations of 'high' and 'low' (e.g. HL is High-Low with x1 at its 80th percentile, x2 at its 20th percentile). All other covariates are fixed at their medians."
+
+table %>%
+  kable(format="html", digits=2, caption=caption, escape = FALSE, row.names = FALSE) %>%
+  kable_styling(bootstrap_options=c("condensed", "responsive"), full_width=FALSE)
+```
+
+
+#### An omnibus test for heterogeneity (BLP)
+
+The function `test.calibration` from the `grf` package evaluates the quality of causal forest estimates using a method that was motivated by [Chernozhukov, Demirer, Duflo, and Fernandez-Val (2018)](https://arxiv.org/abs/1712.04802). The idea is to estimate the best linear predictor of CATE using out-of-bag predictions $\hat{\tau}^{-i}(\cdot)$. In the grf package, the exact implementation seeks to fit the following linear model.
+
+$$Y_{i} - \hat{m}^{-i}(X_{i}) = \alpha\bar{\tau}\left(W_{i} - \hat{e}^{-i}(X_{i})\right) + \beta \left(\hat{\tau}^{-i}(X_{i}) - \bar{\tau} \right) \left(W_{i} - \hat{e}^{-i}(X_{i}) \right) + \epsilon  \qquad \quad \bar{\tau} := \frac{1}{n}\sum_{i=1}^{n} \hat{\tau}^{-i}(X_{i})$$
+
+The coefficients $\alpha$ and $\beta$ allow us to evaluate the performance of our estimates. If $\alpha = 1$, then the average prediction produced by the forest is correct. Meanwhile, if $\beta = 1$, then the forest predictions adequately capture the underlying heterogeneity.
+
+In addition, $\beta$ is a measure of how the CATE predictions covary with true CATE. Therefore, the p-value on the estimate of coefficient also acts as an omnibus test for the presence of heterogeneity. If the coefficient is significantly greater than zero, then we can reject the null of no heterogeneity. However, coefficients smaller than 0 are not meaningful and show not be interpreted.
+
+
+```{r test_calibration, results='hide'}
+tc <- test_calibration(cf)
+```
+
+```{r test_calibration_table, results='asis', echo=FALSE}
+caption <- "Best linear fit using forest predictions (on held-out data)
+                      as well as the mean forest prediction as regressors, along
+                      with heteroskedasticity-robust (HC3) SEs."
+table <- as.data.frame(tc[,]) 
+table %>%
+    kable(format="html", digits=6, caption=caption, escape = FALSE, row.names = FALSE) %>%
+    kable_styling(bootstrap_options=c("condensed", "responsive"), full_width=FALSE)
+```
+
+
+
+----
+
+## HTE 3: X-learners
+
+**Reference:** [Kunzel et al (PNAS, 2019)](https://www.pnas.org/content/pnas/116/10/4156.full.pdf)
+
+Künzel et al (2018) propose a new meta-algorithm for CATE estimation. The authors begin by noting that many CATE algorithms either separately estimate *two* response functions
+
+$$\mu_1(x) = E[Y| X=x, W=1] \qquad \text{and} \qquad \mu_0(x) = E[Y|X=x, W=0]$$
+
+or include the treatment variable along with the control variables and estimate a *single* function:
+
+$$\mu(w, x) = E[Y | W = w, X=x]$$
+
+They call the former class of methods *T-learners* (for "two") and the latter one *S-learners* (for "single"). Then, they propose an alternative *X-learner* that has the following procedure.
+
+1. Use any method to estimate separate response functions $\hat{\mu}_1(x)$ (using only data from the treatment group) and $\hat{\mu}_0(x)$ (using only data from the control group).
+
+2. Create *imputed individual treatment effects*:
+\begin{align}
+&\hat{D}_{i,1} = Y_i - \hat{\mu}_0(X_i) \qquad \text{for all observations in treatment group} \\
+&\hat{D}_{i,0} = \hat{\mu}_1(X_i) - Y_{i} \qquad \text{for all observations in treatment group}
+\end{align}
+
+3. Regress imputed treatment effects on covariates to obtain CATE estimates $\hat{\tau}_{0}(x)$ and $\hat{\tau}_1(x)$
+
+4. Take a weighted average of the CATE estimates
+$$\hat{\tau}(x) = \hat{g}(x)\hat{\tau}_0(x) + [1-\hat{g}(x)]\hat{\tau}_1(x)$$
+where $g$ is a function mapping to unit interval, typically chosen to be the propensity score.
+
+The motivation is that a  *S-learner* works well when one of the treatment groups is much larger than the other because it pools information about both groups. However, the *S-learner* might also choose to ignore information about the treatment, if the signal from the outcome model is overwhelmingly strong. For example, if we had fitted one regression forest on $(X, W)$, most trees might end up not splitting on $W$. This ends up biasing the CATE to zero since the resulting estimated function will be constant in $w$. In this case, a *T-learner* would do better. However, when one of the control or treatment groups is noisier relatively to its own sample size, the *T-learner* can produce biased results because it may regularize the two functions differently.
+
+The authors claim that their meta-algorithm can ameliorate both of these disadvantages by the "crossing" technique (hence the name *X-learner*) shown in the algorithm below.
+
+#### STEP 1: Fit the X-learner
+
+We will follow the algorithm outlined above very closely. Because the variable naming can be a bit cumbersome, let's give some of our variables shorter aliases.
+
+```{r}
+X <- df_train[,covariate_names]
+W <- df_train$W
+Y <- df_train$Y
+num.trees <- 200  #  We'll make this a small number for speed here.
+```
+
+
+```{r xlearner_fit, echo=TRUE, results='hide'}
+n_train <- dim(df_train)[1]
+
+# estimate separate response functions
+tf0 <- regression_forest(X[W==0,], Y[W==0], num.trees=num.trees)
+tf1 <- regression_forest(X[W==1,], Y[W==1], num.trees=num.trees)
+
+# Compute the 'imputed treatment effects' using the other group
+D1 <- Y[W==1] - predict(tf0, X[W==1,])$predictions
+D0 <- predict(tf1, X[W==0,])$predictions - Y[W==0]
+
+# Compute the cross estimators 
+xf0 <- regression_forest(X[W==0,], D0, num.trees=num.trees)
+xf1 <- regression_forest(X[W==1,], D1, num.trees=num.trees)
+
+# Predict treatment effects, making sure to always use OOB predictions where appropriate
+xf.preds.0 <- rep(0, n_train)
+xf.preds.0[W==0] <- predict(xf0)$predictions
+xf.preds.0[W==1] <- predict(xf0, X[W==1,])$predictions
+xf.preds.1 <- rep(0, n_train)
+xf.preds.1[W==0] <- predict(xf0)$predictions
+xf.preds.1[W==1] <- predict(xf0, X[W==1,])$predictions
+
+# Estimate the propensity score
+propf <- regression_forest(X, W, num.trees=num.trees)
+ehat <- predict(propf)$predictions
+
+# Finally, compute the X-learner prediction
+tauhat_xl <- (1 - ehat) * xf.preds.1 + ehat * xf.preds.0
+```
+
+#### STEP 2: Predict point estimates
+
+The function `EstimateCate` provides point estimates. To predict on a test set:
+
+```{r x_learner_predict}
+X.test <- df_test[,covariate_names]
+ehat.test <- predict(propf, X.test)$predictions
+xf.preds.1.test <- predict(xf1, X.test)$predictions
+xf.preds.0.test <- predict(xf0, X.test)$predictions
+tauhat_xl_test <- (1 - ehat.test) * xf.preds.1.test + ehat.test * xf.preds.0.test
+```
+
+#### STEP 3: Compute confidence intervals
+
+Confidence intervals are computed via bootstrap. The process is straightforward but does not add any particular insight. We encourage the interested reader to see the algorithms in the paper for the exact implementation.
+
+
+---
+
+## Comparing predictions
+
+We want to compare how well our methods performed regarding prediction error. However, we are immediately faced with the challenge that we do not observe the true treatment effects. However, let's define the following Transformed Outcome:
+
+\begin{align}
+Y_i^{*} &:=
+\begin{cases}
+\frac{1}{p}Y_i \qquad &\text{if} \qquad W_i = 1 \\
+\frac{-1}{1-p}Y_i \qquad &\text{if} \qquad W_i = 0
+\end{cases} \\
+&= \frac{W_i-p}{p(1-p)}Y_i
+\end{align}
+
+where $p = P(W = 1)$. This is actually a high-variance unbiased estimator of the true individual treatment effect, since
+
+\begin{align}
+E[Y_i^{*}] &= P(W=1)E[Y_i^{*}|W=1] + P(W=0)E[Y_i^{*}|W=0] \\
+&= pE\left[\frac{1}{p}Y_i|W=1 \right] + (1-p)E \left[\frac{-1}{1-p}Y_i|W=0 \right] \\
+&= pE\left[\frac{1}{p}Y_i(1) \right] + (1-p) E \left[\frac{-1}{1-p}Y_i(0) \right] \\
+&= E[Y_i(1) - Y_i(0)] \\
+&= E[\tau_i]
+\end{align}
+
+<font size=2>
+<b>Note</b> The third equality worked here because we are using a randomized experiment, but it would have worked out as well in a scenario with unconfoundedness provided that we used the propensity scores $p(x) = P(W = 1 | X= x)$ instead of $p$, provided they are bounded away from zero.
+</font>
+
+In expectation, the squared distance between $Y_i^*$ and our prediction $\hat\tau(X_i)$ can be used to compare our estimators' mean square error. This is because of the following.
+
+\begin{align}
+E[(Y_i^{*} - \hat{\tau}(X_i))^2]
+&=   E[(Y_i^{*} - \tau_i + \tau_i - \hat{\tau}(X_i))^2] \\
+&=   E[(Y_i^{*} - \tau_i)^2] + E[(\tau_i - \hat{\tau}(X_i))^2]
++ 2E[(Y_i^{*} - \tau_i)(\tau_i - \hat{\tau}(X_i))]\\
+&= const +  E[(\tau_i - \hat{\tau}(X_i))^2]  + 0
+\end{align}
+
+Where the first term in the last equality is a constant with respect to $\hat{\tau}$, so it gets canceled out when we take the difference between two estimators' performance measures. Consequently, we can compare the different methods by performing hypothesis testing on the MSE against $Y_i^{*}$. We include the traditional sample average treatment effect as a benchmark.
+
+```{r compare_mse}
+# Compute Y-star
+p <- mean(df_test$W)
+Y_star <- ((df_test$W - p)/(p*(1-p)))*df_test$Y
+
+# Compute the sample average treatment effect to use as a baseline comparison
+tauhat_sample_ate <- with(df_train, mean(Y[W==1]) - mean(Y[W==0]))
+
+# Compute test mse for all methods
+mse <- data.frame(
+  Sample_ATE_Loss = (Y_star - tauhat_sample_ate)^2,
+  Causal_Tree_Loss = (Y_star - tauhat_ct_test)^2,
+  Causal_Forest_Loss = (Y_star - tauhat_cf_test)^2,
+  X_Learner_Loss = (Y_star - tauhat_xl_test)^2)
+
+mse_summary <- describe(mse)[, c('mean', 'se')]
+```
+
+```{r compare_mse_table, echo=FALSE, results='asis'}
+kable_styling(kable(mse_summary,  "html", digits = 5,
+                                       caption="Estimate loss: comparison across methods"),
+                          bootstrap_options=c("striped", "hover", "condensed", "responsive"),
+                          full_width=FALSE)
+```
+
+Alternatively, another way to compare models is via the R-loss. In particular, if $Y_i = m(X_i) + (W_i-e(X_i))\tau(X_i) + \epsilon_i$ where $E[\epsilon_i^2]=\sigma^2$ and $E[\epsilon_i] =0$, then
+\begin{align}
+E[(Y_i - m(X_i) - (W_i - e(X_i)) \hat{\tau}(X_i))^2] &= E[((W_i-e(X_i))(\tau(X_i) - \hat{\tau}(X_i)))^2] + \sigma^2 \\
+&= E[(e(X_i)(1-e(X_i)) (\tau(X_i) - \hat{\tau}(X_i)))^2] + \sigma^2
+\end{align}
+where the last equality follows from conditioning on $X_i$.
+
+We see that using the R-loss for model comparison, we would be minimizing $E[e(X_i)(1-e(X_i)) (\tau(X_i) - \hat{\tau}(X_i))^2]$, which is a weighted mean-squared error (MSE) on $\hat{\tau}(X_i)$. This weighted MSE gives higher weights to datapoints that have good overlap (e.g. $e(X_i)$ close to 0.5), which can be helpful when there is poor overlap in the data, or when the policymakers cares most about the treatment effect estimation on the population that is most on the boundary between receiving treatment and not receiving treatment. Compared to using the Transformed Outcome approach, using the R-loss is more stable since we do not need to divide by propensity weights, but gives a biased estimate of the overall MSE.
+
+```{r rloss-compare-model}
+Y.forest.test = regression_forest(X = as.matrix(df_test[covariate_names]), Y = df_test$Y)
+Y.hat.test = predict(Y.forest.test)$predictions
+W.forest.test = regression_forest(X = as.matrix(df_test[covariate_names]), Y = df_test$W)
+W.hat.test = predict(W.forest.test)$predictions
+
+mse_rloss <- data.frame(
+  Sample_ATE_Loss = (df_test$Y - Y.hat.test - (df_test$W - W.hat.test) * tauhat_sample_ate)^2,
+  Causal_Tree_Loss = (df_test$Y - Y.hat.test - (df_test$W - W.hat.test) * tauhat_ct_test)^2,
+  Causal_Forest_Loss = (df_test$Y - Y.hat.test - (df_test$W - W.hat.test) * tauhat_cf_test)^2,
+  X_Learner_Loss = (df_test$Y - Y.hat.test - (df_test$W - W.hat.test) * tauhat_xl_test)^2)
+
+mse_rloss_summary <- describe(mse_rloss)[, c('mean', 'se')]
+```
+
+```{r compare_mse_table_rloss, echo=FALSE, results='asis'}
+kable_styling(kable(mse_rloss_summary,  "html", digits = 5,
+                                       caption="Estimate loss: comparison across methods"),
+                          bootstrap_options=c("striped", "hover", "condensed", "responsive"),
+                          full_width=FALSE)
+```
+---
+
+
+
+
+# Part II: Policy evaluation and learning
+
+**Reference:** [Athey and Wager (2018, ArXiv)](https://arxiv.org/pdf/1702.02896.pdf)
+
+The reason we care about treatment effect heterogeneity is that we would like to assign the correct treatment to each individual or subpopulation. For example, a costly get-out-the-vote campaign should send mailings only to those most susceptible to it. Similarly, in the context of personalized medicine, a doctor would like to know whether to prescribe a treatment only if she expects it to improve her patient's condition. Or yet, in the advertising business, a company could save a lot of money by targeting users who are likely to purchase their product.
+
+More formally, we would like to select a function $\pi$ that maps observed characteristics to an available treatment. Such a function is called a **policy**.
+$$\pi : X_i \mapsto W_i$$
+In this section, you will see how to evaluate binary policies $\pi: X_i \mapsto \{0,1\}$ (indicating treatment $(1)$ or no treatment $(0)$). Let's begin by defining the **value** of a policy $V(\pi)$ as the benefit of applying it over treating no one.
+
+$$
+V(\pi) = E[\pi(X_{i})\tau(X_{i})]
+$$
+
+For example, the value of the of policy that assigns everyone to treatment is $V(\pi_{always-treat}) = E[\tau(X_{i})]$. Similarly, the value of a *random* policy that assigns each person to treatment and non-treatment status with equal probability is
+
+$$V(\pi_{random}) = \frac{1}{2}E[\tau(X_{i})] + \frac{1}{2}0 =  \frac{1}{2}E[\tau(X_{i})]$$
+
+As we will see later, when evaluating arbitrary policies $\pi$ it will be often convenient to work with the *improvement* over the random policy (scaled by two for convenience). The improvement $A(\pi)$ can be written as
+
+$$
+\begin{aligned}
+A(\pi) &= 2\big(V(\pi) - V(\pi_{random})\big) \\ 
+&= 2\big(E[\pi(X_i)\tau(X_i)] - \frac{1}{2}E[\tau(X_i)]\big)  \\
+&= 2E\big[\tau(X_i) | \pi(X_i) = 1\big] P\big(\pi(X_i) = 1\big) - \Big(E\big[\tau(X_i) | \pi(X_i) = 1 \big] P\big(\pi(X_i) = 1\big) + E\big[\tau(X_i) | \pi(X_i) = 0 \big] P\big(\pi(X_i) = 0 \big) \\
+&= E\big[\tau(X_i) | \pi(X_i) = 1\big] P\big(\pi(X_i) = 1\big) - E\big[\tau(X_i) | \pi(X_i) = 0 \big] P\big(\pi(X_i) = 0 \big) 
+\end{aligned}
+$$
+
+We see that this is a weighted difference of the average treatment effect for those assigned treatment minus the ATE for those assigned no treatment. 
+
+Often there is a fixed cost $C$ associated with treatment. In that case, the value of a policy is 
+
+$$
+\begin{align}
+V(\pi)
+&=E[\pi(X_{i})\left( \tau(X_{i}) - C \right)] \\
+&=E[\pi(X_{i}) \tau(X_{i})] - P(\pi(X_{i}) = 1)\cdot C
+\end{align}
+$$
+
+And similarly the improvement over the random policy can be shown to be
+
+
+$$
+\begin{aligned}
+A(\pi) &=  E\big[\tau(X_i) | \pi(X_i) = 1\big] P\big(\pi(X_i) = 1\big) - E\big[\tau(X_i) | \pi(X_i) = 0 \big] P\big(\pi(X_i) = 0 \big) - \left( 2P(\pi(X_{1})=1) - 1 \right) C
+\end{aligned}
+$$
+
+Ultimately, our goal is to find policies of large value. If one had access to the true CATE functions, then the best policy would be the following.
+
+$$
+\pi_{optimal}(X_{i}) =
+  \begin{cases}
+  1 \qquad \text{if} \quad \tau(x) \geq C \\
+  0 \qquad \text{otherwise}
+  \end{cases}
+$$
+
+Having defined these population objects, in the next section we'll discuss how to estimate them.
+
+```{r}
+n <- dim(df)[1]
+random_idx <- sample.int(n, size=floor(n/2), replace=F)
+df_train <- df[random_idx,]
+df_test <- df[-random_idx,]
+```
+
+
+### Evaluating policies in randomized control trials
+
+As we have seen in the introduction above, the benefit of any policy $\pi$ depends only on four quantities: the fraction of people who are assigned to treatment and control, and the average treatment effect in each of these subgroups.
+
+Let's see how to estimate each of these quantities in randomized control trials, for policies that do not depend on the data (i.e. they are either given to us, or were fitted using sample splitting). For convenience, let's define $G^{1}_{\pi}$ and $G^{0}_{\pi}$ the observations that would be treated or not under this policy (i.e., $G^{w}_{\pi} = \{i: \pi(X_{i}) = w\}$), and let $q_{\pi}^w$ be the proportion of people in $G^w_\pi$. Also, denote by $S^{1}$ and $S^{0}$ the set of observations that were assigned to treatment and control during the experiment (i.e., $S^{w} := \{ i: W_{i}=w \}$).
+
+Now, because the treatment assignment was completely at random, the estimate of the average treatment effect in a particular subgroup is $G^{w}_{\pi}$ is simply a difference of sample averages.
+
+$$\widehat{ATE}(G^{w}_{\pi}) := \frac{1}{|G^{w}_{\pi} \cap S^{1}|}\sum_{i\in G^{w}_{\pi} \cap S^{1}} Y_{i}  -  \frac{1}{|G^{w}_{\pi} \cap S^{0}|}\sum_{i\in G^{w}_{\pi} \cap S^{0}} Y_{i} \qquad \text{for } w\in \{0, 1\}$$
+
+Therefore, we can estimate the benefit of any honesty policy $\pi$ via the following expression.
+
+$$\hat{A}(\pi) = q_{\pi}^{1} \times \widehat{ATE}(G^{w}_{\pi}) - q_{\pi}^{0} \times \widehat{ATE}(G^{0}_{\pi})$$
+Or, under a fixed treatment cost $C$,
+
+$$\hat{A}(\pi) = q_{\pi}^{1} \cdot \widehat{ATE}(G^{w}_{\pi}) - q_{\pi}^{0} \cdot \widehat{ATE}(G^{0}_{\pi}) - 
+(2 \cdot q_{\pi}^{1} - 1) \cdot C
+$$
+
+
+
+Let's use this formula to evaluate a policy. In particular, we will be interested in evaluating the $\pi_{optimal}$ policy discussed earlier. Naturally, we do not have access to the true CATE function $\tau(x)$, but we estimate it using sample splitting, then we can form a **plug-in policy** as follows.
+
+$$
+\hat{\pi}_{plugin}(X_{i}) =
+  \begin{cases}
+  1 \qquad \text{if} \quad \hat{\tau}^{(-i)}(x) \geq C \\
+  0 \qquad \text{otherwise}
+  \end{cases}
+$$
+
+The superscript $-i$ is a reminder that the estimate for observation $i$ cannot have been fit using data from that observation. Because we are using causal forests below, this is achieved by using the *out-of-bag* estimates. Alternatively, if we were using a different model, we could also consider using cross-fitting.
+
+The following code snippet computes this quantity and its standard error for a plug-in policy estimated using causal forests. In a real-world application, we would subtract the true cost of the treatment $C$. Here, for illustration, we calibrate the cost to be equal to the median out-of-bag CATE estimates. This ensures that some part of the population should be treated and some should not, so the resulting policy is nontrivial. 
+
+The code is similar if we are computing over the test set or for other policies, so we won't display repeated code here (please check the RMarkdown source for details).
+
+
+
+
+```{r estimate_plugin_policy}
+# Estimating E[Y(1) - Y(0)|X=x] for plug in policy
+tau.forest <- causal_forest(X=df_train[,covariate_names], Y=df_train$Y, W=df_train$W)
+tau.hat.train <- predict(tau.forest)$predictions # OOB predictions!
+tau.hat.test <- predict(tau.forest, newdata=df_test[,covariate_names])$predictions
+
+# Define cost to be median OOB CATE
+cost <- median(tau.hat.train)
+
+# Compute plug-in policy considering costs
+df_train$pi.plugin <- as.numeric(tau.hat.train > cost)
+df_test$pi.plugin <- as.numeric(tau.hat.test > cost)
+```
+
+```{r value_vs_random_of_plugin, echo=TRUE}
+# Generic function that accepts a dataframe, a policy assignment, and a cost
+Ahat_sample_estimate_policy_vs_random <- function(.df, .policy.assignment, .cost = cost) {
+  .df <- as.data.frame(.df)
+  # Define necessary terms to evaluate the given `.policy.assignment`
+  y_g1s1 <- .df[(.df$W == 1) & (.df[, .policy.assignment] == 1), "Y"]
+  y_g1s0 <- .df[(.df$W == 0) & (.df[, .policy.assignment] == 1), "Y"]
+  y_g0s1 <- .df[(.df$W == 1) & (.df[, .policy.assignment] == 0), "Y"]
+  y_g0s0 <- .df[(.df$W == 0) & (.df[, .policy.assignment] == 0), "Y"]
+  
+  ate_g1 <- mean(y_g1s1) - mean(y_g1s0) 
+  ate_g0 <- mean(y_g0s1) - mean(y_g0s0)
+  
+  var_ate_g1 <- var(y_g1s1)/length(y_g1s1) + var(y_g1s0)/length(y_g1s0)
+  var_ate_g0 <- var(y_g0s1)/length(y_g0s1) + var(y_g0s0)/length(y_g0s0)
+  
+  q1 <- mean(.df[, .policy.assignment] == 1)
+  q0 <- mean(.df[, .policy.assignment] == 0)
+  
+  # Estimate value of `.policy.assignment` vs random policy
+  value_policy_vs_random_mean <- q1 * ate_g1 - q0 * ate_g0 - (2*q1 - 1)*.cost
+  value_policy_vs_random_stderr <- sqrt(q1^2 * var_ate_g1 + q0^2 * var_ate_g0)
+  
+  return(c(Estimate = value_policy_vs_random_mean, 
+           SE = value_policy_vs_random_stderr,
+           Lower.CI = value_policy_vs_random_mean - 1.96 * value_policy_vs_random_stderr,
+           Upper.CI = value_policy_vs_random_mean + 1.96 * value_policy_vs_random_stderr))
+}
+
+# Estimate value (A.hat) for the plug-in policy on both train and test sets
+A.hat.plugin.train <- Ahat_sample_estimate_policy_vs_random(df_train, "pi.plugin", cost)
+A.hat.plugin.test  <- Ahat_sample_estimate_policy_vs_random(df_test, "pi.plugin", cost)
+
+# Create table to display
+table <- rbind("Plug-in Performance - Train" = A.hat.plugin.train,
+               "Plug-in Performance - Test"  = A.hat.plugin.test)
+colnames(table) <- c("A.hat", "SE", "Lower CI", "Upper CI")
+```
+
+```{r output_value_vs_random_plugin, echo=FALSE, results='asis'}
+table %>%
+  kable(format="html", digits = 5, 
+        caption="Sample ATE estimated benefit of using plug-in policy vs random policy") %>%
+  kable_styling(bootstrap_options=c("striped", "hover", "condensed", "responsive"), 
+                full_width=FALSE)
+```
+
+
+### Evaluating policies via doubly robust scores
+
+In the last subsection, we saw how to estimate the value of policies in randomized control trials. Now, we will see an alternative estimate that is valid both RCTs and observational studies. Let's begin by noting that the improvement yielded by policy $\pi$ over the random policy can also be written as
+
+$$
+A(\pi) = 2V(\pi) - 2V(\pi_{random}) = E[2\pi(X_i)\tau(X_i)] - E[\tau(X_{i})] = E[(2\pi(X_{i}) - 1)\tau(X_{i})]
+$$
+
+In Athey and Wager (2017), the authors show that, provided that the treatment assignment is unconfounded and the overlap assumption is satisfied, one can contruct the following estimate of the improvement
+
+$$
+\hat{A}(\pi) = \frac{1}{n}\sum_{i} \left(2\pi(X_{i}) - 1 \right)\hat{\Gamma}_{i}
+$$
+where the $\hat{\Gamma}_{i}$ objects are **doubly robust scores** of the treatment effect
+
+
+$$
+  \hat{\Gamma}_{i} =
+  \hat{\tau}^{(-i)}(X_{i}) + \frac{W_{i} -
+    \hat{e}^{(-i)}(X_{i})}{\hat{e}^{(-i)}(X_{i}) \left(1 - \hat{e}^{(-i)}(X_{i}) \right)}
+    \left( Y_{i} - \hat{\mu}^{(-i)}_{W_{i}}  \right)
+$$
+
+
+
+where $\hat{\tau}(\cdot)$ are the pointwise estimates of the treatment effect, $\hat{e}(\cdot)$ are estimates of the propensity score $P(W_{i}=1|X_{i})$, and $\hat{\mu}_{0}, \hat{\mu}_{1}$ are estimates of $E[Y|X_{i},W_{i}=0]$ and $E[Y|X_{i},W_{i}=1]$. Again, the superscripts $-i$ indicate that the estimate for observation $i$ cannot have been fit using data from that observation (e.g. using *out-of-bag* estimates from causal and regression forests).
+
+The advantages of using doubly robust scores are technical and twofold. First, they provide a guarantee against model misspecification: if the outcome model $\hat{\mu}_{w}$ *or* the propensity score model $\hat{e}$ is correctly specified, the average of the doubly-robust scores is a consistent estimation or the average treatment effect. Second, their average also achieves the semi-parametric lower bound as an estimate of the average treatment effect. This semiparametric efficiency translates into provable theoretical guarantees on the performance of the optimal estimated policy.
+
+
+#### Step 1: Estimate the doubly robust scores 
+
+Estimating the $\hat{\Gamma}_{i}$ objects as defined above on the training set.
+
+```{r opt_policy_gammahat.train}
+# Estimating E[Y|X=x]
+Y.forest <- regression_forest(df_train[,covariate_names], df_train$Y)
+Y.hat <- predict(Y.forest)$predictions # OOB predictions!
+
+# Estimating E[W|X=x]
+W.forest <- regression_forest(df_train[,covariate_names], df_train$W)
+W.hat <- predict(W.forest)$predictions # OOB predictions!
+
+# Estimation of E[Y(1) - Y(0)|X=x] completed in previous section
+## tau.forest <- causal_forest(df_train[,covariate_names], df_train$Y, df_train$W, Y.hat = Y.hat, W.hat = W.hat)
+## tau.hat.train <- predict(tau.forest)$predictions # OOB predictions!
+## tau.hat.test <- predict(tau.forest, newdata=df_test[,covariate_names])$predictions
+
+# Estimating E[Y|X=x, W=0] and E[Y|X=x, W=1]
+mu.hat.0 <- Y.hat - W.hat * tau.hat.train
+mu.hat.1 <- Y.hat + (1 - W.hat) * tau.hat.train
+
+# Computing doubly-robust scores
+resid <- df_train$Y - df_train$W * mu.hat.1 - (1 - df_train$W) * mu.hat.0
+weights <- (df_train$W - W.hat) / (W.hat * (1 - W.hat))
+
+Gamma.hat.train <- tau.hat.train + weights * resid
+
+# We subtract the cost defined in the previous section
+Gamma.hat.train.net <- Gamma.hat.train - cost
+```
+
+And let's do the same for the test set.
+
+```{r opt_policy_gammahat.test}
+# Predicting E[Y|X=x] on test set
+Y.hat.test <- predict(Y.forest, newdata=df_test[,covariate_names])$predictions
+# Predicting E[W|X=x] on test set
+W.hat.test <- predict(W.forest, newdata=df_test[,covariate_names])$predictions
+
+# Predicting E[Y|X=x, W=0] and E[Y|X=x, W=1]
+mu.hat.0.test <- Y.hat.test - W.hat.test * tau.hat.test
+mu.hat.1.test <- Y.hat.test + (1 - W.hat.test) * tau.hat.test
+
+# Computing doubly-robust scores
+resid.test <- df_test$Y - df_test$W * mu.hat.1.test - (1 - df_test$W) * mu.hat.0.test
+weights.test <- (df_test$W - W.hat.test) / (W.hat.test * (1 - W.hat.test))
+
+Gamma.hat.test <- tau.hat.test + weights.test * resid.test
+Gamma.hat.test.net <- Gamma.hat.test - cost
+```
+
+
+#### Step 2: Estimate improvement over random policy
+
+Let's evaluate a plug-in policy that assigns treatments as long as they are above our cost threshold.
+
+```{r plug_in_policy_assignment}
+# Plug-in policy assignments
+plugin.assignment.train <- 2*as.numeric(tau.hat.train > cost) - 1
+plugin.assignment.test <- 2*as.numeric(tau.hat.test > cost) - 1
+
+A.pi.train <- plugin.assignment.train*Gamma.hat.train.net
+A.pi.test <- plugin.assignment.test*Gamma.hat.test.net
+
+plugin.perf.train <- describe(A.pi.train)[c("mean", "se")]
+plugin.perf.test <- describe(A.pi.test)[c("mean", "se")]
+
+dr.plugin.A.hat <- data.frame(
+  rbind("Plug-in Performance - Train" = plugin.perf.train,
+        "Plug-in Performance - Test" = plugin.perf.test))
+dr.plugin.A.hat$lower.ci <- with(dr.plugin.A.hat, mean - 1.96 * se)
+dr.plugin.A.hat$upper.ci <- with(dr.plugin.A.hat, mean + 1.96 * se)
+
+colnames(dr.plugin.A.hat) <- c("A.hat", "SE", "Lower CI", "Upper CI")
+```
+
+```{r df_plugin_A.hat_table, echo=FALSE, results='asis'}
+dr.plugin.A.hat %>%
+  kable("html", digits = 5, 
+        caption="Doubly robust estimates of benefit of plug-in vs random policy") %>%
+  kable_styling(bootstrap_options=c("striped", "hover", "condensed", "responsive"), 
+                full_width=FALSE)
+```
+
+
+## Learning Optimal Policies
+
+While the plug-in policy is natural and sensible, it suffers from the disadvantage of not imposing any additional structure on the policy class. In real life applications, there may be several reasons to require that the policy belong to a restricted class of policies $\Pi$. For example:
+
++ From an ethical standpoint, some variables such as gender or race should not be used to determine the treatment allocation
++ For auditing purposes, interpretability and functional form simplicity could be important
++ For technical reasons, because complex policies do not have performance guarantees
+
+In this section, we will discuss how to learn an optimal policy in a restricted class $\Pi$. Using the doubly robust scores defined previously, we seek to find a $\pi \in \Pi$ that maximizes the objective function
+
+$$
+\hat{A}(\pi) = \frac{1}{n}\sum_{i} (2\pi(X_{i}) - 1)\hat{\Gamma}_{i}
+$$
+
+We can transform the maximization criterion above into a classification problem. To see why this is so, note that we can decompose each doubly robust score as
+
+$$\hat{\Gamma}_i = |\hat{\Gamma}_i| \cdot \text{sign}(\hat{\Gamma}_i)$$
+
+Therefore, our optimization problem is equivalent to maximizing the weighted correlation between the (transformed) assignment rule $(2\pi(X_i)-1) \in \{ +1, -1\}$ and the sign of its estimated effect $sign(\hat{\Gamma}_i) \in \{ +1, -1\}$. Note that individuals who respond very strongly to the treatment so that $|\hat{\Gamma}_{i}| \gg 0$ will receive larger weights.
+
+The upshot of this is that we can use any classification algorithm to find a desired policy. For example, the code below uses the `evtree` package to fit a globally optimal tree with depth 3. Thus, our restricted class is $\Pi = \big\{ \text{trees of depth 3} \big\}$.
+
+**Important remark** The policy below was fit on the training set, and will therefore overfit on it, causing our estimate $\hat{A}(\pi)$ to be generally be biased upwards on the training set. However, because we held out a test set, that estimate will be valid. 
+
+<font size=2>
+It is possible to estimate an optimal policy and evaluate it on the same dataset using cross-fitting, but we do not pursue that in this tutorial. Some extra care would need to be taken when interpreting standard errors (see paper for details).
+</font>
+
+
+```{r opt_policy_estimation}
+# Create new dataframe
+df_aug <- df_train
+
+# Add sign of gamma (denoted Z) and absolute value of gamma (denoted lambda)
+df_aug$label <- factor(sign(Gamma.hat.train.net))
+df_aug$weights <- abs(Gamma.hat.train.net)
+
+fmla <- as.formula(paste0("label ~ ", paste0(covariate_names, collapse = " + ")))
+
+opt_policy_tree <- evtree::evtree(formula = fmla, 
+                                  data = df_aug,
+                                  control=evtree.control(maxdepth=3,
+                                                         minbucket=0.025*100*sum(df_aug$weights),
+                                                         minsplit=0.075*100*sum(df_aug$weights),
+                                                         niterations=1000,
+                                                         ntrees=100),
+                                  weights=round(100*df_aug$weights))
+```
+
+
+```{r, echo=FALSE}
+# The values of 'n' make no sense. Removing them from the string.
+s <- capture.output(print(opt_policy_tree))
+str <- sapply(s[9:length(s)], function(x) gsub("\\(n = [0-9A-Za-z].*", "", x))
+cat(paste(str, collapse="\n"))
+```
+
+
+Use the `predict` method to retrieve the best policy assignment.
+
+```{r optimal_policy_assignment_and_value}
+# Predict optimal assignment
+opt.tree.assignment.train <- as.numeric(as.character(predict(opt_policy_tree, newdata = df_train, type="response")))
+opt.tree.assignment.test <- as.numeric(as.character(predict(opt_policy_tree, newdata = df_test, type="response")))
+
+# Calculate value over random policy
+opt.tree.A.hat <- data.frame(rbind(
+  "Optimal Tree Performance - Train" = describe(opt.tree.assignment.train*Gamma.hat.train.net)[c("mean", "se")],
+  "Optimal Tree Performance - Test"  = describe(opt.tree.assignment.test*Gamma.hat.test.net)[c("mean", "se")]))
+opt.tree.A.hat$lower.ci <- with(opt.tree.A.hat, mean - 1.96 * se)
+opt.tree.A.hat$upper.ci <- with(opt.tree.A.hat, mean + 1.96 * se)
+colnames(opt.tree.A.hat) <- c("A.hat", "SE", "Lower CI", "Upper CI")
+```
+
+```{r policy_comparison_table_test, echo=FALSE, results='asis'}
+opt.tree.A.hat %>%
+  kable("html", digits = 5, 
+        caption="Doubly robust estimated benefit of optimal tree policy vs random policy") %>%
+  kable_styling(bootstrap_options=c("striped", "hover", "condensed", "responsive"), full_width=FALSE) %>%
+  footnote(general = paste0("<i>Important</i>: This policy was fit on the training set,<br>",
+                            "so the training sample estimate may be biased upwards."), 
+           escape = FALSE)
+```
+
+We can also estimate the value of this policy using the first method described in randomized control trial section above. Once again, we remark that the estimates on the training set will be biased upward.
+
+```{r opt_tree_policy_value_over_random, echo=FALSE, message=FALSE, error=FALSE}
+df_train$pi.opt.tree <-  (opt.tree.assignment.train + 1)/2  # Encoding as {0, 1}
+df_test$pi.opt.tree <-  (opt.tree.assignment.test + 1)/2  # Encoding as {0, 1}
+
+A.hat.opt.tree.train <- Ahat_sample_estimate_policy_vs_random(df_train, "pi.opt.tree", cost)
+A.hat.opt.tree.test <- Ahat_sample_estimate_policy_vs_random(df_test,  "pi.opt.tree", cost)
+
+table <- rbind("Optimal Tree Performance - Train" = A.hat.opt.tree.train,
+               "Optimal Tree Performance - Test"  = A.hat.opt.tree.test)
+colnames(table) <- c("A.hat", "SE", "Lower CI", "Upper CI")
+```
+
+
+```{r opt_policy_value_over_random_table, echo=FALSE, results='asis'}
+table %>%
+  kable(format="html", digits = 5, 
+        caption="Sample ATE estimates of benefit of using optimal tree policy vs random policy") %>%
+  kable_styling(bootstrap_options=c("striped", "hover", "condensed", "responsive"), full_width=FALSE) %>%
+  footnote(general = "The policy here is not honest, so the training sample estimate may be upward biased.", 
+           escape = FALSE)
+```
