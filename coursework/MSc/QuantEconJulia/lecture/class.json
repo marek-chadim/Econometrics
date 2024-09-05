@@ -1,0 +1,107 @@
+[
+    {
+      "name_user": "id",
+      "varID": "V3",
+      "unit": "family"
+    },
+    {
+      "name_user": "state",
+      "varID": "ER13004",
+      "unit": "family"
+    },
+    {
+      "name_user": "age",
+      "varID": "ER60017",
+      "unit": "head"
+    },
+    {
+      "name_user": "age",
+      "varID": "ER60019",
+      "unit": "spouse"
+    },
+    {
+      "name_user": "sex",
+      "varID": "ER60018",
+      "unit": "head"
+    },
+    {
+      "name_user": "sex",
+      "varID": "ER60020",
+      "unit": "spouse"
+    },
+    {
+      "name_user": "marital_status",
+      "varID": "V239",
+      "unit": "head"
+    },
+    {
+      "name_user": "family_comp_change",
+      "varID": "V542",
+      "unit": "family"
+    },
+    {
+      "name_user": "race",
+      "varID": "V181",
+      "unit": "head"
+    },
+    {
+      "name_user": "labor_inc",
+      "varID": "ER65216",
+      "unit": "head"
+    },
+    {
+      "name_user": "labor_inc",
+      "varID": "ER65244",
+      "unit": "spouse"
+    },
+    {
+      "name_user": "labor_inc_pre",
+      "varID": "V75",
+      "unit": "spouse"
+    },
+    {
+      "name_user": "food",
+      "varID": "ER16515A1",
+      "unit": "family"
+    },
+    {
+      "name_user": "health",
+      "varID": "ER16515D2",
+      "unit": "family"
+    },
+    {
+      "name_user": "housing",
+      "varID": "ER16515A5",
+      "unit": "family"
+    },
+    {
+      "name_user": "transport",
+      "varID": "ER16515B6",
+      "unit": "family"
+    },
+    {
+      "name_user": "childcare",
+      "varID": "ER16515D1",
+      "unit": "family"
+    },
+    {
+      "name_user": "educexp",
+      "varID": "ER16515C9",
+      "unit": "family"
+    },
+    {
+      "name_user": "net_wealth",
+      "varID": "ER46970",
+      "unit": "family"
+    },
+    {
+      "name_user": "num_kids",
+      "varID": "V398",
+      "unit": "family"
+    },
+    {
+      "name_user": "transfer_inc",
+      "varID": "V1220",
+      "unit": "family"
+    }
+  ]

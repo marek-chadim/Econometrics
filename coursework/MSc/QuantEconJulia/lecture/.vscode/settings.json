@@ -1,0 +1,6 @@
+{
+    "julia.execution.inlineResultsForCellEvaluation": true,
+    "julia.execution.codeInREPL": true,
+    "julia.inlayHints.runtime.enabled": false,
+    "julia.inlayHints.static.variableTypes.enabled": false
+}
