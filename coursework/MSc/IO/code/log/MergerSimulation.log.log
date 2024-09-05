@@ -722,7 +722,6 @@ delimiter now ;
 >   keep(price ln_mshare_s horsepower fuel width height domestic year _cons) /// Don't want all Control Coefficients
 >   coeflabels(price "Price (in 1000 EUR)" horsepower "Horsepower (kW)" fuel "Fuel efficiency" width "Width (cm)" height "Height (cm)" domestic "1 if produced domestically" year "Year") /// Label Variables
 > ;
-(tabulating estimates stored by eststo; specify "." to tabulate the active results)
 (output written to output/NestedLogit.tex)
 
 . #delimit cr;
@@ -2172,7 +2171,7 @@ file output/c.png saved as PNG format
 
 . log close
       name:  <unnamed>
-       log:  C:\Users\chadi\OneDrive - Handelshögskolan i Stockholm\SSE\5321\PS2G5\log/ps2.log
+       log:  C:\Users\chadi\OneDrive - Handelshögskolan i Stockholm\Econometrics\Econometrics\coursework\MSc\IO\code\log/ps2.log
   log type:  text
- closed on:  19 May 2024, 11:10:49
+ closed on:   5 Sep 2024, 02:08:18
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
