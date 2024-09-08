@@ -1,0 +1,19 @@
+	(1)
+VARIABLES	lwage
+	
+educ	0.110
+	(0.010)
+age	0.104
+	(0.012)
+age2	-0.106
+	(0.015)
+female	-0.318
+	(0.040)
+white	-0.100
+	(0.068)
+Constant	-1.095
+	(0.292)
+	
+Observations	680
+R-squared	0.339
+Robust standard errors in parentheses	
