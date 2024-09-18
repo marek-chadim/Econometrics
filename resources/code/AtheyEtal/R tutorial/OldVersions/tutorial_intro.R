@@ -44,6 +44,7 @@ packages <- c("devtools"
 
 not_installed <- !packages %in% installed.packages()
 if (any(not_installed)) install.packages(packages[not_installed])
+
 lapply(packages,require,character.only=TRUE)
 # Now all packages should be installed and loaded!
 
@@ -53,7 +54,7 @@ registerDoMC(cores=4) # for a simple parallel computation
 # set your working directory
 # write the path where the folder containing the files is located
 # setwd("/Users/munyikz/Documents/tutorial")
-setwd("/Users/vitorhadad/Downloads/MLCourse_AEA_Public/R tutorial/")
+setwd("R tutorial")
 
 # Loading data
 # We use data from a Social Voting  (paper is attached) experiment
