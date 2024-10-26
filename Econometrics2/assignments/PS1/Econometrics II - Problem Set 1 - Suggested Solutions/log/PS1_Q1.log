@@ -1,0 +1,297 @@
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  C:\Users\chadi\OneDrive - Handelshögskolan i Stockholm\SU\EC38003\assignments\PS1\Econometrics II - Problem Set 1 - Suggested Solutions\log/PS1_Q1.log
+  log type:  text
+ opened on:  18 Apr 2024, 07:12:58
+
+. 
+. 
+. set scheme lean2
+
+. 
+. 
+. * 1.5 ==========================================
+. set seed 42
+
+. 
+. local N = 100
+
+. set obs `N'
+Number of observations (_N) was 0, now 100.
+
+. 
+. gen i = _n
+
+. 
+. ** generate X
+. gen x = 1 if i <= `N'/2
+(50 missing values generated)
+
+.   replace x = 2 if i > `N'/2 & i <= 3*`N'/4
+(25 real changes made)
+
+.   replace x = 3 if i > 3*`N'/4
+(25 real changes made)
+
+. 
+. ** generate D
+. gen u = runiform()
+
+. gen d = u <= 1/3 if x == 1
+(50 missing values generated)
+
+.   replace d = u <= 2/3 if x == 2
+(25 real changes made)
+
+.   replace d = 1 if x == 3
+(25 real changes made)
+
+.   label variable d "D"
+
+. 
+. tab x d, row // show share treated by X
+
++----------------+
+| Key            |
+|----------------|
+|   frequency    |
+| row percentage |
++----------------+
+
+           |           D
+         x |         0          1 |     Total
+-----------+----------------------+----------
+         1 |        34         16 |        50 
+           |     68.00      32.00 |    100.00 
+-----------+----------------------+----------
+         2 |         8         17 |        25 
+           |     32.00      68.00 |    100.00 
+-----------+----------------------+----------
+         3 |         0         25 |        25 
+           |      0.00     100.00 |    100.00 
+-----------+----------------------+----------
+     Total |        42         58 |       100 
+           |     42.00      58.00 |    100.00 
+
+. 
+. gen y0 = runiform()
+
+. gen y1 = x*runiform()
+
+. 
+. 
+. * 1.6 ==========================================
+. ** generate individual causal effects
+. gen tau_i = y1 - y0
+
+. 
+. ** make kernel density plots by X_i
+. twoway (kdensity tau_i if x == 1) ///
+>         (kdensity tau_i if x == 2) ///
+>         (kdensity tau_i if x == 3), ///
+>   xtitle("{&tau}{subscript:i}") ///
+>   ytitle("Density") ///
+>   legend(order(1 "X=1" 2 "X=2" 3 "X=3") rows(1) position(6)) 
+
+. graph export output/Fig_1_6_kdensity.png, replace
+file output/Fig_1_6_kdensity.png saved as PNG format
+
+. 
+. 
+. * 1.7 ==========================================
+. ** generate the observed outcome
+. gen y = y0*(1-d) + y1*d
+
+.   label variable y "Y"
+
+.         
+. eststo clear
+
+. eststo ate_att: reg y d // ATT (and ATE)
+
+      Source |       SS           df       MS      Number of obs   =       100
+-------------+----------------------------------   F(1, 98)        =     16.51
+       Model |  8.11123136         1  8.11123136   Prob > F        =    0.0001
+    Residual |  48.1604304        98  .491432963   R-squared       =    0.1441
+-------------+----------------------------------   Adj R-squared   =    0.1354
+       Total |  56.2716617        99  .568400624   Root MSE        =    .70102
+
+------------------------------------------------------------------------------
+           y | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+           d |   .5770385   .1420344     4.06   0.000     .2951758    .8589011
+       _cons |     .47218   .1081702     4.37   0.000     .2575198    .6868402
+------------------------------------------------------------------------------
+
+. 
+. qui sum tau_i // ATE
+
+.   estadd scalar ate_true = r(mean) : ate_att
+
+. 
+. qui sum tau_i if d == 1 // ATT
+
+.   estadd scalar att_true = r(mean) : ate_att
+
+. 
+. ** estimate CATT
+. *** subsetting data
+. forval x = 1/3 {
+  2.   * estimation
+.         eststo catt_x`x': reg y d if x == `x'
+  3. 
+.   * obtain true value
+.   qui sum tau_i if d == 1 & x == `x'
+  4.     estadd scalar catt_true = r(mean) : catt_x`x'
+  5. }
+
+      Source |       SS           df       MS      Number of obs   =        50
+-------------+----------------------------------   F(1, 48)        =      0.46
+       Model |  .038278824         1  .038278824   Prob > F        =    0.4996
+    Residual |  3.97111203        48  .082731501   R-squared       =    0.0095
+-------------+----------------------------------   Adj R-squared   =   -0.0111
+       Total |  4.00939086        49  .081824303   Root MSE        =    .28763
+
+------------------------------------------------------------------------------
+           y | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+           d |   -.059315   .0872009    -0.68   0.500    -.2346442    .1160141
+       _cons |   .4856636   .0493283     9.85   0.000     .3864825    .5848448
+------------------------------------------------------------------------------
+
+      Source |       SS           df       MS      Number of obs   =        25
+-------------+----------------------------------   F(1, 23)        =      2.70
+       Model |  .520513057         1  .520513057   Prob > F        =    0.1137
+    Residual |  4.42771975        23  .192509554   R-squared       =    0.1052
+-------------+----------------------------------   Adj R-squared   =    0.0663
+       Total |  4.94823281        24  .206176367   Root MSE        =    .43876
+
+------------------------------------------------------------------------------
+           y | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+           d |    .309326   .1881164     1.64   0.114    -.0798225    .6984744
+       _cons |   .4148745   .1551248     2.67   0.014     .0939745    .7357746
+------------------------------------------------------------------------------
+note: d omitted because of collinearity.
+
+      Source |       SS           df       MS      Number of obs   =        25
+-------------+----------------------------------   F(0, 24)        =      0.00
+       Model |           0         0           .   Prob > F        =         .
+    Residual |   22.126733        24  .921947209   R-squared       =    0.0000
+-------------+----------------------------------   Adj R-squared   =    0.0000
+       Total |   22.126733        24  .921947209   Root MSE        =    .96018
+
+------------------------------------------------------------------------------
+           y | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+           d |          0  (omitted)
+       _cons |   1.668867   .1920362     8.69   0.000     1.272524    2.065211
+------------------------------------------------------------------------------
+
+. 
+. ** stacked specification
+. forval x = 1/3 {
+  2.         gen d_`x' = 0
+  3.           replace d_`x' = d if x == `x'
+  4.     label variable d_`x' "D $\times 1\{X=`x'\}$"
+  5. }
+(16 real changes made)
+(17 real changes made)
+(25 real changes made)
+
+. eststo catt_stack: reg y i.x d_*
+note: d_3 omitted because of collinearity.
+
+      Source |       SS           df       MS      Number of obs   =       100
+-------------+----------------------------------   F(4, 95)        =     20.03
+       Model |  25.7460969         4  6.43652423   Prob > F        =    0.0000
+    Residual |  30.5255648        95  .321321735   R-squared       =    0.4575
+-------------+----------------------------------   Adj R-squared   =    0.4347
+       Total |  56.2716617        99  .568400624   Root MSE        =    .56685
+
+------------------------------------------------------------------------------
+           y | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+           x |
+          2  |  -.0707891   .2227462    -0.32   0.751    -.5129962    .3714179
+          3  |   1.183204   .1493436     7.92   0.000     .8867192    1.479688
+             |
+         d_1 |   -.059315   .1718524    -0.35   0.731    -.4004852    .2818551
+         d_2 |    .309326    .243036     1.27   0.206    -.1731615    .7918134
+         d_3 |          0  (omitted)
+       _cons |   .4856636   .0972144     5.00   0.000     .2926687    .6786586
+------------------------------------------------------------------------------
+
+. 
+. ** estimate ATE
+. *** ATU 
+. scalar drop _all
+
+. forval x = 1/2 {
+  2.   * Pr(D | X)
+.   cap gen x`x' = x == `x'
+  3.   qui sum x`x' if d == 0
+  4.     scalar pr_x`x' = r(mean)
+  5. 
+.   * CATT
+.   qui reg y d if x == `x' 
+  6.     scalar catt_x`x' = _b[d] 
+  7. }
+
+. 
+. scalar atu_est = `=pr_x1' * `=catt_x1' + `=pr_x2' * `=catt_x2'
+
+. // dis `=atu_est'
+. 
+. *** ATE as a weighted average of ATT and ATU
+. qui sum d 
+
+.   scalar pr_d = r(mean)
+
+. 
+. qui reg y d 
+
+.   scalar att_est = _b[d] // att
+
+.   
+. estadd scalar ate_est = `=pr_d' * `=att_est' + (1 - `=pr_d') * `=atu_est' : ate_att // ATE estimate
+
+. 
+. 
+. 
+. esttab ate_att catt_x* catt_stack , ///
+>   nostar se noobs label replace ///
+>   keep(d*) ///
+>   mtitles("ATE/ATT" "X=1" "X=2" "X=3" "CATT: Stacked Reg.") ///
+>   stats(N ate_est ate_true att_true catt_true, ///
+>         labels("\$N\$" "\$\widehat{\text{ATE}}\$" "True ATE" "True ATT" "True CATT") ///
+>         fmt(0 %9.3f %9.3f %9.3f %9.3f))
+
+-------------------------------------------------------------------------------------
+                              (1)          (2)          (3)          (4)          (5)
+                          ATE/ATT          X=1          X=2          X=3      CATT:..
+-------------------------------------------------------------------------------------
+D                           0.577      -0.0593        0.309            0             
+                          (0.142)     (0.0872)      (0.188)          (.)             
+
+D $\times 1\{X=1\}$                                                           -0.0593
+                                                                              (0.172)
+
+D $\times 1\{X=2\}$                                                             0.309
+                                                                              (0.243)
+
+D $\times 1\{X=3\}$                                                                 0
+                                                                                  (.)
+-------------------------------------------------------------------------------------
+$N$                           100           50           25           25          100
+$\widehat{\text{AT~$        0.339                                                    
+True ATE                    0.345                                                    
+True ATT                    0.558                                                    
+True CATT                               -0.118        0.231        1.212             
+-------------------------------------------------------------------------------------
+Standard errors in parentheses
+
+. 
+end of do-file
+
+. exit, clear

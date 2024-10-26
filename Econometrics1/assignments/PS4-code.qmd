@@ -1,0 +1,589 @@
+---
+title: "Metrics1 PS4"
+author: "Artschil Okropiridse"
+format: pdf
+editor: visual
+---
+
+# Housekeeping
+
+```{r}
+#| label: setup
+#| message: false
+#| warning: false
+
+rm(list=ls())
+
+library(readr)
+library(tidyverse)
+library(knitr)
+library(estimatr)
+library(sandwich)
+library(matrixStats)
+```
+
+# Question 4
+
+```{r}
+#| warning: false
+
+# Load data
+Nerlove1963 <- read.table("Data/Nerlove1963.txt", header = TRUE, sep = "\t")
+
+# Prepare data
+data <- Nerlove1963 |> 
+  mutate(lC = log(Cost),
+         lQ = log(output),
+         lPL = log(Plabor),
+         lPK = log(Pcapital),
+         lPF = log(Pfuel))
+
+# Create matrix y
+y <- matrix(data$lC, ncol = 1)
+
+# Create matrix x
+x <- as.matrix(cbind(
+  matrix(1,
+    nrow = nrow(
+      matrix(data$lQ, ncol = 1)
+    ),
+    1
+  ),
+  data$lQ, data$lPL, data$lPK, data$lPF
+))
+
+# Calculate the inverse of x'x
+inv.xx <- solve(t(x) %*% x)
+
+# Get the number of observations (n) and the number of variables (k)
+n <- nrow(x)
+k <- ncol(x)
+
+# Estimate OLS
+beta.ols <- inv.xx%*%t(x)%*%y
+
+# Standard errors
+e.ols <- rep((y-x%*%beta.ols),times=k)
+xe.ols <- x*e.ols
+V.ols <- (n/(n-k))*inv.xx%*%(t(xe.ols)%*%xe.ols)%*%inv.xx
+se.ols <- sqrt(diag(V.ols))
+
+# Report coefficients
+table <- 
+  rbind(t(beta.ols),se.ols) %>%
+  as_tibble() %>%
+  bind_cols(` ` = c('Beta', 'Se'), .)
+names(table) <- c(' ', 'Constant', 'lQ', 'lPL', 'lPK', 'lPF')
+
+# To double check let's also use one of R's packages
+summary(lm_robust(data = data, lC ~ lQ + lPL + lPK + lPF, se_type = "HC1"))
+
+kable(table)
+```
+
+Note above, a few expressions are a bit confusing to wrap your head around.
+
+`{r} e.ols <- rep((y-x%*%beta.ols),times=k)` this creates an $n \times k$ long vector repeating the $n\times 1$ error vector $k$ times.
+
+The next step is `{r} xe.ols <- x*e.ols` this multiplies each $X_i$ of each observation by the residual of that observation. I.e.
+
+$$ \begin{pmatrix} 1*e_1 & x_{11}*e_1 & x_{12} * e_1 & \dots \\ 1*e_2 & x_{21}*e_2 & x_{22} * e_2 & \dots \\ \vdots & \dots \end{pmatrix}$$
+
+Lastly, `{r} t(xe.ols)%\*%xe.ols` gives us $\sum_n X_i X_i' \hat e_i^2$.
+
+## (a)
+
+(a) The restriction implies that the production function has constant returns to scale.
+
+## (b)
+
+```{r}
+# Restriction matrix
+R <- c(0,0,1,1,1)
+
+# CLS estimation
+beta.cls <- beta.ols - inv.xx%*%R%*%solve(t(R)%*%inv.xx%*%R)%*%(t(R)%*%beta.ols - 1)
+
+# Standard errors
+e.cls <- rep((y-x%*%beta.cls),times=k)
+xe.cls <- x*e.cls
+iR <- inv.xx%*%R%*%solve(t(R)%*%inv.xx%*%R)%*%(t(R))
+V.tilde <- (n/(n-k+1))*inv.xx%*%(t(xe.cls)%*%xe.cls)%*%inv.xx
+V.cls <- V.tilde - iR%*%V.tilde - V.tilde%*%t(iR) +iR%*%V.tilde%*%t(iR)
+se.cls <- sqrt(diag(V.cls))
+
+# Report coefficients
+table <- 
+  rbind(t(beta.cls),se.cls) %>%
+  as_tibble() %>%
+  bind_cols(` ` = c('Beta', 'Se'), .)
+names(table) <- c(' ', 'Constant', 'lQ', 'lPL', 'lPK', 'lPF')
+kable(table)
+```
+
+## (c)
+
+```{r}
+# Efficient minimum distance
+beta.emd <- beta.ols - V.ols%*%R%*%solve(t(R)%*%V.ols%*%R)%*%(t(R)%*%beta.ols-1)
+
+# Standard errors
+e.emd <- rep((y-x%*%beta.emd),times=k)
+xe.emd <- x*e.emd
+V2 <- (n/(n-k+1))*inv.xx%*%(t(xe.emd)%*%xe.emd)%*%inv.xx
+V.emd <- V2 - V2%*%R%*%solve(t(R)%*%V2%*%R)%*%t(R)%*%V2 
+se.emd <- sqrt(diag(V.emd))
+
+# Report coefficients
+table <- 
+  rbind(t(beta.emd),se.emd) %>%
+  as_tibble() %>%
+  bind_cols(` ` = c('Beta', 'Se'), .)
+names(table) <- c(' ', 'Constant', 'lQ', 'lPL', 'lPK', 'lPF')
+kable(table)
+```
+
+## (d)
+
+```{r}
+# Wald statistic
+W <- t(t(R)%*%beta.ols - 1) %*% solve(t(R)%*%V.ols%*%R) %*% (t(R)%*%beta.ols - 1)
+
+# Find critical value in chi2 distribution
+c <- qchisq(.95, df=1)
+
+print(W)
+print(c)
+```
+
+Since our Wald statistic is smaller than the critical value stemming from a $\chi^2_1$ distribution. We cannot reject $H_0$.
+
+## (e)
+
+```{r}
+# Efficient minimum distance statistic
+J <- t(beta.ols-beta.emd) %*% solve(V.ols) %*% (beta.ols-beta.emd)
+
+print(J)
+print(c)
+```
+
+As we can see $J = W$ from (d) and we can therefore again not reject $H_0$.
+
+# Question 5
+
+```{r}
+# Load data
+data <- read.table("Data/cps09mar.txt", header = TRUE)
+
+# Keep sub-sample
+data <- data %>% filter(race == 2)
+
+# Prepare data
+data <- data %>%
+  mutate(lwage = log(earnings / (hours * week))) %>%
+  mutate(experience = age - education - 6) %>%
+  mutate(experience2 = experience^2 / 100) %>%
+  mutate(married = as.integer((marital <= 3))) %>%
+  mutate(formerly_married = as.integer(marital >= 4 & marital <= 6)) %>%
+  mutate(female_union = as.integer(female == 1 & union == 1)) %>%
+  mutate(male_union = as.integer(female == 0 & union == 1)) %>%
+  mutate(married_female = as.integer(female == 1 & married == 1)) %>%
+  mutate(married_male = as.integer(female == 0 & married == 1)) %>%
+  mutate(formerly_married_female = as.integer(female == 1 & formerly_married == 1)) %>%
+  mutate(formerly_married_male = as.integer(female == 0 & formerly_married == 1))
+
+y <- matrix(data$lwage, ncol = 1)
+x <- as.matrix(cbind(
+  rep(1, nrow(y)), data$education, data$experience,
+  data$experience2, data$female, data$female_union, data$male_union,
+  data$married_female, data$married_male, data$formerly_married_female,
+  data$formerly_married_male
+))
+inv.xx <- solve(t(x) %*% x)
+n <- nrow(x)
+k <- ncol(x)
+```
+
+## (a)
+
+Since we restrict our sample to only include non-Hispanic Black individuals, we have to drop all variables related to race to avoid multicollinearity. \bigskip
+
+## (b)
+
+We want to test the hypothesis that marital status does not affect wages. Given that we have specified the correct model this implies that all coefficients related to marital should equal 0. Put differently $H_0$ can be expressed as the four restrictions \begin{align*}
+    \beta_\text{married,female} &= 0 \\
+    \beta_\text{formerly married,female} &= 0 \\
+    \beta_\text{married,male} &= 0 \\
+    \beta_\text{formerly married,male} &= 0.
+    \end{align*} This gives us the restriction matrix \setcounter{MaxMatrixCols}{11} \begin{equation*}
+    \mathbf{R}' = \begin{pmatrix} 0 & 0 & 0 & 0 & 0 & 0 & 0 & 1 & 0 & 0 & 0 \\
+                             0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 1 & 0 & 0 \\
+                             0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 1 & 0 \\
+                             0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 1 \end{pmatrix}
+    \end{equation*}
+
+## (c)
+
+Note that the distribution of the Wald-statistic, under the $H_0$ is $\chi^2_k$.
+
+```{r}
+# Restriction matrix
+R <- cbind(c(0,0,0,0,0,0,0,1,0,0,0),
+           c(0,0,0,0,0,0,0,0,1,0,0),
+           c(0,0,0,0,0,0,0,0,0,1,0),
+           c(0,0,0,0,0,0,0,0,0,0,1))
+          
+# Estimate OLS
+beta.ols <- inv.xx%*%t(x)%*%y
+
+# Standard errors
+e.ols <- rep((y-x%*%beta.ols),times=k)
+xe.ols <- x*e.ols
+V.ols <- (n/(n-k))*inv.xx%*%(t(xe.ols)%*%xe.ols)%*%inv.xx
+
+# Wald test statistic
+W = t(t(R)%*%beta.ols)%*%solve(t(R)%*%V.ols%*%R)%*%(t(R)%*%beta.ols)
+print(W)
+
+# Find critical value in chi2 distribution
+c <- qchisq(.95, df=4)
+
+print(c)
+
+# p-values
+pval <- 1-pchisq(W,df=4)
+print(pval)
+
+```
+
+## (d)
+
+Since $W > c$ and the p-value is effectively 0 we can reject the hypothesis that marital status has no effect on wage.
+
+# Question 8
+
+```{r}
+# Load data
+data <- read.table("Data/Nerlove1963.txt",header=TRUE) 
+
+# Prepare data
+data %>% mutate(lC = log(Cost)) -> data
+data %>% mutate(lQ = log(output)) -> data
+data %>% mutate(lPL = log(Plabor)) -> data
+data %>% mutate(lPK = log(Pcapital)) -> data 
+data %>% mutate(lPF = log(Pfuel)) -> data
+
+y <- matrix(data$lC,ncol=1)
+x <- as.matrix(cbind(matrix(1,nrow(matrix(data$lQ,ncol=1)),1),data$lQ,data$lPL,data$lPK,data$lPF))
+inv.xx <- solve(t(x)%*%x)
+n <- nrow(x)
+k <- ncol(x)
+```
+
+## (a)
+
+```{r}
+## Unrestricted estimation
+# Estimate OLS
+beta.ols <- inv.xx%*%t(x)%*%y
+
+# Standard errors
+e.ols <- rep((y-x%*%beta.ols),times=k)
+xe.ols <- x*e.ols
+V.ols <- (n/(n-k))*inv.xx%*%(t(xe.ols)%*%xe.ols)%*%inv.xx
+se.ols <- sqrt(diag(V.ols))
+
+# Jackknife 
+beta_loo <- matrix(NA,nrow=k,ncol=n)
+beta_bar_loo <- matrix(0,nrow=k,ncol=1)
+
+for (i in 1:n){
+  y_loo <- as.matrix(y[-i,], ncol=1)
+  x_loo <- as.matrix(x[-i,]) 
+  inv.xx_loo <- solve(t(x_loo) %*% x_loo)
+  
+  beta_loo[,i] <- inv.xx_loo%*%t(x_loo)%*%y_loo
+  beta_bar_loo <- beta_bar_loo + beta_loo[,i]
+}
+
+beta_bar_loo <- beta_bar_loo/n
+
+difference <- matrix(0,nrow=k,ncol=k)
+
+for (i in 1:n){
+  difference <- difference + (
+    matrix(beta_loo[,i]) - matrix(beta_bar_loo)
+    ) %*% t(matrix(beta_loo[,i]) - matrix(beta_bar_loo))
+}
+
+V.jack <- (n-1)/n * difference
+se.jack <- sqrt(diag(V.jack))
+
+# Bootstrap
+set.seed(123)
+B <- 1000
+beta.boot <- matrix(NA,nrow=k,ncol=B)
+
+for (i in 1:B) {
+  sample <- data[sample(n,replace=TRUE),]
+  beta.boot[,i] <- coef(lm(lC ~ lQ + lPL + lPK + lPF, data = sample))
+}
+
+se.boot <- sqrt(rowVars(beta.boot))
+
+table <- 
+  rbind(t(beta.ols),se.ols,se.jack,se.boot) %>%
+  as_tibble() %>%
+  bind_cols(` ` = c('Beta', 'Asymptotic', 'Jackknife', 'Bootstrap'), .)
+names(table) <- c(' ', 'Constant', 'lQ', 'lPL', 'lPK', 'lPF')
+kable(table)
+```
+
+## (b)
+
+We are going to us the plug-in estimator $\hat{\theta} = \hat{\beta_3} + \hat{\beta_4} + \hat{\beta_5}$.
+
+```{r}
+# OLS
+ols <- lm(lC ~ lQ + lPL + lPK + lPF, data = data)
+beta.ols <- coef(ols)
+theta.ols <- beta.ols[3] + beta.ols[4] + beta.ols[5]
+
+# Standard errors
+R <- c(0,1,1,1,0)
+V1 <- vcovHC(ols, type="HC1")
+V.theta.ols <- t(R)%*%V1%*%R
+se.theta.ols <- sqrt(V.theta.ols)
+
+# Jackknife 
+theta_loo <- rep(NA,n)
+theta_bar_loo <- 0
+
+for (i in 1:n){
+  y_loo <- as.matrix(y[-i,], ncol=1)
+  x_loo <- as.matrix(x[-i,]) 
+  inv.xx_loo <- solve(t(x_loo) %*% x_loo)
+  beta_loo <- inv.xx_loo%*%t(x_loo)%*%y_loo
+  
+  theta_loo[i] <- beta_loo[3,1] + beta_loo[4,1] + beta_loo[5,1]
+  theta_bar_loo <- theta_bar_loo + theta_loo[i]
+}
+
+theta_bar_loo <-theta_bar_loo/n
+
+difference <- 0
+for (i in 1:n){
+  difference <- difference + (theta_loo[i] - theta_bar_loo)^2
+}
+
+V.theta.jack <- (n-1)/n * difference
+se.theta.jack <- sqrt(V.theta.jack)
+
+# Bootstrap
+set.seed(123)
+B <- 1000
+theta.boot <- rep(NA,B)
+
+for (i in 1:B) {
+  
+  sample <- data[sample(n,replace=TRUE),]
+  beta.boot <- coef(lm(lC ~ lQ + lPL + lPK + lPF, data = sample))
+  theta.boot[i] <- beta.boot[3] + beta.boot[4] + beta.boot[5]
+
+}
+
+se.theta.boot <- sqrt(var(theta.boot))
+
+# Report results
+table <- 
+  rbind(theta.ols,se.theta.ols,se.theta.jack,se.theta.boot) %>%
+  as_tibble() %>%
+  bind_cols(` ` = c('Theta', 'Asymptotic', 'Jackknife', 'Bootstrap'), .)
+names(table) <- c('','')
+kable(table)
+```
+
+## (c)
+
+```{r}
+# Percentile interval
+
+# Sort the distribution of bootstrap thetas from (b)
+alpha <- 0.05
+sorted.theta <- sort(theta.boot)
+q.pc.lower <- sorted.theta[(alpha/2)*B]
+q.pc.upper <- sorted.theta[(1-(alpha/2))*B]
+
+q.pc <- c(q.pc.lower, q.pc.upper)
+
+# BCa
+# See Hansen Ch. 10.18 for details
+
+a <- (sum(theta_bar_loo - theta_loo))^3/(6*(sum(theta_bar_loo - theta_loo)^2))^(3/2)
+p <- mean(theta.boot <= theta.ols)
+  
+z.lower <- qnorm(alpha/2)
+z.upper <- qnorm(1-(alpha/2))
+z0 <- qnorm(p)
+
+x.lower <- pnorm(z0 + (z.lower+z0)/(1-a*(z.lower + z0)))
+x.upper <- pnorm(z0 + (z.upper+z0)/(1-a*(z.upper + z0)))
+
+q.bca.lower <- sorted.theta[x.lower*B]
+q.bca.upper <- sorted.theta[x.upper*B]
+
+q.bca <- c(q.bca.lower,q.bca.upper)
+
+# Report results
+table <- 
+  rbind(q.pc,q.bca) %>%
+  as_tibble() %>%
+  bind_cols(` ` = c('95% Percentile Interval', '95% BCa Interval'), .)
+names(table) <- c('', 'q lower','q upper')
+kable(table)
+```
+
+# Question 9
+
+```{r}
+# Load data
+data <- read.table("Data/cps09mar.txt",header=TRUE) 
+
+# Keep sub sample
+data <- data %>% filter(race == 1 & female == 0 & hisp == 1 & region == 2 & marital == 7 ) 
+
+# Prepare data
+data <- data %>% mutate(lwage = log(earnings/(hours*week))) %>% 
+  mutate(experience = age - education - 6)  %>% 
+  mutate(experience2 = experience^2/100) 
+
+y <- matrix(data$lwage,ncol=1)
+x <- as.matrix(cbind(rep(1,nrow(y)),data$education, data$experience,
+                     data$experience2))
+inv.xx <- solve(t(x)%*%x)
+n <- nrow(x)
+k <- ncol(x)
+```
+
+## (a)
+
+We will estimate the regression $$
+\text{lwage} = \beta_0 + \beta_1\text{educ} + \beta_2\text{experience} + \beta_3\text{experience}^2/100 + e
+$$ and then use the plugin estimator $$
+\hat{\theta} = \hat{\beta_1} / \left(\hat{\beta_2} + \frac{1}{5} \hat{\beta_3}\right)
+$$ where $\left(\hat{\beta_2} + \frac{1}{5} \hat{\beta_3}\right)$ is the derivative of lwage wrt to experience evaluated at experience = 10.
+
+```{r}
+# OLS
+ols <- lm(lwage ~ education + experience + experience2, data = data)
+beta.ols <- coef(ols)
+theta.ols <- beta.ols[2] / (beta.ols[3]  + beta.ols[4]/5)
+```
+
+We will then use the Delta method to get asymptotic standard errors. Note that $$
+\theta = g(\beta) =  \beta_1 / \left(\beta_2 + \frac{1}{5} \beta_3\right)
+$$ and therefore $$
+\mathbf{V}_\theta = \frac{\partial}{\partial \beta}g' \mathbf{V}_\beta \frac{\partial}{\partial \beta}g.
+$$ where $$
+\frac{\partial}{\partial \beta}g = \begin{pmatrix} 0 \\ 
+                                    1/ \left(\beta_2 + \frac{1}{5} \beta_3\right) \\
+                                   - \beta_1 / \left(\beta_2 + \frac{1}{5} \beta_3\right)^2 \\
+                                   -\frac{1}{5} \beta_1 / \left(\beta_2 + \frac{1}{5} \beta_3\right)^2
+                                    \end{pmatrix}.
+$$
+
+\bigskip
+
+Bootstrap fun fact: Sometimes it can be better to repeatedly draw random weights for each observation instead of performing the classical bootstrap that we are using here. This is especially true in situations in which excluding certain observations can lead to multicollinearitry. See Shao and Tu (1995) Bayesian Bootstrap and Random Weighting.
+
+```{r}
+
+# Standard errors
+g.partial <- rbind(0,
+                   1 / (beta.ols[3]  + beta.ols[4]/5),
+                   -beta.ols[2] / (beta.ols[3]  + beta.ols[4]/5)^2,
+                   -beta.ols[2] /( 5 * (beta.ols[3]  + beta.ols[4]/5)^2))
+                   
+V.beta <- vcovHC(ols, type="HC1")
+V.theta.ols <- t(g.partial)%*%V.beta%*%g.partial
+se.theta.ols <- sqrt(V.theta.ols)
+
+# Jackknife 
+# Note that we can just loop over all observations here since the sample is small
+# In large samples you may want to compute the LOO coefficients using the leverage values (Hansen 3.43)
+
+theta.loo <- rep(NA,n)
+theta.bar.loo <- 0
+
+for (i in 1:n){
+  y_loo <- as.matrix(y[-i,], ncol=1)
+  x_loo <- as.matrix(x[-i,]) 
+  inv.xx_loo <- solve(t(x_loo) %*% x_loo)
+  beta.loo <- inv.xx_loo%*%t(x_loo)%*%y_loo
+  
+  theta.loo[i] <- beta.loo[2,1]/(beta.loo[3,1] + beta.loo[4,1]/5)
+  theta.bar.loo <- theta.bar.loo + theta.loo[i]
+}
+
+theta.bar.loo <-theta.bar.loo/n
+
+difference <- 0
+for (i in 1:n){
+  difference <- difference + (theta.loo[i] - theta.bar.loo)^2
+}
+
+V.theta.jack <- (n-1)/n * difference
+se.theta.jack <- sqrt(V.theta.jack)
+
+# Bootstrap
+set.seed(123)
+B <- 1000
+theta.boot <- rep(NA,B)
+
+for (i in 1:B) {
+  
+  sample <- data[sample(n,replace=TRUE),]
+  ols.boot <- lm(lwage ~ education + experience + experience2, data = sample)
+  beta.boot <- coef(ols.boot)
+  theta.boot[i] <- beta.boot[2] / (beta.boot[3]  + beta.boot[4]/5)
+
+}
+
+se.theta.boot <- sqrt(var(theta.boot))
+
+# Report results
+table <- 
+  rbind(theta.ols,se.theta.ols,se.theta.jack,se.theta.boot) %>%
+  as_tibble() %>%
+  bind_cols(` ` = c('Theta', 'Asymptotic', 'Jackknife', 'Bootstrap'), .)
+names(table) <- c('','')
+kable(table)
+```
+
+## (b)
+
+Note that since $g$ is non-linear, $\hat{\theta}$ is biased in small samples as $E[g(\hat{\beta})] \neq g\left(E\left[\hat{\beta}\right]\right)$ (our sample size is only 99!). Since we rely on $\hat{\theta}$ in estimating the asymptotic variance the corresponding standard errors will likely also not be correct. Furthermore, an untrimmed bootstrap estimator can also be unreliable for non-linear estimators (see Hansen p. 277). As a sanity check you can re-estimate the bootstrap standard errors using a different seed.
+
+## (c)
+
+```{r}
+# Percentile interval
+
+# Sort the distribution of bootstrap thetas from (a)
+alpha <- 0.05
+sorted.theta <- sort(theta.boot)
+q.pc.lower <- sorted.theta[(alpha/2)*B]
+q.pc.upper <- sorted.theta[(1-(alpha/2))*B]
+
+q.pc <- c(q.pc.lower, q.pc.upper)
+
+
+# Report results
+table <- 
+  rbind(q.pc) %>%
+  as_tibble() %>%
+  bind_cols(` ` = c('95% Percentile Interval'), .)
+names(table) <- c('', 'q lower','q upper')
+kable(table)
+```

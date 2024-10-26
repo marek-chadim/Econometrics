@@ -1,0 +1,25 @@
+\begin{tabular}{l*{5}{c}}
+\hline\hline
+                    &\multicolumn{1}{c}{(1)}&\multicolumn{1}{c}{(2)}&\multicolumn{1}{c}{(3)}&\multicolumn{1}{c}{(4)}&\multicolumn{1}{c}{(5)}\\
+                    &\multicolumn{1}{c}{ATE/ATT}&\multicolumn{1}{c}{X=1}&\multicolumn{1}{c}{X=2}&\multicolumn{1}{c}{X=3}&\multicolumn{1}{c}{CATT: Stacked Reg.}\\
+\hline
+D                   &       0.577&     -0.0593&       0.309&           0&            \\
+                    &     (0.142)&    (0.0872)&     (0.188)&         (.)&            \\
+[1em]
+D $\times 1\{X=1\}$ &            &            &            &            &     -0.0593\\
+                    &            &            &            &            &     (0.172)\\
+[1em]
+D $\times 1\{X=2\}$ &            &            &            &            &       0.309\\
+                    &            &            &            &            &     (0.243)\\
+[1em]
+D $\times 1\{X=3\}$ &            &            &            &            &           0\\
+                    &            &            &            &            &         (.)\\
+\hline
+$N$                 &         100&          50&          25&          25&         100\\
+$\widehat{\text{ATE}}$&       0.339&            &            &            &            \\
+True ATE            &       0.345&            &            &            &            \\
+True ATT            &       0.558&            &            &            &            \\
+True CATT           &            &      -0.118&       0.231&       1.212&            \\
+\hline\hline
+\multicolumn{6}{l}{\footnotesize Standard errors in parentheses}\\
+\end{tabular}

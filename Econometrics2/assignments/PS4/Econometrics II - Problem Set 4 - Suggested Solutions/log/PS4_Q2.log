@@ -1,0 +1,263 @@
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  C:\Users\chadi\OneDrive - Handelshögskolan i Stockholm\SU\EC38003\assignments\PS4\Econometrics II - Problem Set 4 - Suggested Solutions\log/PS4_Q2.log
+  log type:  text
+ opened on:   9 May 2024, 13:27:30
+
+. 
+. 
+. set scheme lean2
+
+. 
+. 
+. set seed 508
+
+. 
+. 
+. * Q2.5 =======================================
+. 
+. cap program drop generate_worker_machine
+
+. program define generate_worker_machine,
+  1.   syntax[, n_workers(real 10) n_machines(real 20) n_periods(real 200) mu_alpha(real 0) sigma_alpha(real 1) mu_psi(real 1) sigma_psi(real 1) mu_gamma(real 0) sigma_gamma(real 0.5) mu_eps(real 0) sigma_eps(real 0.2)]
+  2. 
+.   clear 
+  3. 
+.   * prepare machines dataset
+.   set obs `n_machines'
+  4.   gen j = _n
+  5.   gen psi = rnormal(`mu_psi', `sigma_psi')
+  6. 
+.   tempfile psi
+  7.   save `psi'
+  8. 
+.   * prepare period shocks datasets
+.   clear 
+  9.   set obs `n_periods'
+ 10.   gen t = _n
+ 11.   gen gamma = rnormal(`mu_gamma', `sigma_gamma')
+ 12. 
+.   tempfile gamma
+ 13.   save `gamma'
+ 14. 
+.   * prepare worker dataset 
+.   clear 
+ 15.   set obs `n_workers'
+ 16.   gen i = _n
+ 17.   gen alpha = rnormal(`mu_alpha', `sigma_alpha')
+ 18. 
+.   expand `n_periods'
+ 19.   bys i : gen t = _n
+ 20.   
+.   bys i : gen j = runiformint(1, `n_machines')
+ 21. 
+. 
+.   * merge in machiens and periods
+.   merge m:1 j using `psi', gen(_merge_j)
+ 22.   drop if _merge_j == 2 // = machines to which no worker is ever assigned => not identified
+ 23. 
+.   merge m:1 t using `gamma', gen(_merge_t)
+ 24. 
+.   drop _merge_*
+ 25. 
+. 
+.   * generate output (perfect substitutes)
+.   gen y = gamma + alpha + psi + rnormal(`mu_eps', `sigma_eps')
+ 26. 
+. end
+
+. 
+. generate_worker_machine //, mu_gamma(3)
+Number of observations (_N) was 0, now 20.
+file C:\Users\chadi\AppData\Local\Temp\ST_5358_000001.tmp saved as .dta format
+Number of observations (_N) was 0, now 200.
+file C:\Users\chadi\AppData\Local\Temp\ST_5358_000002.tmp saved as .dta format
+Number of observations (_N) was 0, now 10.
+(1,990 observations created)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                             2,000  (_merge_j==3)
+    -----------------------------------------
+(0 observations deleted)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                             2,000  (_merge_t==3)
+    -----------------------------------------
+
+. 
+. * check which workers are assigned to at two different machines
+. sort i t
+
+. bys i: egen minj = min(j)
+
+. bys i: egen maxj = max(j)
+
+. count if minj == maxj
+  0
+
+. 
+. 
+. * Q2.7 =======================================
+. * estimate worker and machine effects
+. reghdfe y, a(gamma alpha_hat=alpha psi_hat=psi)
+(MWFE estimator converged in 7 iterations)
+
+HDFE Linear regression                            Number of obs   =      2,000
+Absorbing 3 HDFE groups                           F(   0,   1772) =          .
+                                                  Prob > F        =          .
+                                                  R-squared       =     0.9873
+                                                  Adj R-squared   =     0.9857
+                                                  Within R-sq.    =     0.0000
+                                                  Root MSE        =     0.1987
+
+------------------------------------------------------------------------------
+           y | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       _cons |   1.000096   .0044424   225.12   0.000     .9913833    1.008809
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+       gamma |       200           0         200     |
+       alpha |        10           1           9     |
+         psi |        20           1          19    ?|
+-----------------------------------------------------+
+? = number of redundant parameters may be higher
+
+. 
+. twoway (scatter alpha alpha_hat) (scatter psi psi_hat) (function y=x, range(-2 2)), ///
+>   ytitle("True Parameter Values") xtitle("Parameter Estimates") ///
+>   legend(order(1 "`=ustrunescape("\u03B1")' / `=ustrunescape("\u03B1\u0302")'" ///
+>                2 "`=ustrunescape("\u03A8")' / `=ustrunescape("\u03A8\u0302")'") ///
+>         ring(0) position(11)) ///
+>   title("T=200")
+
+. graph export output/Fig_2_7.png, replace
+(file output/Fig_2_7.png not found)
+file output/Fig_2_7.png saved as PNG format
+
+. 
+. * count # workers/machines whose effects are not estimated
+. tab i if alpha_hat == .
+no observations
+
+. tab j if psi_hat == .
+no observations
+
+. 
+. 
+. 
+. * Q2.8 =======================================
+. * generate data with T = 5
+. generate_worker_machine, n_periods(5) //sigma_eps(3)
+Number of observations (_N) was 0, now 20.
+file C:\Users\chadi\AppData\Local\Temp\ST_5358_000001.tmp saved as .dta format
+Number of observations (_N) was 0, now 5.
+file C:\Users\chadi\AppData\Local\Temp\ST_5358_000002.tmp saved as .dta format
+Number of observations (_N) was 0, now 10.
+(40 observations created)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             2
+        from master                         0  (_merge_j==1)
+        from using                          2  (_merge_j==2)
+
+    Matched                                50  (_merge_j==3)
+    -----------------------------------------
+(2 observations deleted)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                                50  (_merge_t==3)
+    -----------------------------------------
+
+. 
+. * check which workers are assigned to at two different machines
+. sort i t
+
+. bys i: egen minj = min(j)
+
+. bys i: egen maxj = max(j)
+
+. count if minj == maxj
+  0
+
+. 
+. 
+. * estimate worker and machine effects
+. reghdfe y, a(gamma alpha_hat=alpha psi_hat=psi)
+(dropped 2 singleton observations)
+(MWFE estimator converged in 14 iterations)
+(2 missing values generated)
+
+HDFE Linear regression                            Number of obs   =         48
+Absorbing 3 HDFE groups                           F(   0,     19) =          .
+                                                  Prob > F        =          .
+                                                  R-squared       =     0.9919
+                                                  Adj R-squared   =     0.9800
+                                                  Within R-sq.    =     0.0000
+                                                  Root MSE        =     0.2096
+
+------------------------------------------------------------------------------
+           y | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+       _cons |   .8063096   .0302546    26.65   0.000     .7429861    .8696332
+------------------------------------------------------------------------------
+
+Absorbed degrees of freedom:
+-----------------------------------------------------+
+ Absorbed FE | Categories  - Redundant  = Num. Coefs |
+-------------+---------------------------------------|
+       gamma |         5           0           5     |
+       alpha |        10           1           9     |
+         psi |        16           1          15    ?|
+-----------------------------------------------------+
+? = number of redundant parameters may be higher
+
+. 
+. 
+. twoway (scatter alpha alpha_hat) (scatter psi psi_hat) (function y=x, range(-2 2)), ///
+>   ytitle("True Parameter Values") xtitle("Parameter Estimates") ///
+>   legend(order(1 "`=ustrunescape("\u03B1")' / `=ustrunescape("\u03B1\u0302")'" ///
+>                2 "`=ustrunescape("\u03A8")' / `=ustrunescape("\u03A8\u0302")'") ///
+>         ring(0) position(11)) ///
+>   title("T=5")
+
+. graph export output/Fig_2_8.png, replace
+(file output/Fig_2_8.png not found)
+file output/Fig_2_8.png saved as PNG format
+
+. 
+. 
+. * count # workers/machines whose effects are not estimated
+. tab i if alpha_hat == .
+
+          i |      Freq.     Percent        Cum.
+------------+-----------------------------------
+          6 |          1       50.00       50.00
+         10 |          1       50.00      100.00
+------------+-----------------------------------
+      Total |          2      100.00
+
+. tab j if psi_hat == .
+
+          j |      Freq.     Percent        Cum.
+------------+-----------------------------------
+          7 |          1       50.00       50.00
+         18 |          1       50.00      100.00
+------------+-----------------------------------
+      Total |          2      100.00
+
+. 
+. 
+end of do-file
+
+. exit, clear
