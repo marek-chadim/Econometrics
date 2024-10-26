@@ -1,5 +1,15 @@
 # Econometrics Resources
 
+### MIT OpenCourseWare Lecture Notes
+- [14.382 | Spring 2017 | Econometrics](https://ocw.mit.edu/courses/14-382-econometrics-spring-2017/), Victor Chernozhukov and Ivan Fernandez-Val 
+- [14.387 | Fall 2014 | Applied Econometrics: Mostly Harmless Big Data](https://ocw.mit.edu/courses/14-387-applied-econometrics-mostly-harmless-big-data-fall-2014/), Victor Chernozhukov and Joshua Angrist 
+
+### Causal ML 
+
+   - 2024: [Applied Causal Inference Powered by ML and AI Labs](https://causalml-book.org/labs.html), Chernozhukov, Hansen, Kallus, Spindler, Syrgkanis
+   - 2023: [Machine Learning & Causal Inference Tutorial](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/), Susan Athey, Jann Spiess, and Stefan Wager
+
+ ### [Mixtape-Sessions](https://github.com/orgs/Mixtape-Sessions/repositories)
 
 ### Recordings
  [The Gary Chamberlain Online Seminar in Econometrics](https://www.chamberlainseminar.org/home)
@@ -18,17 +28,3 @@ NBER Methods Lectures
    -  2013: [Econometric Methods for High-Dimensional Data](https://www.youtube.com/watch?v=bdbDq012SEk&list=PLzkvpFzYZ4trMgRxl-4tRqSEcqAOZuoA3), Chernozhukov, Gentzkow, Hansen, Shapiro, Taddy
    -  2007: [What’s New in Econometrics](https://www.youtube.com/watch?v=YguQBF-vzWg&list=PLzkvpFzYZ4trFArm_VjRSscL5AyQSQQLc), Jeffrey Wooldridge and Guido Imbens
      
-### MIT OpenCourseWare Lecture Notes
-- [14.382 | Spring 2017 | Econometrics](https://ocw.mit.edu/courses/14-382-econometrics-spring-2017/), Victor Chernozhukov and Ivan Fernandez-Val 
-- [14.387 | Fall 2014 | Applied Econometrics: Mostly Harmless Big Data](https://ocw.mit.edu/courses/14-387-applied-econometrics-mostly-harmless-big-data-fall-2014/), Victor Chernozhukov and Joshua Angrist 
-
-### Causal ML 
-
-   - 2024: [Applied Causal Inference Powered by ML and AI Labs](https://causalml-book.org/labs.html), Chernozhukov, Hansen, Kallus, Spindler, Syrgkanis
-   - 2023: [Machine Learning & Causal Inference Tutorial](https://bookdown.org/stanfordgsbsilab/ml-ci-tutorial/), Susan Athey, Jann Spiess, and Stefan Wager
-
-
- ### [Mixtape-Sessions](https://github.com/orgs/Mixtape-Sessions/repositories)
-
-
-
