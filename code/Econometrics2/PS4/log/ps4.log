@@ -1,7 +1,5 @@
 
-. *-----------------------------------------------------------------------------*
-. 
-. *1.5
+. //_2
 . set seed 42
 
 . set obs 100
@@ -32,28 +30,28 @@ file data/villages.dta saved
 . cap program drop createoutcomes
 
 . program define createoutcomes, 
-  1.   syntax[, meaninteraction(real 0)]
-  2.   keep village - pocash  
-  3.   gen interaction = rnormal(`meaninteraction', 0.2)
-  4.   gen poboth = pofiscal + pocash + interaction
-  5.   gen fiscalcash = fiscal*cash
-  6.   gen outcome = (1-fiscal)*(1-cash)*po + fiscal*(1-cash)*pofiscal ///
->   + (1-fiscal)*cash*pocash + fiscalcash*poboth
+  1. syntax[, meaninteraction(real 0)]
+  2. keep village - pocash  
+  3. gen interaction = rnormal(`meaninteraction', 0.2)
+  4. gen poboth = pofiscal + pocash + interaction
+  5. gen fiscalcash = fiscal*cash
+  6. gen outcome = (1-fiscal)*(1-cash)*po + fiscal*(1-cash)*pofiscal ///
+> + (1-fiscal)*cash*pocash + fiscalcash*poboth
   7. end
 
 . forval meaninteraction = -1(.2)1 {
-  2.         createoutcomes, meaninteraction(`meaninteraction')
-  3.         reg outcome fiscal cash, cl(village)
-  4.         mat bfiscal1 = [nullmat(bfiscal1) \ _b[fiscal]]
-  5.         mat sefiscal1 = [nullmat(sefiscal1) \ _se[fiscal]]
-  6.         mat bcash1 = [nullmat(bcash1) \ _b[cash]]
-  7.         mat secash1 = [nullmat(secash1) \ _se[cash]]
-  8.         reg outcome fiscal cash fiscalcash, cl(village)
-  9.         mat bfiscal2 = [nullmat(bfiscal2) \ _b[fiscal]]
- 10.         mat sefiscal2 = [nullmat(sefiscal2) \ _se[fiscal]]
- 11.         mat bcash2 = [nullmat(bcash2) \ _b[cash]]
- 12.         mat secash2 = [nullmat(secash2) \ _se[cash]]
- 13.         mat meaninteractions = [nullmat(meaninteractions) \ round(`meaninteraction', .1)]
+  2.     createoutcomes, meaninteraction(`meaninteraction')
+  3.     reg outcome fiscal cash, cl(village)
+  4.     mat bfiscal1 = [nullmat(bfiscal1) \ _b[fiscal]]
+  5.     mat sefiscal1 = [nullmat(sefiscal1) \ _se[fiscal]]
+  6.     mat bcash1 = [nullmat(bcash1) \ _b[cash]]
+  7.     mat secash1 = [nullmat(secash1) \ _se[cash]]
+  8.     reg outcome fiscal cash fiscalcash, cl(village)
+  9.     mat bfiscal2 = [nullmat(bfiscal2) \ _b[fiscal]]
+ 10.     mat sefiscal2 = [nullmat(sefiscal2) \ _se[fiscal]]
+ 11.     mat bcash2 = [nullmat(bcash2) \ _b[cash]]
+ 12.     mat secash2 = [nullmat(secash2) \ _se[cash]]
+ 13.     mat meaninteractions = [nullmat(meaninteractions) \ round(`meaninteraction', .1)]
  14. }
 
 Linear regression                               Number of obs     =      1,000
@@ -419,21 +417,20 @@ Linear regression                               Number of obs     =      1,000
        _cons |  -.0091178   .0616944    -0.15   0.883     -.131533    .1132974
 ------------------------------------------------------------------------------
 
-. 
-. *1.6
+. //_3
 . forval val = 1/2 {
-  2.         foreach var in fiscal cash {
-  3.                 mat lower`var'`val' = b`var'`val' - 1.96*se`var'`val'
-  4.                 mat upper`var'`val' = b`var'`val' + 1.96*se`var'`val'
-  5.         }
+  2.     foreach var in fiscal cash {
+  3.         mat lower`var'`val' = b`var'`val' - 1.96*se`var'`val'
+  4.         mat upper`var'`val' = b`var'`val' + 1.96*se`var'`val'
+  5.     }
   6. }
 
 . forval val = 1/2 {
-  2.         foreach var in fiscal cash {
-  3.                 svmat b`var'`val'
-  4.                 svmat lower`var'`val'
-  5.                 svmat upper`var'`val'
-  6.         }
+  2.     foreach var in fiscal cash {
+  3.         svmat b`var'`val'
+  4.         svmat lower`var'`val'
+  5.         svmat upper`var'`val'
+  6.     }
   7. }
 
 . svmat meaninteractions
@@ -451,14 +448,13 @@ Linear regression                               Number of obs     =      1,000
 . graph export output/6.png, replace 
 file output/6.png saved as PNG format
 
-. 
-. *1.7
+. //_4
 . eststo clear
 
 . forval meaninteraction = 0/1 {
-  2.   qui createoutcomes, meaninteraction(`meaninteraction')
-  3.   eststo: reg outcome fiscal cash, cl(village)
-  4.   eststo: reghdfe outcome cash, absorb(village) cluster(village)
+  2. qui createoutcomes, meaninteraction(`meaninteraction')
+  3. eststo: reg outcome fiscal cash, cl(village)
+  4. eststo: reghdfe outcome cash, absorb(village) cluster(village)
   5. }
 
 Linear regression                               Number of obs     =      1,000
@@ -552,8 +548,7 @@ Absorbed degrees of freedom:
 . esttab using output/7.tex,  keep(fiscal cash) replace
 (output written to output/7.tex)
 
-.         
-. *1.8
+. //_5
 . qui createoutcomes, meaninteraction(0)
 
 . gen cashvillage = cash*village
@@ -733,10 +728,9 @@ village: all characters numeric; replaced as byte
 . graph export output/8.png, replace
 file output/8.png saved as PNG format
 
-. restore 
+. restore    
 
-. 
-. *1.9
+. //_6
 . sum cash
 
     Variable |        Obs        Mean    Std. dev.       Min        Max
@@ -851,364 +845,9 @@ mseposterior |        100    3.172216           0   3.172216   3.172216
 . graph export output/9.png, replace
 file output/9.png saved as PNG format
 
-. 
-. *-----------------------------------------------------------------------------*/
-. clear all
-
-. 
-. *2.5
-. set seed 42
-
-. set obs 200
-Number of observations (_N) was 0, now 200.
-
-. gen period = _n
-
-. gen gamma = rnormal(0, sqrt(.5))
-
-. expand 10
-(1,800 observations created)
-
-. bys period: gen worker = _n
-
-. bys worker: gen alpha = rnormal(0,1)
-
-. replace alpha = alpha[_n-1] if worker == worker[_n-1]
-(1,990 real changes made)
-
-. gen machine = runiformint(1, 20)
-
-. bys machine: gen psi = rnormal(1,1) 
-
-. replace psi = psi[_n-1] if machine == machine[_n-1]
-(1,980 real changes made)
-
-. gen epsilon = rnormal(1, sqrt(.2))
-
-. gen output = alpha + gamma + psi + epsilon
-
-. save data/output, replace
-file data/output.dta saved
-
-. 
-. *2.6
-. reghdfe output i.worker, absorb(period machine) nocons
-(MWFE estimator converged in 7 iterations)
-
-HDFE Linear regression                            Number of obs   =      2,000
-Absorbing 2 HDFE groups                           F(   9,   1772) =    1044.90
-                                                  Prob > F        =     0.0000
-                                                  R-squared       =     0.9240
-                                                  Adj R-squared   =     0.9143
-                                                  Within R-sq.    =     0.8414
-                                                  Root MSE        =     0.4306
-
-------------------------------------------------------------------------------
-      output | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-      worker |
-          2  |   -2.86555   .0433522   -66.10   0.000    -2.950577   -2.780524
-          3  |  -1.155354   .0434122   -26.61   0.000    -1.240499    -1.07021
-          4  |  -2.782256   .0434817   -63.99   0.000    -2.867537   -2.696975
-          5  |  -3.309332   .0433527   -76.34   0.000     -3.39436   -3.224305
-          6  |  -1.691358    .043246   -39.11   0.000    -1.776176   -1.606539
-          7  |  -1.929163   .0434593   -44.39   0.000      -2.0144   -1.843926
-          8  |  -1.920769   .0434155   -44.24   0.000     -2.00592   -1.835618
-          9  |  -2.757931   .0433079   -63.68   0.000    -2.842871   -2.672991
-         10  |   -1.39245   .0433696   -32.11   0.000    -1.477511    -1.30739
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-      period |       200           0         200     |
-     machine |        20           1          19     |
------------------------------------------------------+
-
-. regsave
-
-. drop if var == "1b.worker"
-(1 observation deleted)
-
-. gen worker = subinstr(var, ".worker", "", .)
-
-. destring worker, replace
-worker: all characters numeric; replaced as byte
-
-. merge 1:m worker using data/output, nogen
-(variable worker was byte, now float to accommodate using data's values)
-
-    Result                      Number of obs
-    -----------------------------------------
-    Not matched                           200
-        from master                         0  
-        from using                        200  
-
-    Matched                             1,800  
-    -----------------------------------------
-
-. twoway (scatter coef alpha) in 1/9, name(alpha6, replace)
-
-. 
-. use data/output, clear
-
-. reghdfe output i.machine, absorb(period worker) nocons
-(MWFE estimator converged in 2 iterations)
-
-HDFE Linear regression                            Number of obs   =      2,000
-Absorbing 2 HDFE groups                           F(  19,   1772) =     374.32
-                                                  Prob > F        =     0.0000
-                                                  R-squared       =     0.9240
-                                                  Adj R-squared   =     0.9143
-                                                  Within R-sq.    =     0.8005
-                                                  Root MSE        =     0.4306
-
-------------------------------------------------------------------------------
-      output | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-     machine |
-          2  |   -2.07317    .064513   -32.14   0.000      -2.1997   -1.946641
-          3  |  -.5361678   .0633734    -8.46   0.000    -.6604622   -.4118734
-          4  |   -1.00534   .0658571   -15.27   0.000    -1.134505    -.876174
-          5  |  -.2728387   .0651285    -4.19   0.000    -.4005754    -.145102
-          6  |  -1.963512   .0638318   -30.76   0.000    -2.088706   -1.838319
-          7  |  -1.975926   .0661652   -29.86   0.000    -2.105696   -1.846156
-          8  |  -.6528535   .0670637    -9.73   0.000    -.7843858   -.5213213
-          9  |  -.7379377   .0673474   -10.96   0.000    -.8700264    -.605849
-         10  |  -.4994337    .064816    -7.71   0.000    -.6265575   -.3723099
-         11  |   -1.82765   .0624235   -29.28   0.000    -1.950082   -1.705219
-         12  |  -.1447019   .0674291    -2.15   0.032    -.2769508   -.0124529
-         13  |   -1.77443   .0647488   -27.40   0.000    -1.901422   -1.647438
-         14  |  -.0556997   .0668244    -0.83   0.405    -.1867626    .0753631
-         15  |  -3.469693   .0662207   -52.40   0.000    -3.599572   -3.339814
-         16  |   -1.43291   .0660497   -21.69   0.000    -1.562453   -1.303366
-         17  |  -1.228144   .0638243   -19.24   0.000    -1.353322   -1.102965
-         18  |  -.5933756   .0657189    -9.03   0.000    -.7222704   -.4644808
-         19  |  -1.223143   .0643534   -19.01   0.000     -1.34936   -1.096927
-         20  |  -.2443146   .0652708    -3.74   0.000    -.3723305   -.1162988
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-      period |       200           0         200     |
-      worker |        10           1           9     |
------------------------------------------------------+
-
-. scalar obs=`e(df_m)'
-
-. regsave
-
-. drop if var == "1b.machine"
-(1 observation deleted)
-
-. gen machine = subinstr(var, ".machine", "", .)
-
-. destring machine, replace
-machine: all characters numeric; replaced as byte
-
-. merge 1:m machine using data/output, nogen
-(variable machine was byte, now float to accommodate using data's values)
-
-    Result                      Number of obs
-    -----------------------------------------
-    Not matched                            97
-        from master                         0  
-        from using                         97  
-
-    Matched                             1,903  
-    -----------------------------------------
-
-. twoway (scatter coef psi) in 1/`=obs', name(psi6, replace)
-
-. graph combine alpha6 psi6
-
-. graph export output/fe6.png, replace
-file output/fe6.png saved as PNG format
-
-. 
-. *2.7
-. clear all
-
-. set seed 42
-
-. set obs 5
-Number of observations (_N) was 0, now 5.
-
-. gen period = _n
-
-. gen gamma = rnormal(0, sqrt(.5))
-
-. expand 10
-(45 observations created)
-
-. bys period: gen worker = _n
-
-. bys worker: gen alpha = rnormal(0,1)
-
-. replace alpha = alpha[_n-1] if worker == worker[_n-1]
-(40 real changes made)
-
-. gen machine = runiformint(1, 20)
-
-. bys machine: gen psi = rnormal(1,1) 
-
-. replace psi = psi[_n-1] if machine == machine[_n-1]
-(33 real changes made)
-
-. gen epsilon = rnormal(1, sqrt(.2))
-
-. gen output = alpha + gamma + psi + epsilon
-
-. save data/output2, replace
-file data/output2.dta saved
-
-. 
-. reghdfe output i.worker, absorb(period machine) nocons
-(dropped 4 singleton observations)
-(MWFE estimator converged in 6 iterations)
-
-HDFE Linear regression                            Number of obs   =         46
-Absorbing 2 HDFE groups                           F(   9,     20) =      16.92
-                                                  Prob > F        =     0.0000
-                                                  R-squared       =     0.9685
-                                                  Adj R-squared   =     0.9290
-                                                  Within R-sq.    =     0.8839
-                                                  Root MSE        =     0.4615
-
-------------------------------------------------------------------------------
-      output | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-      worker |
-          2  |  -.1114621   .3799383    -0.29   0.772    -.9039994    .6810753
-          3  |  -.7728502   .4410412    -1.75   0.095    -1.692846    .1471457
-          4  |   -.640862   .4359725    -1.47   0.157    -1.550285    .2685606
-          5  |  -.2807048   .4004365    -0.70   0.491    -1.116001     .554591
-          6  |   1.070381   .4385552     2.44   0.024     .1555706    1.985191
-          7  |   2.094227   .4410528     4.75   0.000     1.174207    3.014247
-          8  |     1.5324   .4077002     3.76   0.001     .6819525    2.382848
-          9  |   2.611341   .4536063     5.76   0.000     1.665134    3.557547
-         10  |   .2143698   .4433286     0.48   0.634    -.7103976    1.139137
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-      period |         5           0           5     |
-     machine |        13           1          12     |
------------------------------------------------------+
-
-. regsave
-
-. drop if var == "1b.worker"
-(1 observation deleted)
-
-. gen worker = subinstr(var, ".worker", "", .)
-
-. destring worker, replace
-worker: all characters numeric; replaced as byte
-
-. merge 1:m worker using data/output2, nogen
-(variable worker was byte, now float to accommodate using data's values)
-
-    Result                      Number of obs
-    -----------------------------------------
-    Not matched                             5
-        from master                         0  
-        from using                          5  
-
-    Matched                                45  
-    -----------------------------------------
-
-. twoway (scatter coef alpha) in 1/9, name(alpha7, replace)
-
-. 
-. use data/output2, clear
-
-. reghdfe output i.machine, absorb(period worker) nocons
-(MWFE estimator converged in 2 iterations)
-
-HDFE Linear regression                            Number of obs   =         50
-Absorbing 2 HDFE groups                           F(  16,     20) =       8.44
-                                                  Prob > F        =     0.0000
-                                                  R-squared       =     0.9700
-                                                  Adj R-squared   =     0.9266
-                                                  Within R-sq.    =     0.8710
-                                                  Root MSE        =     0.4615
-
-------------------------------------------------------------------------------
-      output | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
--------------+----------------------------------------------------------------
-     machine |
-          3  |   .5722122   .7677068     0.75   0.465    -1.029196     2.17362
-          4  |  -.6931598   .6443872    -1.08   0.295    -2.037328    .6510083
-          5  |   2.098722   .7897182     2.66   0.015     .4513988    3.746045
-          6  |   1.717977   .6114656     2.81   0.011     .4424817    2.993472
-          7  |  -.1893167   .6237916    -0.30   0.765    -1.490523     1.11189
-          8  |  -1.716061   .8832726    -1.94   0.066    -3.558535    .1264134
-          9  |   .7949108   .6101526     1.30   0.207    -.4778451    2.067667
-         10  |   .5732836   .6935475     0.83   0.418    -.8734311    2.019998
-         11  |  -1.135159   .7261124    -1.56   0.134    -2.649803    .3794851
-         12  |  -.4816933   .8535203    -0.56   0.579    -2.262105    1.298719
-         13  |   .3093437   .6805584     0.45   0.654    -1.110276    1.728964
-         14  |  -.8050346   .6100002    -1.32   0.202    -2.077473    .4674036
-         15  |   .2035088   .6873317     0.30   0.770     -1.23024    1.637258
-         16  |   .9385502   .7876624     1.19   0.247    -.7044849    2.581585
-         17  |   .2333841   .7130176     0.33   0.747    -1.253945    1.720713
-         19  |  -.7696269   .7464181    -1.03   0.315    -2.326628    .7873741
-------------------------------------------------------------------------------
-
-Absorbed degrees of freedom:
------------------------------------------------------+
- Absorbed FE | Categories  - Redundant  = Num. Coefs |
--------------+---------------------------------------|
-      period |         5           0           5     |
-      worker |        10           1           9     |
------------------------------------------------------+
-
-. scalar obs=`e(df_m)'
-
-. regsave
-
-. drop if var == "1b.machine" 
-(1 observation deleted)
-
-. gen machine = subinstr(var, ".machine", "", .)
-
-. destring machine, replace
-machine: all characters numeric; replaced as byte
-
-. sum machine
-
-    Variable |        Obs        Mean    Std. dev.       Min        Max
--------------+---------------------------------------------------------
-     machine |         16     10.5625    4.871259          3         19
-
-. merge 1:m machine using data/output2, nogen
-(variable machine was byte, now float to accommodate using data's values)
-
-    Result                      Number of obs
-    -----------------------------------------
-    Not matched                             1
-        from master                         0  
-        from using                          1  
-
-    Matched                                49  
-    -----------------------------------------
-
-. twoway (scatter coef psi) in 1/`=obs', name(psi7, replace)
-
-. graph combine alpha7 psi7
-
-. graph export output/fe7.png, replace
-file output/fe7.png saved as PNG format
-
 . log close
       name:  <unnamed>
-       log:  C:\Users\chadi\OneDrive - Handelshögskolan i Stockholm\SU\EC38003\assignments\PS4\log/ps4.log
+       log:  c:\Users\chadi\OneDrive - Handelshögskolan i Stockholm\Econometrics\Econometrics\coursework\PhD\code\Econometrics2\PS4\log/ps4.log
   log type:  text
- closed on:   6 May 2024, 15:41:10
+ closed on:  14 Oct 2024, 07:53:35
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

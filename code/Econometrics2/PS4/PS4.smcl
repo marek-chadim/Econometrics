@@ -1,0 +1,1296 @@
+{smcl}
+{com}{sf}{ul off}{txt}{.-}
+      name:  {res}<unnamed>
+       {txt}log:  {res}c:\Users\chadi\OneDrive - Handelshögskolan i Stockholm\Econometrics\Econometrics\coursework\PhD\code\Econometrics2\PS4\PS4.smcl
+  {txt}log type:  {res}smcl
+ {txt}opened on:  {res}14 Oct 2024, 07:58:48
+{txt}
+{com}. //_1
+. clear all 
+{res}{txt}
+{com}. set more off, permanently   
+{txt}({cmd:set more} preference recorded)
+
+{com}. set linesize 255   
+{txt}
+{com}. set scheme lean2
+{txt}
+{com}. cap mkdir data                     
+{txt}
+{com}. cap mkdir output
+{txt}
+{com}. //_2
+. set seed 42
+{txt}
+{com}. set obs 100
+{txt}{p}
+Number of observations ({bf:_N}) was 0,
+now 100.
+{p_end}
+
+{com}. gen village = _n
+{txt}
+{com}. gen fiscal = runiform() > .5
+{txt}
+{com}. gen casheffect = rnormal(2,1)
+{txt}
+{com}. save data/villages, replace
+{txt}{p 0 4 2}
+file {bf}
+data/villages.dta{rm}
+saved
+{p_end}
+
+{com}. expand 10
+{txt}(900 observations created)
+
+{com}. bys village: gen individual = _n
+{txt}
+{com}. gen cash = runiform() > .5
+{txt}
+{com}. gen po = rnormal(0, 1)
+{txt}
+{com}. gen pofiscal = rnormal(1, 1)
+{txt}
+{com}. gen pocash = rnormal(casheffect, 1)
+{txt}
+{com}. cap program drop createoutcomes
+{txt}
+{com}. program define createoutcomes, 
+{txt}  1{com}. syntax[, meaninteraction(real 0)]
+{txt}  2{com}. keep village - pocash  
+{txt}  3{com}. gen interaction = rnormal(`meaninteraction', 0.2)
+{txt}  4{com}. gen poboth = pofiscal + pocash + interaction
+{txt}  5{com}. gen fiscalcash = fiscal*cash
+{txt}  6{com}. gen outcome = (1-fiscal)*(1-cash)*po + fiscal*(1-cash)*pofiscal ///
+> + (1-fiscal)*cash*pocash + fiscalcash*poboth
+{txt}  7{com}. end
+{txt}
+{com}. forval meaninteraction = -1(.2)1 {c -(}
+{txt}  2{com}.     createoutcomes, meaninteraction(`meaninteraction')
+{txt}  3{com}.     reg outcome fiscal cash, cl(village)
+{txt}  4{com}.     mat bfiscal1 = [nullmat(bfiscal1) \ _b[fiscal]]
+{txt}  5{com}.     mat sefiscal1 = [nullmat(sefiscal1) \ _se[fiscal]]
+{txt}  6{com}.     mat bcash1 = [nullmat(bcash1) \ _b[cash]]
+{txt}  7{com}.     mat secash1 = [nullmat(secash1) \ _se[cash]]
+{txt}  8{com}.     reg outcome fiscal cash fiscalcash, cl(village)
+{txt}  9{com}.     mat bfiscal2 = [nullmat(bfiscal2) \ _b[fiscal]]
+{txt} 10{com}.     mat sefiscal2 = [nullmat(sefiscal2) \ _se[fiscal]]
+{txt} 11{com}.     mat bcash2 = [nullmat(bcash2) \ _b[cash]]
+{txt} 12{com}.     mat secash2 = [nullmat(secash2) \ _se[cash]]
+{txt} 13{com}.     mat meaninteractions = [nullmat(meaninteractions) \ round(`meaninteraction', .1)]
+{txt} 14{com}. {c )-}
+
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(2, 99)          =  {res}    64.96
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.2714
+                                                {txt}Root MSE          =    {res} 1.3442
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} .4992246{col 26}{space 2} .1141312{col 37}{space 1}    4.37{col 46}{space 3}0.000{col 54}{space 4} .2727636{col 67}{space 3} .7256856
+{txt}{space 8}cash {c |}{col 14}{res}{space 2} 1.586779{col 26}{space 2} .1435493{col 37}{space 1}   11.05{col 46}{space 3}0.000{col 54}{space 4} 1.301945{col 67}{space 3} 1.871612
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} .2739539{col 26}{space 2} .0818675{col 37}{space 1}    3.35{col 46}{space 3}0.001{col 54}{space 4}  .111511{col 67}{space 3} .4363968
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(3, 99)          =  {res}    96.03
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.2992
+                                                {txt}Root MSE          =    {res}  1.319
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.027201{col 26}{space 2} .0928082{col 37}{space 1}   11.07{col 46}{space 3}0.000{col 54}{space 4} .8430494{col 67}{space 3} 1.211353
+{txt}{space 8}cash {c |}{col 14}{res}{space 2}  2.12232{col 26}{space 2} .1718513{col 37}{space 1}   12.35{col 46}{space 3}0.000{col 54}{space 4} 1.781329{col 67}{space 3}  2.46331
+{txt}{space 2}fiscalcash {c |}{col 14}{res}{space 2}-1.049539{col 26}{space 2} .2660914{col 37}{space 1}   -3.94{col 46}{space 3}0.000{col 54}{space 4}-1.577522{col 67}{space 3}-.5215555
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.0091178{col 26}{space 2} .0616944{col 37}{space 1}   -0.15{col 46}{space 3}0.883{col 54}{space 4} -.131533{col 67}{space 3} .1132974
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(2, 99)          =  {res}    77.45
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.3013
+                                                {txt}Root MSE          =    {res} 1.3328
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} .5881456{col 26}{space 2} .1142832{col 37}{space 1}    5.15{col 46}{space 3}0.000{col 54}{space 4} .3613828{col 67}{space 3} .8149083
+{txt}{space 8}cash {c |}{col 14}{res}{space 2} 1.676973{col 26}{space 2} .1402319{col 37}{space 1}   11.96{col 46}{space 3}0.000{col 54}{space 4} 1.398723{col 67}{space 3} 1.955224
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} .2262794{col 26}{space 2} .0801069{col 37}{space 1}    2.82{col 46}{space 3}0.006{col 54}{space 4} .0673299{col 67}{space 3} .3852289
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(3, 99)          =  {res}   102.14
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.3200
+                                                {txt}Root MSE          =    {res} 1.3155
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.027201{col 26}{space 2} .0928082{col 37}{space 1}   11.07{col 46}{space 3}0.000{col 54}{space 4} .8430494{col 67}{space 3} 1.211353
+{txt}{space 8}cash {c |}{col 14}{res}{space 2}  2.12232{col 26}{space 2} .1718513{col 37}{space 1}   12.35{col 46}{space 3}0.000{col 54}{space 4} 1.781329{col 67}{space 3}  2.46331
+{txt}{space 2}fiscalcash {c |}{col 14}{res}{space 2}-.8727769{col 26}{space 2}  .265504{col 37}{space 1}   -3.29{col 46}{space 3}0.001{col 54}{space 4}-1.399594{col 67}{space 3}-.3459594
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.0091178{col 26}{space 2} .0616944{col 37}{space 1}   -0.15{col 46}{space 3}0.883{col 54}{space 4} -.131533{col 67}{space 3} .1132974
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(2, 99)          =  {res}    93.18
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.3366
+                                                {txt}Root MSE          =    {res} 1.3265
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} .6992971{col 26}{space 2} .1146679{col 37}{space 1}    6.10{col 46}{space 3}0.000{col 54}{space 4} .4717711{col 67}{space 3} .9268231
+{txt}{space 8}cash {c |}{col 14}{res}{space 2} 1.789718{col 26}{space 2} .1377632{col 37}{space 1}   12.99{col 46}{space 3}0.000{col 54}{space 4} 1.516365{col 67}{space 3}  2.06307
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} .1666861{col 26}{space 2} .0788173{col 37}{space 1}    2.11{col 46}{space 3}0.037{col 54}{space 4} .0102955{col 67}{space 3} .3230767
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(3, 99)          =  {res}   110.72
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.3467
+                                                {txt}Root MSE          =    {res} 1.3172
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.027201{col 26}{space 2} .0928082{col 37}{space 1}   11.07{col 46}{space 3}0.000{col 54}{space 4} .8430494{col 67}{space 3} 1.211353
+{txt}{space 8}cash {c |}{col 14}{res}{space 2}  2.12232{col 26}{space 2} .1718513{col 37}{space 1}   12.35{col 46}{space 3}0.000{col 54}{space 4} 1.781329{col 67}{space 3}  2.46331
+{txt}{space 2}fiscalcash {c |}{col 14}{res}{space 2}-.6518243{col 26}{space 2} .2667127{col 37}{space 1}   -2.44{col 46}{space 3}0.016{col 54}{space 4} -1.18104{col 67}{space 3}-.1226085
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.0091178{col 26}{space 2} .0616944{col 37}{space 1}   -0.15{col 46}{space 3}0.883{col 54}{space 4} -.131533{col 67}{space 3} .1132974
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(2, 99)          =  {res}   112.11
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.3695
+                                                {txt}Root MSE          =    {res} 1.3162
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} .7976237{col 26}{space 2}  .114524{col 37}{space 1}    6.96{col 46}{space 3}0.000{col 54}{space 4} .5703831{col 67}{space 3} 1.024864
+{txt}{space 8}cash {c |}{col 14}{res}{space 2} 1.889453{col 26}{space 2} .1342118{col 37}{space 1}   14.08{col 46}{space 3}0.000{col 54}{space 4} 1.623147{col 67}{space 3} 2.155758
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} .1139689{col 26}{space 2} .0770974{col 37}{space 1}    1.48{col 46}{space 3}0.143{col 54}{space 4} -.039009{col 67}{space 3} .2669468
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(3, 99)          =  {res}   119.36
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.3742
+                                                {txt}Root MSE          =    {res} 1.3119
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.027201{col 26}{space 2} .0928082{col 37}{space 1}   11.07{col 46}{space 3}0.000{col 54}{space 4} .8430494{col 67}{space 3} 1.211353
+{txt}{space 8}cash {c |}{col 14}{res}{space 2}  2.12232{col 26}{space 2} .1718513{col 37}{space 1}   12.35{col 46}{space 3}0.000{col 54}{space 4} 1.781329{col 67}{space 3}  2.46331
+{txt}{space 2}fiscalcash {c |}{col 14}{res}{space 2}-.4563657{col 26}{space 2} .2637122{col 37}{space 1}   -1.73{col 46}{space 3}0.087{col 54}{space 4}-.9796279{col 67}{space 3} .0668965
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.0091178{col 26}{space 2} .0616944{col 37}{space 1}   -0.15{col 46}{space 3}0.883{col 54}{space 4} -.131533{col 67}{space 3} .1132974
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(2, 99)          =  {res}   125.50
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.3990
+                                                {txt}Root MSE          =    {res} 1.3198
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} .9027368{col 26}{space 2} .1157219{col 37}{space 1}    7.80{col 46}{space 3}0.000{col 54}{space 4} .6731194{col 67}{space 3} 1.132354
+{txt}{space 8}cash {c |}{col 14}{res}{space 2} 1.996072{col 26}{space 2} .1346401{col 37}{space 1}   14.83{col 46}{space 3}0.000{col 54}{space 4} 1.728917{col 67}{space 3} 2.263227
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}  .057613{col 26}{space 2} .0774073{col 37}{space 1}    0.74{col 46}{space 3}0.458{col 54}{space 4}-.0959799{col 67}{space 3}  .211206
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(3, 99)          =  {res}   128.22
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.4003
+                                                {txt}Root MSE          =    {res}  1.319
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.027201{col 26}{space 2} .0928082{col 37}{space 1}   11.07{col 46}{space 3}0.000{col 54}{space 4} .8430494{col 67}{space 3} 1.211353
+{txt}{space 8}cash {c |}{col 14}{res}{space 2}  2.12232{col 26}{space 2} .1718513{col 37}{space 1}   12.35{col 46}{space 3}0.000{col 54}{space 4} 1.781329{col 67}{space 3}  2.46331
+{txt}{space 2}fiscalcash {c |}{col 14}{res}{space 2}-.2474164{col 26}{space 2} .2672457{col 37}{space 1}   -0.93{col 46}{space 3}0.357{col 54}{space 4}-.7776898{col 67}{space 3} .2828571
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.0091178{col 26}{space 2} .0616944{col 37}{space 1}   -0.15{col 46}{space 3}0.883{col 54}{space 4} -.131533{col 67}{space 3} .1132974
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(2, 99)          =  {res}   140.54
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.4282
+                                                {txt}Root MSE          =    {res} 1.3213
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.007512{col 26}{space 2} .1171962{col 37}{space 1}    8.60{col 46}{space 3}0.000{col 54}{space 4} .7749695{col 67}{space 3} 1.240055
+{txt}{space 8}cash {c |}{col 14}{res}{space 2} 2.102349{col 26}{space 2} .1346986{col 37}{space 1}   15.61{col 46}{space 3}0.000{col 54}{space 4} 1.835077{col 67}{space 3}  2.36962
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} .0014383{col 26}{space 2}  .077629{col 37}{space 1}    0.02{col 46}{space 3}0.985{col 54}{space 4}-.1525945{col 67}{space 3} .1554711
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(3, 99)          =  {res}   136.92
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.4282
+                                                {txt}Root MSE          =    {res} 1.3219
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.027201{col 26}{space 2} .0928082{col 37}{space 1}   11.07{col 46}{space 3}0.000{col 54}{space 4} .8430494{col 67}{space 3} 1.211353
+{txt}{space 8}cash {c |}{col 14}{res}{space 2}  2.12232{col 26}{space 2} .1718513{col 37}{space 1}   12.35{col 46}{space 3}0.000{col 54}{space 4} 1.781329{col 67}{space 3}  2.46331
+{txt}{space 2}fiscalcash {c |}{col 14}{res}{space 2}-.0391385{col 26}{space 2} .2684534{col 37}{space 1}   -0.15{col 46}{space 3}0.884{col 54}{space 4}-.5718083{col 67}{space 3} .4935313
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.0091178{col 26}{space 2} .0616944{col 37}{space 1}   -0.15{col 46}{space 3}0.883{col 54}{space 4} -.131533{col 67}{space 3} .1132974
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(2, 99)          =  {res}   163.53
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.4575
+                                                {txt}Root MSE          =    {res} 1.3142
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.104269{col 26}{space 2} .1159679{col 37}{space 1}    9.52{col 46}{space 3}0.000{col 54}{space 4}  .874164{col 67}{space 3} 1.334375
+{txt}{space 8}cash {c |}{col 14}{res}{space 2} 2.200492{col 26}{space 2} .1330104{col 37}{space 1}   16.54{col 46}{space 3}0.000{col 54}{space 4} 1.936571{col 67}{space 3} 2.464414
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.0504376{col 26}{space 2} .0770736{col 37}{space 1}   -0.65{col 46}{space 3}0.514{col 54}{space 4}-.2033684{col 67}{space 3} .1024932
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(3, 99)          =  {res}   151.04
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.4579
+                                                {txt}Root MSE          =    {res} 1.3143
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.027201{col 26}{space 2} .0928082{col 37}{space 1}   11.07{col 46}{space 3}0.000{col 54}{space 4} .8430494{col 67}{space 3} 1.211353
+{txt}{space 8}cash {c |}{col 14}{res}{space 2}  2.12232{col 26}{space 2} .1718513{col 37}{space 1}   12.35{col 46}{space 3}0.000{col 54}{space 4} 1.781329{col 67}{space 3}  2.46331
+{txt}{space 2}fiscalcash {c |}{col 14}{res}{space 2} .1532006{col 26}{space 2} .2648017{col 37}{space 1}    0.58{col 46}{space 3}0.564{col 54}{space 4}-.3722234{col 67}{space 3} .6786245
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.0091178{col 26}{space 2} .0616944{col 37}{space 1}   -0.15{col 46}{space 3}0.883{col 54}{space 4} -.131533{col 67}{space 3} .1132974
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(2, 99)          =  {res}   180.27
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.4821
+                                                {txt}Root MSE          =    {res} 1.3179
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.202393{col 26}{space 2} .1166002{col 37}{space 1}   10.31{col 46}{space 3}0.000{col 54}{space 4} .9710326{col 67}{space 3} 1.433753
+{txt}{space 8}cash {c |}{col 14}{res}{space 2} 2.300021{col 26}{space 2} .1337344{col 37}{space 1}   17.20{col 46}{space 3}0.000{col 54}{space 4} 2.034663{col 67}{space 3} 2.565379
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.1030458{col 26}{space 2} .0777667{col 37}{space 1}   -1.33{col 46}{space 3}0.188{col 54}{space 4}-.2573518{col 67}{space 3} .0512601
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(3, 99)          =  {res}   162.68
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.4843
+                                                {txt}Root MSE          =    {res} 1.3157
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.027201{col 26}{space 2} .0928082{col 37}{space 1}   11.07{col 46}{space 3}0.000{col 54}{space 4} .8430494{col 67}{space 3} 1.211353
+{txt}{space 8}cash {c |}{col 14}{res}{space 2}  2.12232{col 26}{space 2} .1718513{col 37}{space 1}   12.35{col 46}{space 3}0.000{col 54}{space 4} 1.781329{col 67}{space 3}  2.46331
+{txt}{space 2}fiscalcash {c |}{col 14}{res}{space 2} .3482549{col 26}{space 2} .2644214{col 37}{space 1}    1.32{col 46}{space 3}0.191{col 54}{space 4}-.1764144{col 67}{space 3} .8729243
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.0091178{col 26}{space 2} .0616944{col 37}{space 1}   -0.15{col 46}{space 3}0.883{col 54}{space 4} -.131533{col 67}{space 3} .1132974
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(2, 99)          =  {res}   185.75
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.5053
+                                                {txt}Root MSE          =    {res} 1.3238
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.302642{col 26}{space 2} .1194111{col 37}{space 1}   10.91{col 46}{space 3}0.000{col 54}{space 4} 1.065705{col 67}{space 3}  1.53958
+{txt}{space 8}cash {c |}{col 14}{res}{space 2} 2.401707{col 26}{space 2} .1375473{col 37}{space 1}   17.46{col 46}{space 3}0.000{col 54}{space 4} 2.128784{col 67}{space 3} 2.674631
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.1567942{col 26}{space 2} .0800255{col 37}{space 1}   -1.96{col 46}{space 3}0.053{col 54}{space 4}-.3155822{col 67}{space 3} .0019939
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(3, 99)          =  {res}   169.48
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.5106
+                                                {txt}Root MSE          =    {res} 1.3174
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.027201{col 26}{space 2} .0928082{col 37}{space 1}   11.07{col 46}{space 3}0.000{col 54}{space 4} .8430494{col 67}{space 3} 1.211353
+{txt}{space 8}cash {c |}{col 14}{res}{space 2}  2.12232{col 26}{space 2} .1718513{col 37}{space 1}   12.35{col 46}{space 3}0.000{col 54}{space 4} 1.781329{col 67}{space 3}  2.46331
+{txt}{space 2}fiscalcash {c |}{col 14}{res}{space 2} .5475364{col 26}{space 2} .2686306{col 37}{space 1}    2.04{col 46}{space 3}0.044{col 54}{space 4}  .014515{col 67}{space 3} 1.080558
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.0091178{col 26}{space 2} .0616944{col 37}{space 1}   -0.15{col 46}{space 3}0.883{col 54}{space 4} -.131533{col 67}{space 3} .1132974
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(2, 99)          =  {res}   207.64
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.5281
+                                                {txt}Root MSE          =    {res} 1.3309
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.407962{col 26}{space 2}  .119113{col 37}{space 1}   11.82{col 46}{space 3}0.000{col 54}{space 4} 1.171616{col 67}{space 3} 1.644308
+{txt}{space 8}cash {c |}{col 14}{res}{space 2} 2.508536{col 26}{space 2} .1383999{col 37}{space 1}   18.13{col 46}{space 3}0.000{col 54}{space 4}  2.23392{col 67}{space 3} 2.783151
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.2132606{col 26}{space 2} .0809614{col 37}{space 1}   -2.63{col 46}{space 3}0.010{col 54}{space 4}-.3739055{col 67}{space 3}-.0526156
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(3, 99)          =  {res}   186.75
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.5377
+                                                {txt}Root MSE          =    {res}  1.318
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.027201{col 26}{space 2} .0928082{col 37}{space 1}   11.07{col 46}{space 3}0.000{col 54}{space 4} .8430494{col 67}{space 3} 1.211353
+{txt}{space 8}cash {c |}{col 14}{res}{space 2}  2.12232{col 26}{space 2} .1718513{col 37}{space 1}   12.35{col 46}{space 3}0.000{col 54}{space 4} 1.781329{col 67}{space 3}  2.46331
+{txt}{space 2}fiscalcash {c |}{col 14}{res}{space 2} .7568956{col 26}{space 2} .2653595{col 37}{space 1}    2.85{col 46}{space 3}0.005{col 54}{space 4} .2303648{col 67}{space 3} 1.283426
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.0091178{col 26}{space 2} .0616944{col 37}{space 1}   -0.15{col 46}{space 3}0.883{col 54}{space 4} -.131533{col 67}{space 3} .1132974
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(2, 99)          =  {res}   223.16
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.5486
+                                                {txt}Root MSE          =    {res} 1.3386
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.509399{col 26}{space 2} .1190875{col 37}{space 1}   12.67{col 46}{space 3}0.000{col 54}{space 4} 1.273104{col 67}{space 3} 1.745695
+{txt}{space 8}cash {c |}{col 14}{res}{space 2} 2.611426{col 26}{space 2}  .141393{col 37}{space 1}   18.47{col 46}{space 3}0.000{col 54}{space 4} 2.330872{col 67}{space 3} 2.891981
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.2676456{col 26}{space 2} .0829708{col 37}{space 1}   -3.23{col 46}{space 3}0.002{col 54}{space 4}-.4322777{col 67}{space 3}-.1030136
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(3, 99)          =  {res}   204.34
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.5631
+                                                {txt}Root MSE          =    {res} 1.3177
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.027201{col 26}{space 2} .0928082{col 37}{space 1}   11.07{col 46}{space 3}0.000{col 54}{space 4} .8430494{col 67}{space 3} 1.211353
+{txt}{space 8}cash {c |}{col 14}{res}{space 2}  2.12232{col 26}{space 2} .1718513{col 37}{space 1}   12.35{col 46}{space 3}0.000{col 54}{space 4} 1.781329{col 67}{space 3}  2.46331
+{txt}{space 2}fiscalcash {c |}{col 14}{res}{space 2}  .958538{col 26}{space 2} .2650834{col 37}{space 1}    3.62{col 46}{space 3}0.000{col 54}{space 4}  .432555{col 67}{space 3} 1.484521
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.0091178{col 26}{space 2} .0616944{col 37}{space 1}   -0.15{col 46}{space 3}0.883{col 54}{space 4} -.131533{col 67}{space 3} .1132974
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. //_3
+. forval val = 1/2 {c -(}
+{txt}  2{com}.     foreach var in fiscal cash {c -(}
+{txt}  3{com}.         mat lower`var'`val' = b`var'`val' - 1.96*se`var'`val'
+{txt}  4{com}.         mat upper`var'`val' = b`var'`val' + 1.96*se`var'`val'
+{txt}  5{com}.     {c )-}
+{txt}  6{com}. {c )-}
+{txt}
+{com}. forval val = 1/2 {c -(}
+{txt}  2{com}.     foreach var in fiscal cash {c -(}
+{txt}  3{com}.         svmat b`var'`val'
+{txt}  4{com}.         svmat lower`var'`val'
+{txt}  5{com}.         svmat upper`var'`val'
+{txt}  6{com}.     {c )-}
+{txt}  7{com}. {c )-}
+{txt}
+{com}. svmat meaninteractions
+{txt}
+{com}. forval val = 1/2 {c -(}
+{txt}  2{com}. twoway (rcap upperfiscal`val' lowerfiscal`val' meaninteractions) ///
+> (connected bfiscal`val' meaninteractions) (rcap uppercash`val' lowercash`val' meaninteractions) ///
+> (connected bcash`val' meaninteractions, yaxis(1 2)), yline(1, axis(2)) yline(2, axis(2)) ///
+> legend(order(1 "ATEhat fiscal" 2 "ATEhat cash") position(6) row(1)) ///
+> xtitle("mean interaction") ylabel(1 "ATE fiscal" 2 "ATE cash") name(ate`val', replace)
+{txt}  3{com}. {c )-}
+{res}{txt}
+{com}. graph combine ate1 ate2
+{res}{txt}
+{com}. graph export output/6.png, replace 
+{txt}{p 0 4 2}
+file {bf}
+output/6.png{rm}
+saved as
+PNG
+format
+{p_end}
+
+{com}. //_4
+. eststo clear
+{txt}
+{com}. forval meaninteraction = 0/1 {c -(}
+{txt}  2{com}. qui createoutcomes, meaninteraction(`meaninteraction')
+{txt}  3{com}. eststo: reg outcome fiscal cash, cl(village)
+{txt}  4{com}. eststo: reghdfe outcome cash, absorb(village) cluster(village)
+{txt}  5{com}. {c )-}
+
+{txt}Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(2, 99)          =  {res}   143.26
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.4302
+                                                {txt}Root MSE          =    {res} 1.3198
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.012562{col 26}{space 2} .1164006{col 37}{space 1}    8.70{col 46}{space 3}0.000{col 54}{space 4} .7815982{col 67}{space 3} 1.243526
+{txt}{space 8}cash {c |}{col 14}{res}{space 2} 2.107471{col 26}{space 2} .1342541{col 37}{space 1}   15.70{col 46}{space 3}0.000{col 54}{space 4} 1.841082{col 67}{space 3}  2.37386
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.0012693{col 26}{space 2} .0774252{col 37}{space 1}   -0.02{col 46}{space 3}0.987{col 54}{space 4}-.1548977{col 67}{space 3} .1523592
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}({res}est1{txt} stored)
+{res}{txt}({browse "http://scorreia.com/research/hdfe.pdf":MWFE estimator} converged in 1 iterations)
+{res}
+{txt}HDFE Linear regression{col 51}Number of obs{col 67}= {res}     1,000
+{txt}Absorbing 1 HDFE group{col 51}F({res}   1{txt},{res}     99{txt}){col 67}= {res}    230.34
+{txt}Statistics robust to heteroskedasticity{col 51}Prob > F{col 67}= {res}    0.0000
+{txt}{col 51}R-squared{col 67}= {res}    0.5387
+{txt}{col 51}Adj R-squared{col 67}= {res}    0.4874
+{txt}{col 51}Within R-sq.{col 67}= {res}    0.4133
+{txt}{col 1}Number of clusters ({res}village{txt}) {col 30}= {res}       100{txt}{col 51}Root MSE{col 67}= {res}    1.2506
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 8}cash {c |}{col 14}{res}{space 2} 2.102815{col 26}{space 2} .1385527{col 37}{space 1}   15.18{col 46}{space 3}0.000{col 54}{space 4} 1.827897{col 67}{space 3} 2.377734
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} .5174745{col 26}{space 2} .0695535{col 37}{space 1}    7.44{col 46}{space 3}0.000{col 54}{space 4} .3794654{col 67}{space 3} .6554837
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Absorbed degrees of freedom:
+{res}{col 1}{text}{hline 13}{c TT}{hline 12}{hline 12}{hline 14}{hline 1}{c TRC}
+{col 1}{text} Absorbed FE{col 14}{c |} Categories{col 27} - Redundant{col 39}  = Num. Coefs{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c +}{hline 12}{hline 12}{hline 14}{hline 1}{c RT}
+{col 1}{text}     village{col 14}{c |}{space 1}      100{col 27}{space 1}      100{col 39}{result}{space 1}        0{col 53}{text}*{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c BT}{hline 12}{hline 12}{hline 14}{hline 1}{c BRC}
+* = FE nested within cluster; treated as redundant for DoF computation
+{res}{txt}({res}est2{txt} stored)
+
+Linear regression                               Number of obs     = {res}     1,000
+                                                {txt}F(2, 99)          =  {res}   219.82
+                                                {txt}Prob > F          = {res}    0.0000
+                                                {txt}R-squared         = {res}    0.5496
+                                                {txt}Root MSE          =    {res}   1.34
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}fiscal {c |}{col 14}{res}{space 2} 1.515718{col 26}{space 2} .1200452{col 37}{space 1}   12.63{col 46}{space 3}0.000{col 54}{space 4} 1.277523{col 67}{space 3} 1.753914
+{txt}{space 8}cash {c |}{col 14}{res}{space 2} 2.617836{col 26}{space 2} .1422463{col 37}{space 1}   18.40{col 46}{space 3}0.000{col 54}{space 4} 2.335589{col 67}{space 3} 2.900084
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2}-.2710337{col 26}{space 2} .0834156{col 37}{space 1}   -3.25{col 46}{space 3}0.002{col 54}{space 4}-.4365482{col 67}{space 3}-.1055191
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}({res}est3{txt} stored)
+{res}{txt}({browse "http://scorreia.com/research/hdfe.pdf":MWFE estimator} converged in 1 iterations)
+{res}
+{txt}HDFE Linear regression{col 51}Number of obs{col 67}= {res}     1,000
+{txt}Absorbing 1 HDFE group{col 51}F({res}   1{txt},{res}     99{txt}){col 67}= {res}    333.69
+{txt}Statistics robust to heteroskedasticity{col 51}Prob > F{col 67}= {res}    0.0000
+{txt}{col 51}R-squared{col 67}= {res}    0.6381
+{txt}{col 51}Adj R-squared{col 67}= {res}    0.5979
+{txt}{col 51}Within R-sq.{col 67}= {res}    0.5160
+{txt}{col 1}Number of clusters ({res}village{txt}) {col 30}= {res}       100{txt}{col 51}Root MSE{col 67}= {res}    1.2648
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 8}cash {c |}{col 14}{res}{space 2} 2.616252{col 26}{space 2} .1432223{col 37}{space 1}   18.27{col 46}{space 3}0.000{col 54}{space 4} 2.332068{col 67}{space 3} 2.900437
+{txt}{space 7}_cons {c |}{col 14}{res}{space 2} .5027776{col 26}{space 2} .0718976{col 37}{space 1}    6.99{col 46}{space 3}0.000{col 54}{space 4} .3601172{col 67}{space 3} .6454381
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Absorbed degrees of freedom:
+{res}{col 1}{text}{hline 13}{c TT}{hline 12}{hline 12}{hline 14}{hline 1}{c TRC}
+{col 1}{text} Absorbed FE{col 14}{c |} Categories{col 27} - Redundant{col 39}  = Num. Coefs{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c +}{hline 12}{hline 12}{hline 14}{hline 1}{c RT}
+{col 1}{text}     village{col 14}{c |}{space 1}      100{col 27}{space 1}      100{col 39}{result}{space 1}        0{col 53}{text}*{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c BT}{hline 12}{hline 12}{hline 14}{hline 1}{c BRC}
+* = FE nested within cluster; treated as redundant for DoF computation
+{res}{txt}({res}est4{txt} stored)
+
+{com}. esttab using output/7.tex,  keep(fiscal cash) replace
+{res}{txt}(output written to {browse  `"output/7.tex"'})
+
+{com}. //_5
+. qui createoutcomes, meaninteraction(0)
+{txt}
+{com}. gen cashvillage = cash*village
+{txt}
+{com}. reghdfe outcome i.cashvillage, absorb(village) cluster(village) nocons
+{res}{txt}({browse "http://scorreia.com/research/hdfe.pdf":MWFE estimator} converged in 1 iterations)
+{res}{txt}warning: missing F statistic; dropped variables due to collinearity or too few clusters
+{res}
+{txt}HDFE Linear regression{col 51}Number of obs{col 67}= {res}     1,000
+{txt}Absorbing 1 HDFE group{col 51}{help j_robustsingular##|_new:F( 100,     99)}{col 67}=          {res}.
+{txt}Statistics robust to heteroskedasticity{col 51}Prob > F{col 67}=          {res}.
+{txt}{col 51}R-squared{col 67}= {res}    0.6797
+{txt}{col 51}Adj R-squared{col 67}= {res}    0.6001
+{txt}{col 51}Within R-sq.{col 67}= {res}    0.5908
+{txt}{col 1}Number of clusters ({res}village{txt}) {col 30}= {res}       100{txt}{col 51}Root MSE{col 67}= {res}    1.1025
+
+{txt}{ralign 78:(Std. err. adjusted for {res:100} clusters in {res:village})}
+{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 14}{c |}{col 26}    Robust
+{col 1}     outcome{col 14}{c |} Coefficient{col 26}  std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 1}cashvillage {c |}
+{space 10}1  {c |}{col 14}{res}{space 2}-.2519655{col 26}{space 2} 8.17e-16{col 37}{space 1}-3.1e+14{col 46}{space 3}0.000{col 54}{space 4}-.2519655{col 67}{space 3}-.2519655
+{txt}{space 10}2  {c |}{col 14}{res}{space 2} .6486503{col 26}{space 2} 1.65e-15{col 37}{space 1} 3.9e+14{col 46}{space 3}0.000{col 54}{space 4} .6486503{col 67}{space 3} .6486503
+{txt}{space 10}3  {c |}{col 14}{res}{space 2}  .419822{col 26}{space 2} 1.98e-16{col 37}{space 1} 2.1e+15{col 46}{space 3}0.000{col 54}{space 4}  .419822{col 67}{space 3}  .419822
+{txt}{space 10}4  {c |}{col 14}{res}{space 2} 1.514426{col 26}{space 2} 6.25e-16{col 37}{space 1} 2.4e+15{col 46}{space 3}0.000{col 54}{space 4} 1.514426{col 67}{space 3} 1.514426
+{txt}{space 10}5  {c |}{col 14}{res}{space 2}  .635456{col 26}{space 2} 1.40e-15{col 37}{space 1} 4.5e+14{col 46}{space 3}0.000{col 54}{space 4}  .635456{col 67}{space 3}  .635456
+{txt}{space 10}6  {c |}{col 14}{res}{space 2} 1.740636{col 26}{space 2} 1.97e-15{col 37}{space 1} 8.9e+14{col 46}{space 3}0.000{col 54}{space 4} 1.740636{col 67}{space 3} 1.740636
+{txt}{space 10}7  {c |}{col 14}{res}{space 2} 1.116605{col 26}{space 2} 7.39e-16{col 37}{space 1} 1.5e+15{col 46}{space 3}0.000{col 54}{space 4} 1.116605{col 67}{space 3} 1.116605
+{txt}{space 10}8  {c |}{col 14}{res}{space 2}  5.30158{col 26}{space 2} 2.37e-16{col 37}{space 1} 2.2e+16{col 46}{space 3}0.000{col 54}{space 4}  5.30158{col 67}{space 3}  5.30158
+{txt}{space 10}9  {c |}{col 14}{res}{space 2} 2.733224{col 26}{space 2} 2.65e-15{col 37}{space 1} 1.0e+15{col 46}{space 3}0.000{col 54}{space 4} 2.733224{col 67}{space 3} 2.733224
+{txt}{space 9}10  {c |}{col 14}{res}{space 2} 1.694548{col 26}{space 2} 2.57e-16{col 37}{space 1} 6.6e+15{col 46}{space 3}0.000{col 54}{space 4} 1.694548{col 67}{space 3} 1.694548
+{txt}{space 9}11  {c |}{col 14}{res}{space 2}  1.81012{col 26}{space 2} 2.00e-16{col 37}{space 1} 9.0e+15{col 46}{space 3}0.000{col 54}{space 4}  1.81012{col 67}{space 3}  1.81012
+{txt}{space 9}12  {c |}{col 14}{res}{space 2} 2.870504{col 26}{space 2} 6.74e-16{col 37}{space 1} 4.3e+15{col 46}{space 3}0.000{col 54}{space 4} 2.870504{col 67}{space 3} 2.870504
+{txt}{space 9}13  {c |}{col 14}{res}{space 2} 1.394961{col 26}{space 2} 1.89e-16{col 37}{space 1} 7.4e+15{col 46}{space 3}0.000{col 54}{space 4} 1.394961{col 67}{space 3} 1.394961
+{txt}{space 9}14  {c |}{col 14}{res}{space 2} .2850714{col 26}{space 2} 1.62e-17{col 37}{space 1} 1.8e+16{col 46}{space 3}0.000{col 54}{space 4} .2850714{col 67}{space 3} .2850714
+{txt}{space 9}15  {c |}{col 14}{res}{space 2} 1.117079{col 26}{space 2} 1.15e-16{col 37}{space 1} 9.7e+15{col 46}{space 3}0.000{col 54}{space 4} 1.117079{col 67}{space 3} 1.117079
+{txt}{space 9}16  {c |}{col 14}{res}{space 2}-1.755548{col 26}{space 2} 1.32e-16{col 37}{space 1}-1.3e+16{col 46}{space 3}0.000{col 54}{space 4}-1.755548{col 67}{space 3}-1.755548
+{txt}{space 9}17  {c |}{col 14}{res}{space 2} 2.564186{col 26}{space 2} 3.27e-16{col 37}{space 1} 7.8e+15{col 46}{space 3}0.000{col 54}{space 4} 2.564186{col 67}{space 3} 2.564186
+{txt}{space 9}18  {c |}{col 14}{res}{space 2} 2.211606{col 26}{space 2} 1.41e-15{col 37}{space 1} 1.6e+15{col 46}{space 3}0.000{col 54}{space 4} 2.211606{col 67}{space 3} 2.211606
+{txt}{space 9}19  {c |}{col 14}{res}{space 2}  1.63352{col 26}{space 2} 2.16e-17{col 37}{space 1} 7.6e+16{col 46}{space 3}0.000{col 54}{space 4}  1.63352{col 67}{space 3}  1.63352
+{txt}{space 9}20  {c |}{col 14}{res}{space 2}-.9757442{col 26}{space 2} 7.75e-17{col 37}{space 1}-1.3e+16{col 46}{space 3}0.000{col 54}{space 4}-.9757442{col 67}{space 3}-.9757442
+{txt}{space 9}21  {c |}{col 14}{res}{space 2} .8901843{col 26}{space 2} 1.61e-17{col 37}{space 1} 5.5e+16{col 46}{space 3}0.000{col 54}{space 4} .8901843{col 67}{space 3} .8901843
+{txt}{space 9}22  {c |}{col 14}{res}{space 2} 2.448412{col 26}{space 2} 4.75e-16{col 37}{space 1} 5.2e+15{col 46}{space 3}0.000{col 54}{space 4} 2.448412{col 67}{space 3} 2.448412
+{txt}{space 9}23  {c |}{col 14}{res}{space 2} 1.999855{col 26}{space 2} 1.68e-16{col 37}{space 1} 1.2e+16{col 46}{space 3}0.000{col 54}{space 4} 1.999855{col 67}{space 3} 1.999855
+{txt}{space 9}24  {c |}{col 14}{res}{space 2} 3.529332{col 26}{space 2} 1.51e-16{col 37}{space 1} 2.3e+16{col 46}{space 3}0.000{col 54}{space 4} 3.529332{col 67}{space 3} 3.529332
+{txt}{space 9}25  {c |}{col 14}{res}{space 2} 5.380382{col 26}{space 2} 1.08e-15{col 37}{space 1} 5.0e+15{col 46}{space 3}0.000{col 54}{space 4} 5.380382{col 67}{space 3} 5.380382
+{txt}{space 9}26  {c |}{col 14}{res}{space 2} 2.657762{col 26}{space 2} 1.79e-15{col 37}{space 1} 1.5e+15{col 46}{space 3}0.000{col 54}{space 4} 2.657762{col 67}{space 3} 2.657762
+{txt}{space 9}27  {c |}{col 14}{res}{space 2} 1.306294{col 26}{space 2} 3.72e-16{col 37}{space 1} 3.5e+15{col 46}{space 3}0.000{col 54}{space 4} 1.306294{col 67}{space 3} 1.306294
+{txt}{space 9}28  {c |}{col 14}{res}{space 2} 2.322361{col 26}{space 2} 4.44e-16{col 37}{space 1} 5.2e+15{col 46}{space 3}0.000{col 54}{space 4} 2.322361{col 67}{space 3} 2.322361
+{txt}{space 9}29  {c |}{col 14}{res}{space 2} 2.766869{col 26}{space 2} 2.17e-17{col 37}{space 1} 1.3e+17{col 46}{space 3}0.000{col 54}{space 4} 2.766869{col 67}{space 3} 2.766869
+{txt}{space 9}30  {c |}{col 14}{res}{space 2} 1.807286{col 26}{space 2} 5.58e-16{col 37}{space 1} 3.2e+15{col 46}{space 3}0.000{col 54}{space 4} 1.807286{col 67}{space 3} 1.807286
+{txt}{space 9}31  {c |}{col 14}{res}{space 2}-1.632543{col 26}{space 2} 1.66e-16{col 37}{space 1}-9.8e+15{col 46}{space 3}0.000{col 54}{space 4}-1.632543{col 67}{space 3}-1.632543
+{txt}{space 9}32  {c |}{col 14}{res}{space 2} 1.725048{col 26}{space 2} 9.44e-17{col 37}{space 1} 1.8e+16{col 46}{space 3}0.000{col 54}{space 4} 1.725048{col 67}{space 3} 1.725048
+{txt}{space 9}33  {c |}{col 14}{res}{space 2} 4.137882{col 26}{space 2} 9.98e-16{col 37}{space 1} 4.1e+15{col 46}{space 3}0.000{col 54}{space 4} 4.137882{col 67}{space 3} 4.137882
+{txt}{space 9}34  {c |}{col 14}{res}{space 2} 3.255395{col 26}{space 2} 1.91e-16{col 37}{space 1} 1.7e+16{col 46}{space 3}0.000{col 54}{space 4} 3.255395{col 67}{space 3} 3.255395
+{txt}{space 9}35  {c |}{col 14}{res}{space 2} 5.235529{col 26}{space 2} 1.11e-15{col 37}{space 1} 4.7e+15{col 46}{space 3}0.000{col 54}{space 4} 5.235529{col 67}{space 3} 5.235529
+{txt}{space 9}36  {c |}{col 14}{res}{space 2} 4.432299{col 26}{space 2} 3.46e-16{col 37}{space 1} 1.3e+16{col 46}{space 3}0.000{col 54}{space 4} 4.432299{col 67}{space 3} 4.432299
+{txt}{space 9}37  {c |}{col 14}{res}{space 2} 3.545647{col 26}{space 2} 2.38e-16{col 37}{space 1} 1.5e+16{col 46}{space 3}0.000{col 54}{space 4} 3.545647{col 67}{space 3} 3.545647
+{txt}{space 9}38  {c |}{col 14}{res}{space 2} 4.246269{col 26}{space 2} 1.31e-15{col 37}{space 1} 3.2e+15{col 46}{space 3}0.000{col 54}{space 4} 4.246269{col 67}{space 3} 4.246269
+{txt}{space 9}39  {c |}{col 14}{res}{space 2} 1.160994{col 26}{space 2} 2.16e-16{col 37}{space 1} 5.4e+15{col 46}{space 3}0.000{col 54}{space 4} 1.160994{col 67}{space 3} 1.160994
+{txt}{space 9}40  {c |}{col 14}{res}{space 2} 3.249572{col 26}{space 2} 5.26e-16{col 37}{space 1} 6.2e+15{col 46}{space 3}0.000{col 54}{space 4} 3.249572{col 67}{space 3} 3.249572
+{txt}{space 9}41  {c |}{col 14}{res}{space 2} 2.691579{col 26}{space 2} 1.27e-15{col 37}{space 1} 2.1e+15{col 46}{space 3}0.000{col 54}{space 4} 2.691579{col 67}{space 3} 2.691579
+{txt}{space 9}42  {c |}{col 14}{res}{space 2} 2.599197{col 26}{space 2} 1.15e-15{col 37}{space 1} 2.3e+15{col 46}{space 3}0.000{col 54}{space 4} 2.599197{col 67}{space 3} 2.599197
+{txt}{space 9}43  {c |}{col 14}{res}{space 2} 3.248288{col 26}{space 2} 1.06e-15{col 37}{space 1} 3.1e+15{col 46}{space 3}0.000{col 54}{space 4} 3.248288{col 67}{space 3} 3.248288
+{txt}{space 9}44  {c |}{col 14}{res}{space 2} 2.817242{col 26}{space 2} 7.24e-17{col 37}{space 1} 3.9e+16{col 46}{space 3}0.000{col 54}{space 4} 2.817242{col 67}{space 3} 2.817242
+{txt}{space 9}45  {c |}{col 14}{res}{space 2} .8754295{col 26}{space 2} 2.31e-16{col 37}{space 1} 3.8e+15{col 46}{space 3}0.000{col 54}{space 4} .8754295{col 67}{space 3} .8754295
+{txt}{space 9}46  {c |}{col 14}{res}{space 2} 2.490441{col 26}{space 2} 4.42e-16{col 37}{space 1} 5.6e+15{col 46}{space 3}0.000{col 54}{space 4} 2.490441{col 67}{space 3} 2.490441
+{txt}{space 9}47  {c |}{col 14}{res}{space 2} 2.601405{col 26}{space 2} 8.15e-17{col 37}{space 1} 3.2e+16{col 46}{space 3}0.000{col 54}{space 4} 2.601405{col 67}{space 3} 2.601405
+{txt}{space 9}48  {c |}{col 14}{res}{space 2}-.3305369{col 26}{space 2} 4.44e-17{col 37}{space 1}-7.4e+15{col 46}{space 3}0.000{col 54}{space 4}-.3305369{col 67}{space 3}-.3305369
+{txt}{space 9}49  {c |}{col 14}{res}{space 2} 3.183808{col 26}{space 2} 9.00e-16{col 37}{space 1} 3.5e+15{col 46}{space 3}0.000{col 54}{space 4} 3.183808{col 67}{space 3} 3.183808
+{txt}{space 9}50  {c |}{col 14}{res}{space 2} .4421195{col 26}{space 2} 2.12e-16{col 37}{space 1} 2.1e+15{col 46}{space 3}0.000{col 54}{space 4} .4421195{col 67}{space 3} .4421195
+{txt}{space 9}51  {c |}{col 14}{res}{space 2} 3.703597{col 26}{space 2} 2.19e-16{col 37}{space 1} 1.7e+16{col 46}{space 3}0.000{col 54}{space 4} 3.703597{col 67}{space 3} 3.703597
+{txt}{space 9}52  {c |}{col 14}{res}{space 2} 1.965669{col 26}{space 2} 9.26e-17{col 37}{space 1} 2.1e+16{col 46}{space 3}0.000{col 54}{space 4} 1.965669{col 67}{space 3} 1.965669
+{txt}{space 9}53  {c |}{col 14}{res}{space 2} 2.852285{col 26}{space 2} 7.53e-16{col 37}{space 1} 3.8e+15{col 46}{space 3}0.000{col 54}{space 4} 2.852285{col 67}{space 3} 2.852285
+{txt}{space 9}54  {c |}{col 14}{res}{space 2} 4.006495{col 26}{space 2} 4.21e-16{col 37}{space 1} 9.5e+15{col 46}{space 3}0.000{col 54}{space 4} 4.006495{col 67}{space 3} 4.006495
+{txt}{space 9}55  {c |}{col 14}{res}{space 2} .3779708{col 26}{space 2} 1.63e-17{col 37}{space 1} 2.3e+16{col 46}{space 3}0.000{col 54}{space 4} .3779708{col 67}{space 3} .3779708
+{txt}{space 9}56  {c |}{col 14}{res}{space 2}  1.62432{col 26}{space 2} 8.82e-17{col 37}{space 1} 1.8e+16{col 46}{space 3}0.000{col 54}{space 4}  1.62432{col 67}{space 3}  1.62432
+{txt}{space 9}57  {c |}{col 14}{res}{space 2} 3.036735{col 26}{space 2} 1.56e-16{col 37}{space 1} 1.9e+16{col 46}{space 3}0.000{col 54}{space 4} 3.036735{col 67}{space 3} 3.036735
+{txt}{space 9}58  {c |}{col 14}{res}{space 2}  .528274{col 26}{space 2} 8.68e-18{col 37}{space 1} 6.1e+16{col 46}{space 3}0.000{col 54}{space 4}  .528274{col 67}{space 3}  .528274
+{txt}{space 9}59  {c |}{col 14}{res}{space 2} 2.903936{col 26}{space 2} 1.16e-16{col 37}{space 1} 2.5e+16{col 46}{space 3}0.000{col 54}{space 4} 2.903936{col 67}{space 3} 2.903936
+{txt}{space 9}60  {c |}{col 14}{res}{space 2}-.5810311{col 26}{space 2} 2.10e-16{col 37}{space 1}-2.8e+15{col 46}{space 3}0.000{col 54}{space 4}-.5810311{col 67}{space 3}-.5810311
+{txt}{space 9}61  {c |}{col 14}{res}{space 2} 1.918054{col 26}{space 2} 1.91e-16{col 37}{space 1} 1.0e+16{col 46}{space 3}0.000{col 54}{space 4} 1.918054{col 67}{space 3} 1.918054
+{txt}{space 9}62  {c |}{col 14}{res}{space 2} 3.031955{col 26}{space 2} 5.34e-16{col 37}{space 1} 5.7e+15{col 46}{space 3}0.000{col 54}{space 4} 3.031955{col 67}{space 3} 3.031955
+{txt}{space 9}63  {c |}{col 14}{res}{space 2} 1.700637{col 26}{space 2} 2.78e-16{col 37}{space 1} 6.1e+15{col 46}{space 3}0.000{col 54}{space 4} 1.700637{col 67}{space 3} 1.700637
+{txt}{space 9}64  {c |}{col 14}{res}{space 2} 1.500088{col 26}{space 2} 4.33e-17{col 37}{space 1} 3.5e+16{col 46}{space 3}0.000{col 54}{space 4} 1.500088{col 67}{space 3} 1.500088
+{txt}{space 9}65  {c |}{col 14}{res}{space 2} 1.051466{col 26}{space 2} 1.91e-16{col 37}{space 1} 5.5e+15{col 46}{space 3}0.000{col 54}{space 4} 1.051466{col 67}{space 3} 1.051466
+{txt}{space 9}66  {c |}{col 14}{res}{space 2} 3.617468{col 26}{space 2} 1.86e-15{col 37}{space 1} 1.9e+15{col 46}{space 3}0.000{col 54}{space 4} 3.617468{col 67}{space 3} 3.617468
+{txt}{space 9}67  {c |}{col 14}{res}{space 2} 3.382502{col 26}{space 2} 5.07e-16{col 37}{space 1} 6.7e+15{col 46}{space 3}0.000{col 54}{space 4} 3.382502{col 67}{space 3} 3.382502
+{txt}{space 9}68  {c |}{col 14}{res}{space 2} 3.279076{col 26}{space 2} 6.00e-16{col 37}{space 1} 5.5e+15{col 46}{space 3}0.000{col 54}{space 4} 3.279076{col 67}{space 3} 3.279076
+{txt}{space 9}69  {c |}{col 14}{res}{space 2} 1.286212{col 26}{space 2} 3.28e-16{col 37}{space 1} 3.9e+15{col 46}{space 3}0.000{col 54}{space 4} 1.286212{col 67}{space 3} 1.286212
+{txt}{space 9}70  {c |}{col 14}{res}{space 2} 2.639116{col 26}{space 2} 2.04e-17{col 37}{space 1} 1.3e+17{col 46}{space 3}0.000{col 54}{space 4} 2.639116{col 67}{space 3} 2.639116
+{txt}{space 9}71  {c |}{col 14}{res}{space 2} 2.597146{col 26}{space 2} 7.88e-16{col 37}{space 1} 3.3e+15{col 46}{space 3}0.000{col 54}{space 4} 2.597146{col 67}{space 3} 2.597146
+{txt}{space 9}72  {c |}{col 14}{res}{space 2} 2.488532{col 26}{space 2} 6.68e-16{col 37}{space 1} 3.7e+15{col 46}{space 3}0.000{col 54}{space 4} 2.488532{col 67}{space 3} 2.488532
+{txt}{space 9}73  {c |}{col 14}{res}{space 2} 2.451899{col 26}{space 2} 6.23e-16{col 37}{space 1} 3.9e+15{col 46}{space 3}0.000{col 54}{space 4} 2.451899{col 67}{space 3} 2.451899
+{txt}{space 9}74  {c |}{col 14}{res}{space 2} 1.242057{col 26}{space 2} 5.29e-17{col 37}{space 1} 2.3e+16{col 46}{space 3}0.000{col 54}{space 4} 1.242057{col 67}{space 3} 1.242057
+{txt}{space 9}75  {c |}{col 14}{res}{space 2} 3.513593{col 26}{space 2} 3.15e-16{col 37}{space 1} 1.1e+16{col 46}{space 3}0.000{col 54}{space 4} 3.513593{col 67}{space 3} 3.513593
+{txt}{space 9}76  {c |}{col 14}{res}{space 2} 2.853442{col 26}{space 2} 5.72e-16{col 37}{space 1} 5.0e+15{col 46}{space 3}0.000{col 54}{space 4} 2.853442{col 67}{space 3} 2.853442
+{txt}{space 9}77  {c |}{col 14}{res}{space 2} 3.201452{col 26}{space 2} 6.54e-16{col 37}{space 1} 4.9e+15{col 46}{space 3}0.000{col 54}{space 4} 3.201452{col 67}{space 3} 3.201452
+{txt}{space 9}78  {c |}{col 14}{res}{space 2} 2.582567{col 26}{space 2} 3.99e-16{col 37}{space 1} 6.5e+15{col 46}{space 3}0.000{col 54}{space 4} 2.582567{col 67}{space 3} 2.582567
+{txt}{space 9}79  {c |}{col 14}{res}{space 2} 2.366299{col 26}{space 2} 8.39e-17{col 37}{space 1} 2.8e+16{col 46}{space 3}0.000{col 54}{space 4} 2.366299{col 67}{space 3} 2.366299
+{txt}{space 9}80  {c |}{col 14}{res}{space 2} 1.414281{col 26}{space 2} 3.13e-16{col 37}{space 1} 4.5e+15{col 46}{space 3}0.000{col 54}{space 4} 1.414281{col 67}{space 3} 1.414281
+{txt}{space 9}81  {c |}{col 14}{res}{space 2} .6490483{col 26}{space 2} 2.14e-16{col 37}{space 1} 3.0e+15{col 46}{space 3}0.000{col 54}{space 4} .6490483{col 67}{space 3} .6490483
+{txt}{space 9}82  {c |}{col 14}{res}{space 2} .7713091{col 26}{space 2} 1.06e-16{col 37}{space 1} 7.3e+15{col 46}{space 3}0.000{col 54}{space 4} .7713091{col 67}{space 3} .7713091
+{txt}{space 9}83  {c |}{col 14}{res}{space 2} 2.200601{col 26}{space 2} 1.40e-16{col 37}{space 1} 1.6e+16{col 46}{space 3}0.000{col 54}{space 4} 2.200601{col 67}{space 3} 2.200601
+{txt}{space 9}84  {c |}{col 14}{res}{space 2} 1.567714{col 26}{space 2} 6.87e-16{col 37}{space 1} 2.3e+15{col 46}{space 3}0.000{col 54}{space 4} 1.567714{col 67}{space 3} 1.567714
+{txt}{space 9}85  {c |}{col 14}{res}{space 2} .5099936{col 26}{space 2} 6.95e-17{col 37}{space 1} 7.3e+15{col 46}{space 3}0.000{col 54}{space 4} .5099936{col 67}{space 3} .5099936
+{txt}{space 9}86  {c |}{col 14}{res}{space 2} 2.382346{col 26}{space 2} 6.71e-16{col 37}{space 1} 3.5e+15{col 46}{space 3}0.000{col 54}{space 4} 2.382346{col 67}{space 3} 2.382346
+{txt}{space 9}87  {c |}{col 14}{res}{space 2} .5354699{col 26}{space 2} 5.29e-17{col 37}{space 1} 1.0e+16{col 46}{space 3}0.000{col 54}{space 4} .5354699{col 67}{space 3} .5354699
+{txt}{space 9}88  {c |}{col 14}{res}{space 2} 3.749823{col 26}{space 2} 2.37e-15{col 37}{space 1} 1.6e+15{col 46}{space 3}0.000{col 54}{space 4} 3.749823{col 67}{space 3} 3.749823
+{txt}{space 9}89  {c |}{col 14}{res}{space 2} 2.085331{col 26}{space 2} 2.64e-16{col 37}{space 1} 7.9e+15{col 46}{space 3}0.000{col 54}{space 4} 2.085331{col 67}{space 3} 2.085331
+{txt}{space 9}90  {c |}{col 14}{res}{space 2}-.1156306{col 26}{space 2} 1.19e-16{col 37}{space 1}-9.7e+14{col 46}{space 3}0.000{col 54}{space 4}-.1156306{col 67}{space 3}-.1156306
+{txt}{space 9}91  {c |}{col 14}{res}{space 2} 2.372674{col 26}{space 2} 3.26e-17{col 37}{space 1} 7.3e+16{col 46}{space 3}0.000{col 54}{space 4} 2.372674{col 67}{space 3} 2.372674
+{txt}{space 9}92  {c |}{col 14}{res}{space 2} 1.140382{col 26}{space 2} 1.50e-16{col 37}{space 1} 7.6e+15{col 46}{space 3}0.000{col 54}{space 4} 1.140382{col 67}{space 3} 1.140382
+{txt}{space 9}93  {c |}{col 14}{res}{space 2} 2.524243{col 26}{space 2} 3.80e-17{col 37}{space 1} 6.6e+16{col 46}{space 3}0.000{col 54}{space 4} 2.524243{col 67}{space 3} 2.524243
+{txt}{space 9}94  {c |}{col 14}{res}{space 2} .7982877{col 26}{space 2} 2.89e-16{col 37}{space 1} 2.8e+15{col 46}{space 3}0.000{col 54}{space 4} .7982877{col 67}{space 3} .7982877
+{txt}{space 9}95  {c |}{col 14}{res}{space 2} 3.207103{col 26}{space 2} 4.36e-16{col 37}{space 1} 7.4e+15{col 46}{space 3}0.000{col 54}{space 4} 3.207103{col 67}{space 3} 3.207103
+{txt}{space 9}96  {c |}{col 14}{res}{space 2} 1.991124{col 26}{space 2} 3.80e-16{col 37}{space 1} 5.2e+15{col 46}{space 3}0.000{col 54}{space 4} 1.991124{col 67}{space 3} 1.991124
+{txt}{space 9}97  {c |}{col 14}{res}{space 2} 4.637282{col 26}{space 2} 8.38e-16{col 37}{space 1} 5.5e+15{col 46}{space 3}0.000{col 54}{space 4} 4.637282{col 67}{space 3} 4.637282
+{txt}{space 9}98  {c |}{col 14}{res}{space 2} 1.148897{col 26}{space 2} 4.17e-16{col 37}{space 1} 2.8e+15{col 46}{space 3}0.000{col 54}{space 4} 1.148897{col 67}{space 3} 1.148897
+{txt}{space 9}99  {c |}{col 14}{res}{space 2} 3.288548{col 26}{space 2} 7.66e-16{col 37}{space 1} 4.3e+15{col 46}{space 3}0.000{col 54}{space 4} 3.288548{col 67}{space 3} 3.288548
+{txt}{space 8}100  {c |}{col 14}{res}{space 2} 2.061674{col 26}{space 2} 1.27e-16{col 37}{space 1} 1.6e+16{col 46}{space 3}0.000{col 54}{space 4} 2.061674{col 67}{space 3} 2.061674
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Absorbed degrees of freedom:
+{res}{col 1}{text}{hline 13}{c TT}{hline 12}{hline 12}{hline 14}{hline 1}{c TRC}
+{col 1}{text} Absorbed FE{col 14}{c |} Categories{col 27} - Redundant{col 39}  = Num. Coefs{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c +}{hline 12}{hline 12}{hline 14}{hline 1}{c RT}
+{col 1}{text}     village{col 14}{c |}{space 1}      100{col 27}{space 1}      100{col 39}{result}{space 1}        0{col 53}{text}*{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c BT}{hline 12}{hline 12}{hline 14}{hline 1}{c BRC}
+* = FE nested within cluster; treated as redundant for DoF computation
+{res}{txt}
+{com}. preserve
+{txt}
+{com}. regsave
+{txt}
+{com}. keep var coef
+{txt}
+{com}. drop if var == "0b.cashvillage" 
+{txt}(1 observation deleted)
+
+{com}. gen village = subinstr(var, ".cashvillage", "", .)
+{txt}
+{com}. destring village, replace
+{txt}village: all characters numeric; {res}replaced {txt}as {res}byte
+{txt}
+{com}. drop var
+{txt}
+{com}. merge 1:1 village using data/villages, nogen
+{res}{txt}{p 0 7 2}
+(variable
+{bf:village} was {bf:byte}, now {bf:float} to accommodate using data's values)
+{p_end}
+
+{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}               0
+{txt}{col 5}Matched{col 30}{res}             100{txt}  
+{col 5}{hline 41}
+
+{com}. sum coef, d
+
+                         {txt}Coefficient
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}-1.694046      -1.755548
+{txt} 5%    {res}-.2912512      -1.632543
+{txt}10%    {res} .4309707      -.9757442       {txt}Obs         {res}        100
+{txt}25%    {res}  1.14464      -.5810311       {txt}Sum of wgt. {res}        100
+
+{txt}50%    {res} 2.206104                      {txt}Mean          {res} 2.078349
+                        {txt}Largest       Std. dev.     {res} 1.401073
+{txt}75%    {res} 2.967946       4.637282
+{txt}90%    {res} 3.660533       5.235529       {txt}Variance      {res} 1.963006
+{txt}95%    {res} 4.339284        5.30158       {txt}Skewness      {res}-.1768792
+{txt}99%    {res} 5.340981       5.380382       {txt}Kurtosis      {res}   3.2281
+{txt}
+{com}. twoway (scatter coef casheffect)
+{res}{txt}
+{com}. graph export output/8.png, replace
+{txt}{p 0 4 2}
+file {bf}
+output/8.png{rm}
+saved as
+PNG
+format
+{p_end}
+
+{com}. restore    
+{txt}
+{com}. //_6
+. sum cash
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 8}cash {c |}{res}      1,000        .502    .5002462          0          1
+{txt}
+{com}. scalar cashpropensity = `r(mean)'
+{txt}
+{com}. scalar cashvariance = `=cashpropensity' * (1-`=cashpropensity')
+{txt}
+{com}. scalar villagers = 10
+{txt}
+{com}. qui createoutcomes, meaninteraction(0)
+{txt}
+{com}. gen cashvillage = cash*village
+{txt}
+{com}. qui reghdfe outcome, absorb(village cashvillage)
+{txt}
+{com}. scalar withinvar = `e(rmse)'^2 
+{txt}
+{com}. qui reghdfe outcome i.cashvillage, absorb(village) cluster(village) nocons resid 
+{txt}
+{com}. regsave 
+{txt}
+{com}. keep var coef
+{txt}
+{com}. drop if var == "0b.cashvillage" 
+{txt}(1 observation deleted)
+
+{com}. gen village = subinstr(var, ".cashvillage", "", .)
+{txt}
+{com}. destring village, replace
+{txt}village: all characters numeric; {res}replaced {txt}as {res}byte
+{txt}
+{com}. drop var
+{txt}
+{com}. merge 1:1 village using data/villages, nogen
+{res}{txt}{p 0 7 2}
+(variable
+{bf:village} was {bf:byte}, now {bf:float} to accommodate using data's values)
+{p_end}
+
+{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}               0
+{txt}{col 5}Matched{col 30}{res}             100{txt}  
+{col 5}{hline 41}
+
+{com}. sum coef, d
+
+                         {txt}Coefficient
+{hline 61}
+      Percentiles      Smallest
+ 1%    {res}-1.799858      -1.892496
+{txt} 5%    {res}-.2934993       -1.70722
+{txt}10%    {res} .4344528      -.9757442       {txt}Obs         {res}        100
+{txt}25%    {res} 1.154946      -.8003566       {txt}Sum of wgt. {res}        100
+
+{txt}50%    {res} 2.234499                      {txt}Mean          {res} 2.075658
+                        {txt}Largest       Std. dev.     {res}  1.40714
+{txt}75%    {res} 3.040871       4.732461
+{txt}90%    {res} 3.660533       5.235529       {txt}Variance      {res} 1.980042
+{txt}95%    {res} 4.326413        5.30158       {txt}Skewness      {res} -.226029
+{txt}99%    {res} 5.340981       5.380382       {txt}Kurtosis      {res} 3.332517
+{txt}
+{com}. scalar prior = `r(mean)'
+{txt}
+{com}. dis `=prior'
+{res}2.0756578
+{txt}
+{com}. reg coef
+
+{txt}      Source {c |}       SS           df       MS      Number of obs   ={res}       100
+{txt}{hline 13}{c +}{hline 34}   F(0, 99)        = {res}     0.00
+{txt}       Model {c |} {res}          0         0           .   {txt}Prob > F        ={res}         .
+{txt}    Residual {c |} {res} 196.024159        99  1.98004201   {txt}R-squared       ={res}    0.0000
+{txt}{hline 13}{c +}{hline 34}   Adj R-squared   ={res}    0.0000
+{txt}       Total {c |} {res} 196.024159        99  1.98004201   {txt}Root MSE        =   {res} 1.4071
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 1}        coef{col 14}{c |} Coefficient{col 26}  Std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 7}_cons {c |}{col 14}{res}{space 2} 2.075658{col 26}{space 2}  .140714{col 37}{space 1}   14.75{col 46}{space 3}0.000{col 54}{space 4} 1.796451{col 67}{space 3} 2.354865
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}{txt}
+{com}. scalar overdispersion = `e(rmse)'^2 - `=withinvar'/(`=villagers'*`=cashvariance')
+{txt}
+{com}. scalar signaltonoise = `=overdispersion'/(`=overdispersion' +`=withinvar'/(`=villagers'*`=cashvariance'))
+{txt}
+{com}. dis `=signaltonoise'
+{res}.75524604
+{txt}
+{com}. gen posterior = `=prior' + `=signaltonoise' * (coef-`=prior')
+{txt}
+{com}. sum posterior
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 3}posterior {c |}{res}        100    2.075658    1.062737  -.9212744   4.571537
+{txt}
+{com}. egen msecoef = total(1/10*(coef - casheffect)^2)
+{txt}
+{com}. egen mseposterior = total(1/10*(posterior - casheffect)^2)
+{txt}
+{com}. sum mse*
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 5}msecoef {c |}{res}        100    5.844481           0   5.844481   5.844481
+{txt}mseposterior {c |}{res}        100    3.172216           0   3.172216   3.172216
+{txt}
+{com}. twoway (pcarrow coef casheffect posterior casheffect) ///
+> (scatter coef casheffect, m(x) msize(0.5)),  yline(`=prior') legend(position(6) row(1))
+{res}{txt}
+{com}. graph export output/9.png, replace
+{txt}{p 0 4 2}
+file {bf}
+output/9.png{rm}
+saved as
+PNG
+format
+{p_end}
+
+{com}. //_7
+. clear all
+{res}{txt}
+{com}. //_8
+. set seed 42
+{txt}
+{com}. set obs 200
+{txt}{p}
+Number of observations ({bf:_N}) was 0,
+now 200.
+{p_end}
+
+{com}. gen period = _n
+{txt}
+{com}. gen gamma = rnormal(0, sqrt(.5))
+{txt}
+{com}. expand 10
+{txt}(1,800 observations created)
+
+{com}. bys period: gen worker = _n
+{txt}
+{com}. bys worker: gen alpha = rnormal(0,1)
+{txt}
+{com}. replace alpha = alpha[_n-1] if worker == worker[_n-1]
+{txt}(1,990 real changes made)
+
+{com}. gen machine = runiformint(1, 20)
+{txt}
+{com}. bys machine: gen psi = rnormal(1,1) 
+{txt}
+{com}. replace psi = psi[_n-1] if machine == machine[_n-1]
+{txt}(1,980 real changes made)
+
+{com}. gen epsilon = rnormal(1, sqrt(.2))
+{txt}
+{com}. gen output = alpha + gamma + psi + epsilon
+{txt}
+{com}. save data/output, replace
+{txt}{p 0 4 2}
+file {bf}
+data/output.dta{rm}
+saved
+{p_end}
+
+{com}. //_9
+. reghdfe output i.worker, absorb(period machine) nocons
+{res}{txt}({browse "http://scorreia.com/research/hdfe.pdf":MWFE estimator} converged in 7 iterations)
+{res}
+{txt}HDFE Linear regression{col 51}Number of obs{col 67}= {res}     2,000
+{txt}Absorbing 2 HDFE groups{col 51}F({res}   9{txt},{res}   1772{txt}){col 67}= {res}   1004.50
+{txt}{col 51}Prob > F{col 67}= {res}    0.0000
+{txt}{col 51}R-squared{col 67}= {res}    0.9195
+{txt}{col 51}Adj R-squared{col 67}= {res}    0.9092
+{txt}{col 51}Within R-sq.{col 67}= {res}    0.8361
+{txt}{col 51}Root MSE{col 67}= {res}    0.4369
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 1}      output{col 14}{c |} Coefficient{col 26}  Std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}worker {c |}
+{space 10}2  {c |}{col 14}{res}{space 2}-2.861336{col 26}{space 2} .0439873{col 37}{space 1}  -65.05{col 46}{space 3}0.000{col 54}{space 4}-2.947609{col 67}{space 3}-2.775064
+{txt}{space 10}3  {c |}{col 14}{res}{space 2}-1.102531{col 26}{space 2}  .044051{col 37}{space 1}  -25.03{col 46}{space 3}0.000{col 54}{space 4}-1.188928{col 67}{space 3}-1.016133
+{txt}{space 10}4  {c |}{col 14}{res}{space 2}-2.692972{col 26}{space 2} .0441221{col 37}{space 1}  -61.03{col 46}{space 3}0.000{col 54}{space 4}-2.779508{col 67}{space 3}-2.606435
+{txt}{space 10}5  {c |}{col 14}{res}{space 2}-3.314862{col 26}{space 2} .0439893{col 37}{space 1}  -75.36{col 46}{space 3}0.000{col 54}{space 4}-3.401139{col 67}{space 3}-3.228586
+{txt}{space 10}6  {c |}{col 14}{res}{space 2}-1.681821{col 26}{space 2}  .043884{col 37}{space 1}  -38.32{col 46}{space 3}0.000{col 54}{space 4} -1.76789{col 67}{space 3}-1.595751
+{txt}{space 10}7  {c |}{col 14}{res}{space 2} -1.91865{col 26}{space 2} .0440988{col 37}{space 1}  -43.51{col 46}{space 3}0.000{col 54}{space 4}-2.005141{col 67}{space 3}-1.832159
+{txt}{space 10}8  {c |}{col 14}{res}{space 2}-1.965811{col 26}{space 2} .0440544{col 37}{space 1}  -44.62{col 46}{space 3}0.000{col 54}{space 4}-2.052215{col 67}{space 3}-1.879407
+{txt}{space 10}9  {c |}{col 14}{res}{space 2}-2.727235{col 26}{space 2} .0439462{col 37}{space 1}  -62.06{col 46}{space 3}0.000{col 54}{space 4}-2.813427{col 67}{space 3}-2.641044
+{txt}{space 9}10  {c |}{col 14}{res}{space 2}-1.398222{col 26}{space 2} .0440118{col 37}{space 1}  -31.77{col 46}{space 3}0.000{col 54}{space 4}-1.484543{col 67}{space 3}-1.311902
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Absorbed degrees of freedom:
+{res}{col 1}{text}{hline 13}{c TT}{hline 12}{hline 12}{hline 14}{hline 1}{c TRC}
+{col 1}{text} Absorbed FE{col 14}{c |} Categories{col 27} - Redundant{col 39}  = Num. Coefs{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c +}{hline 12}{hline 12}{hline 14}{hline 1}{c RT}
+{col 1}{text}      period{col 14}{c |}{space 1}      200{col 27}{space 1}        0{col 39}{result}{space 1}      200{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}     machine{col 14}{c |}{space 1}       20{col 27}{space 1}        1{col 39}{result}{space 1}       19{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}{hline 13}{c BT}{hline 12}{hline 12}{hline 14}{hline 1}{c BRC}
+{res}{txt}
+{com}. regsave
+{txt}
+{com}. drop if var == "1b.worker"
+{txt}(1 observation deleted)
+
+{com}. gen worker = subinstr(var, ".worker", "", .)
+{txt}
+{com}. destring worker, replace
+{txt}worker: all characters numeric; {res}replaced {txt}as {res}byte
+{txt}
+{com}. merge 1:m worker using data/output, nogen
+{res}{txt}{p 0 7 2}
+(variable
+{bf:worker} was {bf:byte}, now {bf:float} to accommodate using data's values)
+{p_end}
+
+{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}             200
+{txt}{col 9}from master{col 30}{res}               0{txt}  
+{col 9}from using{col 30}{res}             200{txt}  
+
+{col 5}Matched{col 30}{res}           1,800{txt}  
+{col 5}{hline 41}
+
+{com}. twoway (scatter coef alpha) in 1/9, name(alpha6, replace)
+{res}{txt}
+{com}. //_10
+. use data/output, clear
+{txt}
+{com}. reghdfe output i.machine, absorb(period worker) nocons
+{res}{txt}({browse "http://scorreia.com/research/hdfe.pdf":MWFE estimator} converged in 2 iterations)
+{res}
+{txt}HDFE Linear regression{col 51}Number of obs{col 67}= {res}     2,000
+{txt}Absorbing 2 HDFE groups{col 51}F({res}  19{txt},{res}   1772{txt}){col 67}= {res}    361.35
+{txt}{col 51}Prob > F{col 67}= {res}    0.0000
+{txt}{col 51}R-squared{col 67}= {res}    0.9195
+{txt}{col 51}Adj R-squared{col 67}= {res}    0.9092
+{txt}{col 51}Within R-sq.{col 67}= {res}    0.7949
+{txt}{col 51}Root MSE{col 67}= {res}    0.4369
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 1}      output{col 14}{c |} Coefficient{col 26}  Std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 5}machine {c |}
+{space 10}2  {c |}{col 14}{res}{space 2}-2.056108{col 26}{space 2} .0651834{col 37}{space 1}  -31.54{col 46}{space 3}0.000{col 54}{space 4}-2.183953{col 67}{space 3}-1.928264
+{txt}{space 10}3  {c |}{col 14}{res}{space 2}-.5139248{col 26}{space 2} .0629333{col 37}{space 1}   -8.17{col 46}{space 3}0.000{col 54}{space 4} -.637356{col 67}{space 3}-.3904936
+{txt}{space 10}4  {c |}{col 14}{res}{space 2}-.9581094{col 26}{space 2} .0662059{col 37}{space 1}  -14.47{col 46}{space 3}0.000{col 54}{space 4}-1.087959{col 67}{space 3}-.8282595
+{txt}{space 10}5  {c |}{col 14}{res}{space 2}-.2467312{col 26}{space 2} .0656923{col 37}{space 1}   -3.76{col 46}{space 3}0.000{col 54}{space 4}-.3755738{col 67}{space 3}-.1178886
+{txt}{space 10}6  {c |}{col 14}{res}{space 2}-1.937966{col 26}{space 2} .0644565{col 37}{space 1}  -30.07{col 46}{space 3}0.000{col 54}{space 4}-2.064385{col 67}{space 3}-1.811548
+{txt}{space 10}7  {c |}{col 14}{res}{space 2}-1.960799{col 26}{space 2} .0667058{col 37}{space 1}  -29.39{col 46}{space 3}0.000{col 54}{space 4}-2.091629{col 67}{space 3}-1.829968
+{txt}{space 10}8  {c |}{col 14}{res}{space 2}-.6065725{col 26}{space 2} .0670901{col 37}{space 1}   -9.04{col 46}{space 3}0.000{col 54}{space 4}-.7381565{col 67}{space 3}-.4749885
+{txt}{space 10}9  {c |}{col 14}{res}{space 2}-.7140423{col 26}{space 2} .0674684{col 37}{space 1}  -10.58{col 46}{space 3}0.000{col 54}{space 4}-.8463683{col 67}{space 3}-.5817164
+{txt}{space 9}10  {c |}{col 14}{res}{space 2}-.4585382{col 26}{space 2} .0653276{col 37}{space 1}   -7.02{col 46}{space 3}0.000{col 54}{space 4}-.5866654{col 67}{space 3} -.330411
+{txt}{space 9}11  {c |}{col 14}{res}{space 2}-1.801097{col 26}{space 2} .0632089{col 37}{space 1}  -28.49{col 46}{space 3}0.000{col 54}{space 4}-1.925069{col 67}{space 3}-1.677125
+{txt}{space 9}12  {c |}{col 14}{res}{space 2}-.1309084{col 26}{space 2} .0680546{col 37}{space 1}   -1.92{col 46}{space 3}0.055{col 54}{space 4}-.2643842{col 67}{space 3} .0025674
+{txt}{space 9}13  {c |}{col 14}{res}{space 2}-1.695778{col 26}{space 2} .0648741{col 37}{space 1}  -26.14{col 46}{space 3}0.000{col 54}{space 4}-1.823016{col 67}{space 3}-1.568541
+{txt}{space 9}14  {c |}{col 14}{res}{space 2}-.0561118{col 26}{space 2} .0669243{col 37}{space 1}   -0.84{col 46}{space 3}0.402{col 54}{space 4}-.1873708{col 67}{space 3} .0751472
+{txt}{space 9}15  {c |}{col 14}{res}{space 2}-3.453234{col 26}{space 2} .0666592{col 37}{space 1}  -51.80{col 46}{space 3}0.000{col 54}{space 4}-3.583973{col 67}{space 3}-3.322495
+{txt}{space 9}16  {c |}{col 14}{res}{space 2}-1.400907{col 26}{space 2} .0667612{col 37}{space 1}  -20.98{col 46}{space 3}0.000{col 54}{space 4}-1.531846{col 67}{space 3}-1.269968
+{txt}{space 9}17  {c |}{col 14}{res}{space 2}-1.214128{col 26}{space 2}  .064162{col 37}{space 1}  -18.92{col 46}{space 3}0.000{col 54}{space 4}-1.339969{col 67}{space 3}-1.088286
+{txt}{space 9}18  {c |}{col 14}{res}{space 2}-.5458999{col 26}{space 2} .0660099{col 37}{space 1}   -8.27{col 46}{space 3}0.000{col 54}{space 4}-.6753654{col 67}{space 3}-.4164344
+{txt}{space 9}19  {c |}{col 14}{res}{space 2}-1.189128{col 26}{space 2} .0644668{col 37}{space 1}  -18.45{col 46}{space 3}0.000{col 54}{space 4}-1.315567{col 67}{space 3}-1.062689
+{txt}{space 9}20  {c |}{col 14}{res}{space 2}-.2226905{col 26}{space 2} .0660501{col 37}{space 1}   -3.37{col 46}{space 3}0.001{col 54}{space 4}-.3522348{col 67}{space 3}-.0931463
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Absorbed degrees of freedom:
+{res}{col 1}{text}{hline 13}{c TT}{hline 12}{hline 12}{hline 14}{hline 1}{c TRC}
+{col 1}{text} Absorbed FE{col 14}{c |} Categories{col 27} - Redundant{col 39}  = Num. Coefs{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c +}{hline 12}{hline 12}{hline 14}{hline 1}{c RT}
+{col 1}{text}      period{col 14}{c |}{space 1}      200{col 27}{space 1}        0{col 39}{result}{space 1}      200{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}      worker{col 14}{c |}{space 1}       10{col 27}{space 1}        1{col 39}{result}{space 1}        9{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}{hline 13}{c BT}{hline 12}{hline 12}{hline 14}{hline 1}{c BRC}
+{res}{txt}
+{com}. scalar obs=`e(df_m)'
+{txt}
+{com}. regsave
+{txt}
+{com}. drop if var == "1b.machine"
+{txt}(1 observation deleted)
+
+{com}. gen machine = subinstr(var, ".machine", "", .)
+{txt}
+{com}. destring machine, replace
+{txt}machine: all characters numeric; {res}replaced {txt}as {res}byte
+{txt}
+{com}. merge 1:m machine using data/output, nogen
+{res}{txt}{p 0 7 2}
+(variable
+{bf:machine} was {bf:byte}, now {bf:float} to accommodate using data's values)
+{p_end}
+
+{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}              97
+{txt}{col 9}from master{col 30}{res}               0{txt}  
+{col 9}from using{col 30}{res}              97{txt}  
+
+{col 5}Matched{col 30}{res}           1,903{txt}  
+{col 5}{hline 41}
+
+{com}. twoway (scatter coef psi) in 1/`=obs', name(psi6, replace)
+{res}{txt}
+{com}. graph combine alpha6 psi6
+{res}{txt}
+{com}. graph export output/fe6.png, replace
+{txt}{p 0 4 2}
+file {bf}
+output/fe6.png{rm}
+saved as
+PNG
+format
+{p_end}
+
+{com}. //_11
+. clear all
+{res}{txt}
+{com}. set seed 42
+{txt}
+{com}. set obs 5
+{txt}{p}
+Number of observations ({bf:_N}) was 0,
+now 5.
+{p_end}
+
+{com}. gen period = _n
+{txt}
+{com}. gen gamma = rnormal(0, sqrt(.5))
+{txt}
+{com}. expand 10
+{txt}(45 observations created)
+
+{com}. bys period: gen worker = _n
+{txt}
+{com}. bys worker: gen alpha = rnormal(0,1)
+{txt}
+{com}. replace alpha = alpha[_n-1] if worker == worker[_n-1]
+{txt}(40 real changes made)
+
+{com}. gen machine = runiformint(1, 20)
+{txt}
+{com}. bys machine: gen psi = rnormal(1,1) 
+{txt}
+{com}. replace psi = psi[_n-1] if machine == machine[_n-1]
+{txt}(33 real changes made)
+
+{com}. gen epsilon = rnormal(1, sqrt(.2))
+{txt}
+{com}. gen output = alpha + gamma + psi + epsilon
+{txt}
+{com}. save data/output2, replace
+{txt}{p 0 4 2}
+file {bf}
+data/output2.dta{rm}
+saved
+{p_end}
+
+{com}. //_12
+. reghdfe output i.worker, absorb(period machine) nocons
+{res}{txt}(dropped 4 {browse "http://scorreia.com/research/singletons.pdf":singleton observations})
+{res}{txt}({browse "http://scorreia.com/research/hdfe.pdf":MWFE estimator} converged in 6 iterations)
+{res}
+{txt}HDFE Linear regression{col 51}Number of obs{col 67}= {res}        46
+{txt}Absorbing 2 HDFE groups{col 51}F({res}   9{txt},{res}     20{txt}){col 67}= {res}     11.84
+{txt}{col 51}Prob > F{col 67}= {res}    0.0000
+{txt}{col 51}R-squared{col 67}= {res}    0.9539
+{txt}{col 51}Adj R-squared{col 67}= {res}    0.8962
+{txt}{col 51}Within R-sq.{col 67}= {res}    0.8420
+{txt}{col 51}Root MSE{col 67}= {res}    0.5539
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 1}      output{col 14}{c |} Coefficient{col 26}  Std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 6}worker {c |}
+{space 10}2  {c |}{col 14}{res}{space 2}-.2730616{col 26}{space 2} .4646175{col 37}{space 1}   -0.59{col 46}{space 3}0.563{col 54}{space 4}-1.242237{col 67}{space 3} .6961135
+{txt}{space 10}3  {c |}{col 14}{res}{space 2}-.6505555{col 26}{space 2} .5738465{col 37}{space 1}   -1.13{col 46}{space 3}0.270{col 54}{space 4}-1.847578{col 67}{space 3} .5464673
+{txt}{space 10}4  {c |}{col 14}{res}{space 2}-1.044813{col 26}{space 2} .5604277{col 37}{space 1}   -1.86{col 46}{space 3}0.077{col 54}{space 4}-2.213845{col 67}{space 3} .1242186
+{txt}{space 10}5  {c |}{col 14}{res}{space 2} .1299182{col 26}{space 2} .4737209{col 37}{space 1}    0.27{col 46}{space 3}0.787{col 54}{space 4}-.8582462{col 67}{space 3} 1.118083
+{txt}{space 10}6  {c |}{col 14}{res}{space 2} 1.321608{col 26}{space 2} .5982416{col 37}{space 1}    2.21{col 46}{space 3}0.039{col 54}{space 4} .0736978{col 67}{space 3} 2.569518
+{txt}{space 10}7  {c |}{col 14}{res}{space 2} 2.044294{col 26}{space 2} .5082055{col 37}{space 1}    4.02{col 46}{space 3}0.001{col 54}{space 4} .9841957{col 67}{space 3} 3.104392
+{txt}{space 10}8  {c |}{col 14}{res}{space 2} 1.555165{col 26}{space 2} .5212502{col 37}{space 1}    2.98{col 46}{space 3}0.007{col 54}{space 4}  .467856{col 67}{space 3} 2.642474
+{txt}{space 10}9  {c |}{col 14}{res}{space 2} 2.159034{col 26}{space 2} .5284727{col 37}{space 1}    4.09{col 46}{space 3}0.001{col 54}{space 4} 1.056659{col 67}{space 3} 3.261408
+{txt}{space 9}10  {c |}{col 14}{res}{space 2}-.2193423{col 26}{space 2} .5690352{col 37}{space 1}   -0.39{col 46}{space 3}0.704{col 54}{space 4}-1.406329{col 67}{space 3} .9676444
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Absorbed degrees of freedom:
+{res}{col 1}{text}{hline 13}{c TT}{hline 12}{hline 12}{hline 14}{hline 1}{c TRC}
+{col 1}{text} Absorbed FE{col 14}{c |} Categories{col 27} - Redundant{col 39}  = Num. Coefs{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c +}{hline 12}{hline 12}{hline 14}{hline 1}{c RT}
+{col 1}{text}      period{col 14}{c |}{space 1}        5{col 27}{space 1}        0{col 39}{result}{space 1}        5{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}     machine{col 14}{c |}{space 1}       13{col 27}{space 1}        1{col 39}{result}{space 1}       12{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}{hline 13}{c BT}{hline 12}{hline 12}{hline 14}{hline 1}{c BRC}
+{res}{txt}
+{com}. regsave
+{txt}
+{com}. drop if var == "1b.worker"
+{txt}(1 observation deleted)
+
+{com}. gen worker = subinstr(var, ".worker", "", .)
+{txt}
+{com}. destring worker, replace
+{txt}worker: all characters numeric; {res}replaced {txt}as {res}byte
+{txt}
+{com}. merge 1:m worker using data/output2, nogen
+{res}{txt}{p 0 7 2}
+(variable
+{bf:worker} was {bf:byte}, now {bf:float} to accommodate using data's values)
+{p_end}
+
+{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}               5
+{txt}{col 9}from master{col 30}{res}               0{txt}  
+{col 9}from using{col 30}{res}               5{txt}  
+
+{col 5}Matched{col 30}{res}              45{txt}  
+{col 5}{hline 41}
+
+{com}. twoway (scatter coef alpha) in 1/9, name(alpha7, replace)
+{res}{txt}
+{com}. //_13
+. use data/output2, clear
+{txt}
+{com}. reghdfe output i.machine, absorb(period worker) nocons
+{res}{txt}({browse "http://scorreia.com/research/hdfe.pdf":MWFE estimator} converged in 2 iterations)
+{res}
+{txt}HDFE Linear regression{col 51}Number of obs{col 67}= {res}        50
+{txt}Absorbing 2 HDFE groups{col 51}F({res}  16{txt},{res}     20{txt}){col 67}= {res}      6.11
+{txt}{col 51}Prob > F{col 67}= {res}    0.0001
+{txt}{col 51}R-squared{col 67}= {res}    0.9563
+{txt}{col 51}Adj R-squared{col 67}= {res}    0.8929
+{txt}{col 51}Within R-sq.{col 67}= {res}    0.8303
+{txt}{col 51}Root MSE{col 67}= {res}    0.5539
+
+{txt}{hline 13}{c TT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{col 1}      output{col 14}{c |} Coefficient{col 26}  Std. err.{col 38}      t{col 46}   P>|t|{col 54}     [95% con{col 67}f. interval]
+{hline 13}{c +}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{space 5}machine {c |}
+{space 10}3  {c |}{col 14}{res}{space 2} 1.510931{col 26}{space 2} .8016916{col 37}{space 1}    1.88{col 46}{space 3}0.074{col 54}{space 4}-.1613679{col 67}{space 3} 3.183231
+{txt}{space 10}4  {c |}{col 14}{res}{space 2}-.9469013{col 26}{space 2} .7456753{col 37}{space 1}   -1.27{col 46}{space 3}0.219{col 54}{space 4}-2.502353{col 67}{space 3} .6085501
+{txt}{space 10}5  {c |}{col 14}{res}{space 2} 2.552092{col 26}{space 2} .9287122{col 37}{space 1}    2.75{col 46}{space 3}0.012{col 54}{space 4} .6148326{col 67}{space 3} 4.489352
+{txt}{space 10}6  {c |}{col 14}{res}{space 2} 1.597486{col 26}{space 2} .7212584{col 37}{space 1}    2.21{col 46}{space 3}0.039{col 54}{space 4} .0929669{col 67}{space 3} 3.102004
+{txt}{space 10}7  {c |}{col 14}{res}{space 2}-.0124333{col 26}{space 2}  .712404{col 37}{space 1}   -0.02{col 46}{space 3}0.986{col 54}{space 4}-1.498482{col 67}{space 3} 1.473615
+{txt}{space 10}8  {c |}{col 14}{res}{space 2}-.8904621{col 26}{space 2} .9031663{col 37}{space 1}   -0.99{col 46}{space 3}0.336{col 54}{space 4}-2.774434{col 67}{space 3} .9935099
+{txt}{space 10}9  {c |}{col 14}{res}{space 2} .7633276{col 26}{space 2} .7665038{col 37}{space 1}    1.00{col 46}{space 3}0.331{col 54}{space 4}-.8355713{col 67}{space 3} 2.362226
+{txt}{space 9}10  {c |}{col 14}{res}{space 2}  .428348{col 26}{space 2} .8492256{col 37}{space 1}    0.50{col 46}{space 3}0.619{col 54}{space 4}-1.343106{col 67}{space 3} 2.199801
+{txt}{space 9}11  {c |}{col 14}{res}{space 2}-.8222703{col 26}{space 2} .8553684{col 37}{space 1}   -0.96{col 46}{space 3}0.348{col 54}{space 4}-2.606538{col 67}{space 3}  .961997
+{txt}{space 9}12  {c |}{col 14}{res}{space 2}  -.21455{col 26}{space 2} .9565949{col 37}{space 1}   -0.22{col 46}{space 3}0.825{col 54}{space 4}-2.209972{col 67}{space 3} 1.780872
+{txt}{space 9}13  {c |}{col 14}{res}{space 2} .4142125{col 26}{space 2} .7709768{col 37}{space 1}    0.54{col 46}{space 3}0.597{col 54}{space 4}-1.194017{col 67}{space 3} 2.022442
+{txt}{space 9}14  {c |}{col 14}{res}{space 2}-1.064638{col 26}{space 2} .7436484{col 37}{space 1}   -1.43{col 46}{space 3}0.168{col 54}{space 4}-2.615861{col 67}{space 3} .4865859
+{txt}{space 9}15  {c |}{col 14}{res}{space 2}  .164098{col 26}{space 2} .8017262{col 37}{space 1}    0.20{col 46}{space 3}0.840{col 54}{space 4}-1.508274{col 67}{space 3}  1.83647
+{txt}{space 9}16  {c |}{col 14}{res}{space 2} .7998671{col 26}{space 2} 1.042919{col 37}{space 1}    0.77{col 46}{space 3}0.452{col 54}{space 4}-1.375623{col 67}{space 3} 2.975357
+{txt}{space 9}17  {c |}{col 14}{res}{space 2} .1800649{col 26}{space 2} .8698197{col 37}{space 1}    0.21{col 46}{space 3}0.838{col 54}{space 4}-1.634347{col 67}{space 3} 1.994477
+{txt}{space 9}19  {c |}{col 14}{res}{space 2}-.4911612{col 26}{space 2} .8146246{col 37}{space 1}   -0.60{col 46}{space 3}0.553{col 54}{space 4}-2.190438{col 67}{space 3} 1.208116
+{txt}{hline 13}{c BT}{hline 11}{hline 11}{hline 9}{hline 8}{hline 13}{hline 12}
+{res}
+{txt}Absorbed degrees of freedom:
+{res}{col 1}{text}{hline 13}{c TT}{hline 12}{hline 12}{hline 14}{hline 1}{c TRC}
+{col 1}{text} Absorbed FE{col 14}{c |} Categories{col 27} - Redundant{col 39}  = Num. Coefs{col 54}{c |}
+{res}{col 1}{text}{hline 13}{c +}{hline 12}{hline 12}{hline 14}{hline 1}{c RT}
+{col 1}{text}      period{col 14}{c |}{space 1}        5{col 27}{space 1}        0{col 39}{result}{space 1}        5{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}      worker{col 14}{c |}{space 1}       10{col 27}{space 1}        1{col 39}{result}{space 1}        9{col 53}{text} {col 54}{c |}
+{res}{col 1}{text}{hline 13}{c BT}{hline 12}{hline 12}{hline 14}{hline 1}{c BRC}
+{res}{txt}
+{com}. scalar obs=`e(df_m)'
+{txt}
+{com}. regsave
+{txt}
+{com}. drop if var == "1b.machine" 
+{txt}(1 observation deleted)
+
+{com}. gen machine = subinstr(var, ".machine", "", .)
+{txt}
+{com}. destring machine, replace
+{txt}machine: all characters numeric; {res}replaced {txt}as {res}byte
+{txt}
+{com}. sum machine
+
+{txt}    Variable {c |}        Obs        Mean    Std. dev.       Min        Max
+{hline 13}{c +}{hline 57}
+{space 5}machine {c |}{res}         16     10.5625    4.871259          3         19
+{txt}
+{com}. merge 1:m machine using data/output2, nogen
+{res}{txt}{p 0 7 2}
+(variable
+{bf:machine} was {bf:byte}, now {bf:float} to accommodate using data's values)
+{p_end}
+
+{col 5}Result{col 33}Number of obs
+{col 5}{hline 41}
+{col 5}Not matched{col 30}{res}               1
+{txt}{col 9}from master{col 30}{res}               0{txt}  
+{col 9}from using{col 30}{res}               1{txt}  
+
+{col 5}Matched{col 30}{res}              49{txt}  
+{col 5}{hline 41}
+
+{com}. twoway (scatter coef psi) in 1/`=obs', name(psi7, replace)
+{res}{txt}
+{com}. graph combine alpha7 psi7
+{res}{txt}
+{com}. graph export output/fe7.png, replace
+{txt}{p 0 4 2}
+file {bf}
+output/fe7.png{rm}
+saved as
+PNG
+format
+{p_end}
+
+{com}. //_^
+. log close
+      {txt}name:  {res}<unnamed>
+       {txt}log:  {res}c:\Users\chadi\OneDrive - Handelshögskolan i Stockholm\Econometrics\Econometrics\coursework\PhD\code\Econometrics2\PS4\PS4.smcl
+  {txt}log type:  {res}smcl
+ {txt}closed on:  {res}14 Oct 2024, 07:59:01
+{txt}{.-}
+{smcl}
+{txt}{sf}{ul off}
