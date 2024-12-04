@@ -1,3 +1,3 @@
-# Econometrics I EC38002, spring 2024
-- [www.su.se/ec38002-spring-2024](https://www.su.se/department-of-economics/education/courses-and-programmes/econometrics-i-ec38002-spring-2025-1.517735?eventopenforinternationalstudents=true&notforcedreason=0&q=&xpanded=)
-- Course director: [Mitchell Downey](https://sites.google.com/view/mitchdowney)
+# Econometrics I EC38002, Spring 2024
+- [www.su.se/ec38002](https://www.su.se/department-of-economics/education/courses-and-programmes/econometrics-i-ec38002-spring-2024-1.517735?eventopenforinternationalstudents=true&notforcedreason=0&q=&xpanded=)
+- Course directors (Spring 2024): [Mitchell Downey](https://sites.google.com/view/mitchdowney) and  [Markus Jäntti](https://sites.google.com/view/mjantti/home)
